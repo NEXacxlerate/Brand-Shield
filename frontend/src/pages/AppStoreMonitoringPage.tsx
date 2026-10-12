@@ -1,118 +1,101 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import {
-  AlertTriangle,
-  RotateCw,
-} from 'lucide-react';
+import React from 'react';
+import { AlertTriangle, RotateCw } from 'lucide-react';
 import { Header } from '../components/layout/Header';
-import { useAppStore } from '../data/store';
+import { ActionRow, EvidenceBox, ExcludedCard, GuardCard, ReasonsBox, SourcesBar } from '../components/monitor/MonitorParts';
+import { Empty, ErrorBox, Loading, NoBrand, Notice, SampleNote } from '../components/common/States';
+import { fmtDayTime, platformLabel, SOURCE_LABEL, statusChip, statusLabel } from '../api/format';
+import { useBrand } from '../hooks/useBrand';
+import { useMe } from '../hooks/useMe';
+import { useMonitor } from '../hooks/useMonitor';
 import './AppStoreMonitoringPage.css';
 
+const TABS: { key: string; label: string; count: (c: { all: number; by_platform: Record<string, number> }) => number }[] = [
+  { key: 'all', label: 'All stores', count: (c) => c.all },
+  { key: 'google_play', label: 'Google Play', count: (c) => c.by_platform.google_play ?? 0 },
+  { key: 'app_store', label: 'App Store', count: (c) => c.by_platform.app_store ?? 0 },
+  { key: 'third_party_apk', label: 'Third-party APK', count: (c) => c.by_platform.third_party_apk ?? 0 },
+];
+
 export const AppStoreMonitoringPage: React.FC = () => {
-  const { detections, updateDetectionStatus, markAsOfficial } = useAppStore();
+  const m = useMonitor('apps');
+  const { brand, missing } = useBrand();
+  const { canWrite } = useMe();
+  const brandName = brand?.name ?? '';
 
-  const appDetections = detections.filter((d) => d.category === 'apps');
-  const [storeFilter, setStoreFilter] = useState<'all' | 'Google Play' | 'App Store' | 'Third-party APK'>('all');
-  const [selectedId, setSelectedId] = useState<string>('det-2');
-  const [scanning, setScanning] = useState(false);
+  const { items, selectedRow, list, scan } = m;
+  const detail = m.detail.data && selectedRow && m.detail.data.id === selectedRow.id ? m.detail.data : null;
+  const counts = list.data?.counts;
 
-  const filtered = appDetections.filter((d) => {
-    if (storeFilter === 'all') return true;
-    return d.platform === storeFilter;
-  });
-
-  const selected = appDetections.find((d) => d.id === selectedId) || appDetections[0];
-
-  const handleScanStores = () => {
-    setScanning(true);
-    setTimeout(() => {
-      setScanning(false);
-      alert('App store scan complete: 368 APK listings reviewed across 3 marketplaces.');
-    }, 1200);
+  const act = (a: 'confirmed' | 'reviewing' | 'dismissed' | 'official') => {
+    if (!selectedRow) return;
+    if (a === 'official') void m.markOfficial(selectedRow.id);
+    else void m.review(selectedRow.id, a);
   };
+
+  const header = (
+    <Header
+      title="App Store Monitoring"
+      subtitle={`Apps that copy the ${brandName || 'brand'} name, icon, publisher or description`}
+    />
+  );
+
+  if (missing || list.error?.status === 404) {
+    return (
+      <>
+        {header}
+        <div className="panel-content">
+          <NoBrand />
+        </div>
+      </>
+    );
+  }
+
+  const suspect = detail?.suspect;
 
   return (
     <>
-      <Header
-        title="App Store Monitoring"
-        subtitle="Apps that copy the Acme Bank name, icon, publisher or description"
-      />
+      {header}
 
       <div className="panel-content">
         <div className="appstore-page-wrap">
           {/* Top Sources Bar */}
-          <div className="sources-status-bar">
-            <div className="sources-pills-row">
-              <span className="source-lbl">Sources</span>
-              <span className="source-pill">
-                <span className="src-dot dot-green" />Google Play
-              </span>
-              <span className="source-pill alert-red">
-                <span className="src-dot dot-red" />Apple App Store · unavailable
-              </span>
-              <span className="source-pill">
-                <span className="src-dot dot-green" />Third-party APK sites
-              </span>
-            </div>
-
-            <div className="source-warning-box red-warn">
-              <AlertTriangle size={14} className="warn-icon-red" />
-              <span>
-                App Store is unreachable. Showing cached results from 12 Oct, 9:40 AM.{' '}
-                <button
-                  type="button"
-                  className="retry-inline-btn"
-                  onClick={() => alert('Retrying Apple App Store scrape worker...')}
-                >
-                  Retry
-                </button>
-              </span>
-            </div>
-          </div>
+          <SourcesBar state={m.sources} variant="apps" onRetried={m.reloadAll} />
 
           {/* Filters & Scan Action */}
           <div className="filters-action-bar">
             <div className="filter-tabs-group">
-              <button
-                type="button"
-                className={`filter-tab ${storeFilter === 'all' ? 'active' : ''}`}
-                onClick={() => setStoreFilter('all')}
-              >
-                All stores 5
-              </button>
-              <button
-                type="button"
-                className={`filter-tab ${storeFilter === 'Google Play' ? 'active' : ''}`}
-                onClick={() => setStoreFilter('Google Play')}
-              >
-                Google Play 3
-              </button>
-              <button
-                type="button"
-                className={`filter-tab ${storeFilter === 'App Store' ? 'active' : ''}`}
-                onClick={() => setStoreFilter('App Store')}
-              >
-                App Store 1
-              </button>
-              <button
-                type="button"
-                className={`filter-tab ${storeFilter === 'Third-party APK' ? 'active' : ''}`}
-                onClick={() => setStoreFilter('Third-party APK')}
-              >
-                Third-party APK 1
-              </button>
+              {TABS.map((t) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  className={`filter-tab ${m.filter === t.key ? 'active' : ''}`}
+                  onClick={() => m.setFilter(t.key)}
+                >
+                  {t.label}
+                  {counts ? ` ${t.count(counts)}` : ''}
+                </button>
+              ))}
             </div>
 
             <button
               type="button"
               className="btn-primary scan-btn"
-              onClick={handleScanStores}
-              disabled={scanning}
+              onClick={() => void scan.start()}
+              disabled={scan.scanning || !canWrite}
+              title={canWrite ? undefined : 'Your role can view but not start scans'}
             >
-              <RotateCw size={14} className={scanning ? 'spin' : ''} />
-              <span>{scanning ? 'Scanning…' : 'Scan app stores now'}</span>
+              <RotateCw size={14} className={scan.scanning ? 'spin' : ''} />
+              <span>{scan.scanning ? `Scanning… ${scan.progress}%` : 'Scan app stores now'}</span>
             </button>
           </div>
+          {scan.error && <Notice>{scan.error}</Notice>}
+          {scan.last && !scan.error && (
+            <Notice kind="info">
+              {scan.last.result
+                ? `App store scan finished: ${scan.last.result.accounts_or_apps_checked} candidates checked, ${scan.last.result.new_detections} new ${scan.last.result.new_detections === 1 ? 'detection' : 'detections'}.`
+                : scan.last.message}
+            </Notice>
+          )}
 
           {/* Main 2-Column Split */}
           <div className="appstore-main-grid">
@@ -124,37 +107,32 @@ export const AppStoreMonitoringPage: React.FC = () => {
               </div>
 
               <div className="detections-scroll-list">
-                {filtered.map((item) => (
+                {list.loading && <Loading what="Loading apps" />}
+                {list.error && <ErrorBox error={list.error} onRetry={list.reload} compact />}
+                {list.data && items.length === 0 && (
+                  <Empty>{m.filter === 'all' ? 'No suspicious apps yet. Run a scan to check the stores.' : 'No apps from this store.'}</Empty>
+                )}
+                {items.map((item) => (
                   <div
                     key={item.id}
-                    className={`detection-row-card ${selected?.id === item.id ? 'active' : ''}`}
-                    onClick={() => setSelectedId(item.id)}
+                    className={`detection-row-card ${selectedRow?.id === item.id ? 'active' : ''}`}
+                    onClick={() => m.select(item.id)}
+                    data-testid="detection-row"
                   >
                     <div className="detection-row-left">
-                      <div className="app-icon-squircle">A</div>
+                      <div className="app-icon-squircle">{item.name.charAt(0).toUpperCase()}</div>
                       <div className="detection-row-meta">
                         <div className="detection-row-name">{item.name}</div>
                         <div className="detection-row-handle">
-                          {item.publisher || 'Unknown'} · {item.platform}
+                          {item.publisher || 'Unknown'} · {platformLabel(item.platform)}
+                          {item.stale ? ' · cached' : ''}
                         </div>
                       </div>
                     </div>
 
                     <div className="detection-row-right">
                       <span className="score-val">{item.score}</span>
-                      <span
-                        className={`chip ${
-                          item.status === 'New'
-                            ? 'chip-blue'
-                            : item.status === 'Reviewing'
-                            ? 'chip-orange'
-                            : item.status === 'Confirmed'
-                            ? 'chip-red'
-                            : 'chip-green'
-                        }`}
-                      >
-                        {item.status}
-                      </span>
+                      <span className={`chip ${statusChip(item.status)}`}>{statusLabel(item.status)}</span>
                     </div>
                   </div>
                 ))}
@@ -162,50 +140,51 @@ export const AppStoreMonitoringPage: React.FC = () => {
             </div>
 
             {/* Right App Detail */}
-            {selected && (
+            {selectedRow && !detail && (
               <div className="card app-detail-card">
+                {m.detail.error ? <ErrorBox error={m.detail.error} onRetry={m.detail.reload} /> : <Loading what="Loading app" />}
+              </div>
+            )}
+            {selectedRow && detail && (
+              <div className="card app-detail-card" data-testid="detection-detail">
                 <div className="detail-meta-header">
                   <span className="detail-timestamp">
-                    App detail · found {selected.foundAt}
+                    App detail · found {fmtDayTime(detail.found_at)}
+                    {detail.stale ? ` · cached${detail.cached_at ? ` ${fmtDayTime(detail.cached_at)}` : ''}` : ''}
                   </span>
+                  {detail.source === 'sample' && (
+                    <span className="sample-badge" data-testid="detail-sample-badge">Sample data</span>
+                  )}
                 </div>
 
                 <div className="detail-subject-row">
                   <div className="detail-subject-info">
-                    <h2 className="detail-subject-title">{selected.name}</h2>
+                    <h2 className="detail-subject-title">{detail.name}</h2>
                     <div className="detail-subject-chips">
-                      <span className="package-sub">{selected.handleOrPackage}</span>
-                      <span
-                        className={`chip ${
-                          selected.status === 'New'
-                            ? 'chip-blue'
-                            : selected.status === 'Reviewing'
-                            ? 'chip-orange'
-                            : selected.status === 'Confirmed'
-                            ? 'chip-red'
-                            : 'chip-green'
-                        }`}
-                      >
-                        {selected.status}
+                      <span className="package-sub">{detail.package_id ?? detail.handle ?? ''}</span>
+                      <span className={`chip ${statusChip(detail.status)}`} data-testid="detail-status">
+                        {statusLabel(detail.status)}
                       </span>
                     </div>
                   </div>
 
                   <div className="big-risk-badge">
-                    <span className="risk-num">{selected.score}</span>
+                    <span className="risk-num">{detail.score}</span>
                     <span className="risk-lbl">Risk</span>
                   </div>
                 </div>
 
-                {/* Warning Alert Banner */}
-                <div className="publisher-alert-box">
-                  <AlertTriangle size={18} className="alert-box-icon" />
-                  <div className="alert-box-text">
-                    Publisher differs from the official one. Official apps are published by{' '}
-                    <strong>Acme Bank Ltd</strong>, this one by{' '}
-                    <strong>{selected.publisher || 'Quick Tools Studio'}</strong>.
+                {/* Warning Alert Banner: only when the publisher really differs */}
+                {detail.publisher_differs && (
+                  <div className="publisher-alert-box">
+                    <AlertTriangle size={18} className="alert-box-icon" />
+                    <div className="alert-box-text">
+                      Publisher differs from the official one. Official apps are published by{' '}
+                      <strong>{detail.official_publisher || detail.official?.publisher || 'the brand'}</strong>, this one by{' '}
+                      <strong>{detail.publisher || 'an unknown publisher'}</strong>.
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* OFFICIAL vs SUSPECT Comparison */}
                 <div className="vs-comparison-grid">
@@ -213,19 +192,22 @@ export const AppStoreMonitoringPage: React.FC = () => {
                   <div className="vs-card official-vs">
                     <div className="vs-card-head">
                       <span className="vs-type-tag">OFFICIAL</span>
-                      <span className="vs-status-tag">On allowlist</span>
+                      <span className="vs-status-tag">{detail.official?.on_allowlist ? 'On allowlist' : 'No official app listed'}</span>
                     </div>
                     <div className="vs-profile-row">
-                      <div className="vs-avatar vs-avatar-official">A</div>
+                      <div className="vs-avatar vs-avatar-official">{(detail.official?.name || brandName || 'A').charAt(0).toUpperCase()}</div>
                       <div>
-                        <div className="vs-profile-name">Acme Bank Mobile</div>
-                        <div className="vs-profile-handle">com.acmebank.mobile</div>
+                        <div className="vs-profile-name">{detail.official?.name || brandName}</div>
+                        <div className="vs-profile-handle">{detail.official?.package_id ?? ''}</div>
                       </div>
                     </div>
                     <div className="vs-app-specs">
-                      <div>Publisher: Acme Bank Ltd</div>
-                      <div>Stores: Google Play, App Store</div>
-                      <div>Downloads: 10M+</div>
+                      {detail.official?.publisher && <div>Publisher: {detail.official.publisher}</div>}
+                      {detail.official?.stores && detail.official.stores.length > 0 && (
+                        <div>Stores: {detail.official.stores.map((s) => (SOURCE_LABEL as Record<string, string>)[s] ?? s).join(', ')}</div>
+                      )}
+                      {detail.official?.downloads && <div>Downloads: {detail.official.downloads}</div>}
+                      {!detail.official?.publisher && <div>No official app is on the allowlist yet.</div>}
                     </div>
                   </div>
 
@@ -233,89 +215,48 @@ export const AppStoreMonitoringPage: React.FC = () => {
                   <div className="vs-card suspect-vs">
                     <div className="vs-card-head">
                       <span className="vs-type-tag suspect-tag">SUSPECT</span>
-                      <span className="vs-match-tag">Icon {selected.iconMatchPercent || 93}% match</span>
+                      <span className="vs-match-tag" title={detail.logo?.reason ?? undefined}>
+                        {suspect?.icon_match_percent != null ? `Icon ${suspect.icon_match_percent}% match` : 'Icon not compared'}
+                      </span>
                     </div>
                     <div className="vs-profile-row">
-                      <div className="vs-avatar vs-avatar-suspect">A</div>
+                      <div className="vs-avatar vs-avatar-suspect">{detail.name.charAt(0).toUpperCase()}</div>
                       <div>
-                        <div className="vs-profile-name">{selected.name}</div>
-                        <div className="vs-profile-handle">{selected.handleOrPackage}</div>
+                        <div className="vs-profile-name">{detail.name}</div>
+                        <div className="vs-profile-handle">{detail.package_id ?? ''}</div>
                       </div>
                     </div>
                     <div className="vs-app-specs">
-                      <div>Publisher: {selected.publisher || 'Quick Tools Studio'}</div>
-                      <div>Store: {selected.platform}</div>
-                      <div>Downloads: {selected.downloads || '500+'} · {selected.released || 'released 6 days ago'}</div>
+                      <div>Publisher: {detail.publisher || 'Unknown'}</div>
+                      <div>Store: {platformLabel(detail.platform)}</div>
+                      {(suspect?.downloads || suspect?.released) && (
+                        <div>
+                          Downloads: {suspect?.downloads ?? 'n/a'}
+                          {suspect?.released ? ` · ${suspect.released}` : ''}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
 
-                {/* Description Overlap */}
+                {/* Description Overlap: the server reports points, not a percentage, and no matched phrases */}
                 <div className="description-overlap-card">
                   <div className="overlap-head">
-                    <span className="overlap-title">Description overlap {selected.overlapPercent || 88}%</span>
+                    <span className="overlap-title">
+                      {detail.description && detail.description.overlap_points > 0
+                        ? `Description overlap +${detail.description.overlap_points} points`
+                        : 'No description overlap found'}
+                    </span>
                   </div>
-                  <p className="overlap-snippet">
-                    {selected.descriptionSnippet ||
-                      'Secure mobile banking support from Acme Bank. Check balance, transfer funds and raise a support ticket.'}
-                  </p>
-                  <div className="overlap-keywords">
-                    {(selected.descriptionKeywords || ['secure mobile banking', 'check balance', 'transfer funds']).map((kw, i) => (
-                      <span key={i} className="keyword-highlight-pill">{kw}</span>
-                    ))}
-                  </div>
-                  <div className="overlap-sub-note">
-                    Highlighted phrases also appear in the official app description.
-                  </div>
+                  <p className="overlap-snippet">{detail.description?.snippet || 'No description was collected.'}</p>
                 </div>
 
-                {/* Why it scored */}
-                <div className="scored-breakdown-box">
-                  <div className="scored-head">
-                    <h4 className="scored-title">Why it scored {selected.score}</h4>
-                    <span className="scored-sub">Points added by each signal</span>
-                  </div>
-                  <div className="signals-list">
-                    {selected.reasons.map((r, i) => (
-                      <div key={i} className="signal-item">
-                        <span className="signal-label">{r.label}</span>
-                        <span className="signal-pts">+{r.points}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <ReasonsBox d={detail} />
+                <EvidenceBox d={detail} />
 
                 {/* Action buttons */}
-                <div className="detail-actions-row">
-                  <button
-                    type="button"
-                    className="btn-danger-outline"
-                    onClick={() => updateDetectionStatus(selected.id, 'Confirmed')}
-                  >
-                    Confirm fake app
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={() => updateDetectionStatus(selected.id, 'Reviewing')}
-                  >
-                    Keep reviewing
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={() => updateDetectionStatus(selected.id, 'Dismissed')}
-                  >
-                    Dismiss as false positive
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={() => markAsOfficial(selected.id)}
-                  >
-                    Mark as official
-                  </button>
-                </div>
+                <ActionRow confirmLabel="Confirm fake app" disabled={!canWrite || m.busyId === detail.id || detail.status === 'marked_official'} onAction={act} />
+                {m.actionError && <Notice onClose={m.clearActionError}>{m.actionError}</Notice>}
 
                 <div className="analyst-confirm-note">
                   A person confirms every detection. Store screenshot and listing details are saved as evidence.
@@ -326,67 +267,11 @@ export const AppStoreMonitoringPage: React.FC = () => {
 
           {/* Bottom Dual Panels */}
           <div className="social-bottom-dual-grid">
-            {/* Excluded as official */}
-            <div className="card bottom-dual-card">
-              <div className="dual-card-head">
-                <span className="dual-head-icon">🛡️</span>
-                <h3 className="panel-card-title">Excluded as official</h3>
-              </div>
-              <p className="dual-card-desc">
-                Matched by package ID and publisher name. Never scored.
-              </p>
-              <div className="allowlist-items-list">
-                <div className="excluded-row">
-                  <div>
-                    <div className="guard-entity-title">Acme Bank Mobile · com.acmebank.mobile</div>
-                    <div className="guard-entity-sub">Acme Bank Ltd · Google Play, App Store</div>
-                  </div>
-                  <span className="chip chip-green">Official · not flagged</span>
-                </div>
-                <div className="excluded-row">
-                  <div>
-                    <div className="guard-entity-title">Acme UPI · com.acmebank.upi</div>
-                    <div className="guard-entity-sub">Acme Bank Ltd · Google Play</div>
-                  </div>
-                  <span className="chip chip-green">Official · not flagged</span>
-                </div>
-              </div>
-            </div>
-
-            {/* False-positive guard */}
-            <div className="card bottom-dual-card">
-              <div className="dual-card-head">
-                <span className="dual-head-icon">✓</span>
-                <h3 className="panel-card-title">False-positive guard</h3>
-              </div>
-              <p className="dual-card-desc">
-                Apps that share a word with your name but not your look or content are cleared.
-              </p>
-              <div className="allowlist-items-list">
-                <div className="excluded-row">
-                  <div>
-                    <div className="guard-entity-title">Acme Weather · com.acme.weather</div>
-                    <div className="guard-entity-sub">Acme Corp · icon 8%, description 4%</div>
-                  </div>
-                  <span className="chip chip-neutral">Not flagged</span>
-                </div>
-                <div className="excluded-row">
-                  <div>
-                    <div className="guard-entity-title">Acme Fitness Tracker · com.acmefit.app</div>
-                    <div className="guard-entity-sub">Acme Fit Pvt Ltd · icon 5%, description 2%</div>
-                  </div>
-                  <span className="chip chip-neutral">Not flagged</span>
-                </div>
-              </div>
-              <Link to="/lookalike" className="see-names-link">
-                See how names are matched →
-              </Link>
-            </div>
+            <ExcludedCard state={m.excluded} kind="app" description="Matched by package ID and publisher name. Never scored." />
+            <GuardCard state={m.guard} kind="apps" description="Apps that share a word with your name but not your look or content are cleared." />
           </div>
 
-          <div className="page-bottom-note">
-            Sample data for the fictional brand Acme Bank. Not real detections.
-          </div>
+          <SampleNote brandName={brandName} />
         </div>
       </div>
     </>

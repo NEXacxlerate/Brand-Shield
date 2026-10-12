@@ -1,13 +1,26 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Check } from 'lucide-react';
 import { Header } from '../components/layout/Header';
-import { useAppStore } from '../data/store';
+import { Empty, ErrorBox, Loading, NoBrand, Notice, SampleNote } from '../components/common/States';
+import { sm } from '../api/sm';
+import type { TestCaseRun, Verdict } from '../api/types';
+import { useApi } from '../hooks/useApi';
+import { useBrand } from '../hooks/useBrand';
+import { useLookalike } from '../hooks/useLookalike';
+import { useMe } from '../hooks/useMe';
+import '../components/common/States.css';
 import './LookalikeLabPage.css';
 
+const VERDICT_LABEL: Record<Verdict, string> = { flagged: 'Flagged', not_flagged: 'Not flagged', official: 'Official' };
+const verdictChip = (v: Verdict) => (v === 'flagged' ? 'chip-red' : v === 'official' ? 'chip-green' : 'chip-neutral');
+
 export const LookalikeLabPage: React.FC = () => {
-  const { brand } = useAppStore();
+  const { brand, missing } = useBrand();
+  const { canWrite } = useMe();
+  const brandName = brand?.name ?? '';
   const [testInput, setTestInput] = useState('acrnebank-refund');
+  const live = useLookalike(testInput, !missing);
 
   const presetNames = [
     'acrnebank-refund',
@@ -20,46 +33,31 @@ export const LookalikeLabPage: React.FC = () => {
     'Acme Bank',
   ];
 
-  // Logic to simulate dynamic response based on input
-  const getNormalizationSteps = (input: string) => {
-    const raw = input.trim();
-    const lower = raw.toLowerCase();
-    const folded = lower.replace(/rn/g, 'm').replace(/3/g, 'e').replace(/0/g, 'o');
-    const clean = folded.replace(/[^a-z0-9]/g, '');
-    let brandAndWords = clean;
-    if (clean.includes('acme') && clean.includes('refund')) {
-      brandAndWords = 'acmebank + refund';
-    } else if (clean.includes('acme') && clean.includes('support')) {
-      brandAndWords = 'acmebank + support';
-    } else if (clean.includes('acme')) {
-      brandAndWords = 'acmebank';
-    }
+  // Test cases: the list comes from the server; results only exist after "Run test cases" (computed by the real engine).
+  const cases = useApi((signal) => sm.testCases(signal), []);
+  const [run, setRun] = useState<TestCaseRun | null>(null);
+  const [running, setRunning] = useState(false);
+  const [runError, setRunError] = useState<string | null>(null);
+  useEffect(() => {
+    setRun(null);
+  }, [brand?.id]);
 
-    return [
-      { step: 1, label: 'You typed', value: raw },
-      { step: 2, label: 'Lower-cased', value: lower },
-      { step: 3, label: 'Look-alike characters folded', value: folded },
-      { step: 4, label: 'Spaces and symbols removed', value: clean },
-      { step: 5, label: 'Brand and extra words', value: brandAndWords },
-    ];
+  const runCases = async () => {
+    setRunning(true);
+    setRunError(null);
+    try {
+      setRun(await sm.runTestCases());
+    } catch (e) {
+      setRunError(e instanceof Error ? e.message : 'Could not run the test cases.');
+    } finally {
+      setRunning(false);
+    }
   };
 
-  const steps = getNormalizationSteps(testInput);
-
-  const testCases = [
-    { name: 'acrnebank', expected: 'Flagged', result: 'Flagged', pass: true },
-    { name: 'Acme Bank Support', expected: 'Flagged', result: 'Flagged', pass: true },
-    { name: 'acme-bank', expected: 'Flagged', result: 'Flagged', pass: true },
-    { name: 'A C M E Bank', expected: 'Flagged', result: 'Flagged', pass: true },
-    { name: 'acm3bank', expected: 'Flagged', result: 'Flagged', pass: true },
-    { name: 'Acme Bnak', expected: 'Flagged', result: 'Flagged', pass: true },
-    { name: 'acmebank_official', expected: 'Flagged', result: 'Flagged', pass: true },
-    { name: 'Acme Bakery', expected: 'Not flagged', result: 'Not flagged', pass: true },
-    { name: 'Acme Hotels', expected: 'Not flagged', result: 'Not flagged', pass: true },
-    { name: 'Acme Weather', expected: 'Not flagged', result: 'Not flagged', pass: true },
-    { name: 'Acme Bank', expected: 'Official', result: 'Official', pass: true },
-    { name: '@acmebank', expected: 'Official', result: 'Official', pass: true },
-  ];
+  const r = live.result;
+  const rows = run
+    ? run.items.map((it) => ({ key: it.id, name: it.name, expected: it.expected, result: it.result as Verdict | null, pass: it.pass as boolean | null }))
+    : (cases.data?.items ?? []).map((it) => ({ key: it.id, name: it.name, expected: it.expected, result: null as Verdict | null, pass: null as boolean | null }));
 
   return (
     <>
@@ -76,7 +74,7 @@ export const LookalikeLabPage: React.FC = () => {
             <div className="card test-name-card">
               <div className="test-name-head">
                 <h3 className="panel-card-title">Test a name</h3>
-                <span className="compare-target">Comparing against: {brand.name}</span>
+                <span className="compare-target">Comparing against: {brandName}</span>
               </div>
 
               <div className="test-input-group">
@@ -104,33 +102,41 @@ export const LookalikeLabPage: React.FC = () => {
               </div>
 
               {/* Match Result Container */}
-              <div className="match-result-container">
-                <div className="match-result-head">
-                  <h4 className="match-title">Flagged as a look-alike of {brand.name}</h4>
-                  <p className="match-desc">
-                    This name matches the brand after normalization and is not on your allowlist. It goes to the review queue with these reasons.
-                  </p>
-                </div>
+              <div className="match-result-container" data-testid="match-result" aria-live="polite">
+                {missing && <NoBrand />}
+                {!missing && live.error && <ErrorBox error={live.error} compact />}
+                {!missing && !r && !live.error && (live.loading || testInput.trim()) && <Loading what="Testing the name" />}
+                {!missing && !testInput.trim() && <Empty>Type a name to see how it is matched.</Empty>}
+                {r && (
+                  <>
+                    <div className="match-result-head">
+                      <h4 className="match-title" data-testid="verdict-headline">{r.headline}</h4>
+                      <p className="match-desc">{r.explanation}</p>
+                    </div>
 
-                <div className="match-chips-row">
-                  <span className="chip chip-purple">Name match 94%</span>
-                  <span className="chip chip-blue">Character swap (rn → m)</span>
-                  <span className="chip chip-blue">Added word: refund</span>
-                </div>
+                    <div className="match-chips-row">
+                      <span className={`chip ${verdictChip(r.verdict)}`} data-testid="verdict-chip">{VERDICT_LABEL[r.verdict]}</span>
+                      <span className="chip chip-purple">Name match {r.match_percent}%</span>
+                      {r.reasons.map((x, i) => (
+                        <span key={i} className="chip chip-blue">{x.label}</span>
+                      ))}
+                    </div>
 
-                {/* Steps normalized */}
-                <div className="normalization-steps-box">
-                  <div className="steps-title">How the name was normalized</div>
-                  <div className="steps-timeline">
-                    {steps.map((st) => (
-                      <div key={st.step} className="step-timeline-row">
-                        <span className="step-timeline-num">{st.step}</span>
-                        <span className="step-timeline-lbl">{st.label}</span>
-                        <span className="step-timeline-val">{st.value}</span>
+                    {/* Steps normalized */}
+                    <div className="normalization-steps-box">
+                      <div className="steps-title">How the name was normalized</div>
+                      <div className="steps-timeline">
+                        {r.normalization.map((st) => (
+                          <div key={st.step} className="step-timeline-row">
+                            <span className="step-timeline-num">{st.step}</span>
+                            <span className="step-timeline-lbl">{st.label}</span>
+                            <span className="step-timeline-val">{st.value}</span>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -213,10 +219,26 @@ export const LookalikeLabPage: React.FC = () => {
                   Run on this page with the same logic as above. Includes legitimate names that must not be flagged.
                 </p>
               </div>
-              <span className="pass-rate-chip">12 of 12 pass</span>
+              <div className="cases-header-actions">
+                <span className={`pass-rate-chip ${!run ? 'idle' : run.failed > 0 ? 'fail' : ''}`} data-testid="pass-rate">
+                  {run ? `${run.passed} of ${run.total} pass` : cases.data ? `${cases.data.total} cases, not run yet` : 'Not run yet'}
+                </span>
+                <button
+                  type="button"
+                  className="btn-secondary btn-sm"
+                  onClick={() => void runCases()}
+                  disabled={running || !canWrite || missing}
+                  title={canWrite ? undefined : 'Your role can view but not run the test cases'}
+                >
+                  {running ? 'Running…' : 'Run test cases'}
+                </button>
+              </div>
             </div>
+            {runError && <Notice onClose={() => setRunError(null)}>{runError}</Notice>}
 
             <div className="test-cases-table-wrap">
+              {cases.loading && <Loading what="Loading test cases" />}
+              {cases.error && <ErrorBox error={cases.error} onRetry={cases.reload} compact />}
               <table className="test-cases-table">
                 <thead>
                   <tr>
@@ -227,37 +249,21 @@ export const LookalikeLabPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {testCases.map((tc, i) => (
-                    <tr key={i}>
+                  {rows.map((tc) => (
+                    <tr key={tc.key}>
                       <td className="case-name-cell">{tc.name}</td>
                       <td>
-                        <span
-                          className={`chip ${
-                            tc.expected === 'Flagged'
-                              ? 'chip-red'
-                              : tc.expected === 'Official'
-                              ? 'chip-green'
-                              : 'chip-neutral'
-                          }`}
-                        >
-                          {tc.expected}
-                        </span>
+                        <span className={`chip ${verdictChip(tc.expected)}`}>{VERDICT_LABEL[tc.expected]}</span>
                       </td>
                       <td>
-                        <span
-                          className={`chip ${
-                            tc.result === 'Flagged'
-                              ? 'chip-red'
-                              : tc.result === 'Official'
-                              ? 'chip-green'
-                              : 'chip-neutral'
-                          }`}
-                        >
-                          {tc.result}
-                        </span>
+                        {tc.result ? (
+                          <span className={`chip ${verdictChip(tc.result)}`}>{VERDICT_LABEL[tc.result]}</span>
+                        ) : (
+                          <span className="chip chip-neutral">Not run</span>
+                        )}
                       </td>
                       <td style={{ textAlign: 'center' }}>
-                        <span className="pass-check">✓</span>
+                        {tc.pass === null ? <span className="cell-muted">·</span> : tc.pass ? <span className="pass-check">✓</span> : <span className="pass-cross">✗</span>}
                       </td>
                     </tr>
                   ))}
@@ -266,9 +272,7 @@ export const LookalikeLabPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="page-bottom-note">
-            Sample data for the fictional brand Acme Bank. Not real detections.
-          </div>
+          <SampleNote brandName={brandName} />
         </div>
       </div>
     </>

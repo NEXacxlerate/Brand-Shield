@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Shield, Eye, Users, Database, Lock, Check } from 'lucide-react';
-import { api, session } from '../api';
+import { ApiError } from '../api/client';
+import { sm } from '../api/sm';
+import '../components/common/States.css';
 import './LoginPage.css';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
+  const from = (useLocation().state as { from?: string } | null)?.from;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [keepSignedIn, setKeepSignedIn] = useState(true);
@@ -15,22 +18,17 @@ export const LoginPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
+    if (!email.trim() || !password) {
+      setErrorMsg('Enter your work email and password.');
+      return;
+    }
     setBusy(true);
     try {
-      if (email.trim() && password.trim()) {
-        try {
-          await api.login(email, password, keepSignedIn);
-        } catch {
-          // If offline or dev mode, start session offline
-          session.startOffline();
-        }
-        navigate('/dashboard', { replace: true });
-      } else {
-        session.startOffline();
-        navigate('/dashboard', { replace: true });
-      }
-    } catch (err: any) {
-      setErrorMsg(err?.message || 'Failed to sign in. Please try again.');
+      await sm.login(email.trim(), password, keepSignedIn);
+      navigate(from && from !== '/login' ? from : '/dashboard', { replace: true });
+    } catch (err) {
+      // The server's own message is shown: "Incorrect email or password", the 429 rate-limit text, or the network message.
+      setErrorMsg(err instanceof ApiError ? err.message : 'Failed to sign in. Please try again.');
     } finally {
       setBusy(false);
     }
@@ -99,7 +97,16 @@ export const LoginPage: React.FC = () => {
           <p className="login-form-subtitle">Sign in to your brand protection workspace.</p>
 
           <form onSubmit={handleSubmit} className="auth-form">
-            {errorMsg && <div className="auth-error-alert">{errorMsg}</div>}
+            {from === '/setup' && !errorMsg && (
+              <div className="state-inline info" role="status">
+                Sign in as an administrator to set up your brand profile.
+              </div>
+            )}
+            {errorMsg && (
+              <div className="auth-error-alert" role="alert">
+                {errorMsg}
+              </div>
+            )}
 
             <div className="form-group">
               <label htmlFor="email" className="form-label">Work email</label>
@@ -121,7 +128,7 @@ export const LoginPage: React.FC = () => {
                 <button
                   type="button"
                   className="link-btn"
-                  onClick={() => alert('Password reset link sent to your administrator.')}
+                  onClick={() => alert('Password reset by email is not available yet. Ask your administrator to reset your password.')}
                 >
                   Forgot password?
                 </button>

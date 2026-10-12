@@ -14,7 +14,7 @@ import {
   ChevronsUpDown,
   Shield,
 } from 'lucide-react';
-import { useAppStore } from '../../data/store';
+import { useBrand } from '../../hooks/useBrand';
 import './Layout.css';
 
 interface SidebarProps {
@@ -24,9 +24,9 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => {
   const location = useLocation();
-  const { brand, officialAccounts, officialApps } = useAppStore();
+  const { brand } = useBrand();
 
-  const totalOfficialAssets = officialAccounts.length + officialApps.length;
+  const totalOfficialAssets = brand?.official_assets ?? 0;
 
   const isNavActive = (path: string) => {
     return location.pathname === path;
@@ -50,13 +50,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
       </div>
 
       {/* 3. Active Brand Card */}
-      <NavLink to="/brand" className="sidebar-brand-card" onClick={onClose}>
+      <NavLink to={brand ? "/brand" : "/setup"} className="sidebar-brand-card" onClick={onClose}>
         <div className="brand-avatar-badge">
-          {brand.name.charAt(0).toUpperCase()}
+          {(brand?.name || '?').charAt(0).toUpperCase()}
         </div>
         <div className="brand-info">
-          <span className="brand-name">{brand.name}</span>
-          <span className="brand-sub">Active brand · {totalOfficialAssets} official assets</span>
+          <span className="brand-name">{brand?.name ?? 'No brand yet'}</span>
+          <span className="brand-sub">
+            {brand ? `Active brand · ${totalOfficialAssets} official assets` : 'Set up your brand profile'}
+          </span>
         </div>
         <ChevronsUpDown size={15} className="brand-chevron" />
       </NavLink>

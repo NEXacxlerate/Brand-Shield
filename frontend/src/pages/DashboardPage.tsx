@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   TrendingUp,
@@ -9,166 +9,150 @@ import {
 import { Header } from '../components/layout/Header';
 import { Sparkline } from '../components/charts/Sparkline';
 import { Donut } from '../components/charts/Donut';
-import { useAppStore } from '../data/store';
+import { Empty, ErrorBox, Loading, NoBrand, Notice, SampleNote } from '../components/common/States';
+import { bandChip, fmtClock, fmtFull, platformLabel, riskBandLabel, statusChip, statusLabel, timeAgo, typeLabel } from '../api/format';
+import { sm } from '../api/sm';
+import type { DetectionType, Scan } from '../api/types';
+import { useApi } from '../hooks/useApi';
+import { useBrand } from '../hooks/useBrand';
+import { useMe } from '../hooks/useMe';
+import { useScan } from '../hooks/useScan';
 import './DashboardPage.css';
 
 interface DashboardPageProps {
   onOpenMobileMenu?: () => void;
 }
 
+const TYPE_COLOR: Record<DetectionType, string> = {
+  fake_app: '#4f9dff',
+  fake_profile: '#a78bfa',
+  scam_account: '#f0566a',
+  fake_brand_page: '#f59e55',
+};
+
+/** "name similarity, bio content and account signals" */
+function joinWords(items: string[]): string {
+  if (items.length <= 1) return items.join('');
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+}
+
+function scanSummary(scan: Scan): string {
+  const r = scan.result;
+  if (scan.state === 'error') return scan.message || 'The scan failed.';
+  if (!r) return scan.message;
+  const parts = [`Scan finished: ${r.new_detections} new ${r.new_detections === 1 ? 'detection' : 'detections'}, ${r.sources_online} of ${r.sources_checked} sources online.`];
+  if (r.unavailable_sources.length || r.partial_sources.length) {
+    parts.push('Some sources were slow or unavailable; results from the others were saved.');
+  }
+  return parts.join(' ');
+}
+
 export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenMobileMenu }) => {
   const navigate = useNavigate();
-  const { brand, detections, sources, officialAccounts, officialApps } = useAppStore();
-  const [scanning, setScanning] = useState(false);
+  const { canWrite } = useMe();
+  const { reload: reloadBrand } = useBrand();
+  const dash = useApi((signal) => sm.dashboard(signal), []);
+  const scan = useScan('all', () => {
+    dash.reload();
+    void reloadBrand();
+  });
 
-  const totalDetections = detections.length;
-  const socialDetections = detections.filter((d) => d.category === 'social').length;
-  const appDetections = detections.filter((d) => d.category === 'apps').length;
-  const totalOfficial = officialAccounts.length + officialApps.length;
+  const d = dash.data;
+  const noBrand = dash.error?.status === 404;
+  const brandName = d?.brand.name ?? '';
 
-  const handleRunScan = () => {
-    setScanning(true);
-    setTimeout(() => {
-      setScanning(false);
-      alert('Scan complete! 8 sources queried. Threat intelligence up-to-date.');
-    }, 1500);
-  };
+  const open = (id: number, type: string) => navigate(`${type === 'fake_app' ? '/apps' : '/social'}?detection=${id}`);
 
-  const impersonationTypesData = [
-    { label: 'Fake app', value: 5, color: '#4f9dff', percentage: 45 },
-    { label: 'Fake profile', value: 3, color: '#a78bfa', percentage: 27 },
-    { label: 'Scam account', value: 2, color: '#f0566a', percentage: 18 },
-    { label: 'Fake brand page', value: 1, color: '#f59e55', percentage: 10 },
-  ];
+  const header = (
+    <Header
+      title="Dashboard"
+      subtitle={brandName ? `Brand risk overview for ${brandName}` : 'Brand risk overview'}
+      onOpenMobileMenu={onOpenMobileMenu}
+    />
+  );
 
-  const whereWeFoundThemData = [
-    { label: 'Google Play', count: 3, max: 4 },
-    { label: 'Instagram', count: 2, max: 4 },
-    { label: 'X', count: 2, max: 4 },
-    { label: 'Facebook', count: 1, max: 4 },
-    { label: 'Telegram', count: 1, max: 4 },
-    { label: 'App Store', count: 1, max: 4 },
-    { label: 'Third-party APK', count: 1, max: 4 },
-  ];
+  if (noBrand) {
+    return (
+      <>
+        {header}
+        <div className="panel-content">
+          <NoBrand />
+        </div>
+      </>
+    );
+  }
 
-  const needsReviewItems = [
-    {
-      id: 'det-1',
-      name: '@acrne_bank_support',
-      detail: 'Instagram · scam account · 2 minutes ago',
-      level: 'High',
-    },
-    {
-      id: 'det-2',
-      name: 'Acme Bank Support Help',
-      detail: 'Google Play · fake app · 18 minutes ago',
-      level: 'High',
-    },
-    {
-      id: 'det-3',
-      name: 'Acme Bank Official Helpline',
-      detail: 'Facebook · fake brand page · 1 hour ago',
-      level: 'High',
-    },
-    {
-      id: 'det-7',
-      name: '@acme_bank_rewards',
-      detail: 'Instagram · scam account · 3 hours ago',
-      level: 'High',
-    },
-    {
-      id: 'det-8',
-      name: 'Acme Bank Mobile Lite',
-      detail: 'Third-party APK · fake app · 4 hours ago',
-      level: 'High',
-    },
-  ];
+  if (!d) {
+    return (
+      <>
+        {header}
+        <div className="panel-content">
+          {dash.error ? <ErrorBox error={dash.error} onRetry={dash.reload} /> : <Loading what="Loading dashboard" />}
+        </div>
+      </>
+    );
+  }
 
-  const recentDetections = [
-    {
-      id: 'det-1',
-      name: '@acrne_bank_support',
-      sub: '“rn” reads as “m”, added word “support”',
-      platform: 'Instagram',
-      type: 'Scam account',
-      match: '94/100',
-      status: 'New',
-      statusClass: 'chip-blue',
-    },
-    {
-      id: 'det-2',
-      name: 'Acme Bank Support Help',
-      sub: 'Different publisher, icon 93% match',
-      platform: 'Google Play',
-      type: 'Fake app',
-      match: '91/100',
-      status: 'Reviewing',
-      statusClass: 'chip-orange',
-    },
-    {
-      id: 'det-3',
-      name: 'Acme Bank Official Helpline',
-      sub: 'Added words, logo 84% match',
-      platform: 'Facebook',
-      type: 'Fake page',
-      match: '88/100',
-      status: 'Reviewing',
-      statusClass: 'chip-orange',
-    },
-    {
-      id: 'det-4',
-      name: '@acmebank.india',
-      sub: 'Added word “india”, logo copied',
-      platform: 'X',
-      type: 'Fake profile',
-      match: '91/100',
-      status: 'Confirmed',
-      statusClass: 'chip-red',
-    },
-    {
-      id: 'det-5',
-      name: 'Acme Bnak Mobile',
-      sub: 'Letters swapped, icon 95% match',
-      platform: 'Google Play',
-      type: 'Fake app',
-      match: '93/100',
-      status: 'Confirmed',
-      statusClass: 'chip-red',
-    },
-    {
-      id: 'det-6',
-      name: 'A C M E Bank',
-      sub: 'Spacing change, asks for loan fees',
-      platform: 'Telegram',
-      type: 'Fake profile',
-      match: '82/100',
-      status: 'New',
-      statusClass: 'chip-blue',
-    },
-  ];
+  const k = d.kpis;
+  const lastScan = d.last_scan_at ? `Last scan ${fmtFull(d.last_scan_at)}` : 'No scan yet';
+  const statusLine = `${lastScan} · ${d.sources_online} of ${d.sources_total} sources online${
+    d.next_scan_at ? ` · Next scan ${fmtClock(d.next_scan_at)}` : ''
+  }`;
+
+  const impersonationTypesData = d.by_type.map((t) => ({
+    label: typeLabel(t.type),
+    value: t.count,
+    color: TYPE_COLOR[t.type] ?? '#8b9bff',
+    percentage: t.percent,
+  }));
+  const maxPlatform = Math.max(1, ...d.by_platform.map((p) => p.count));
+
+  const top = d.top_detection;
+  const signalWords = (d.why_flagged?.reasons ?? []).map((r) => r.label.toLowerCase());
+  const uniqueSignals = Array.from(new Set(signalWords)).slice(0, 3);
+
+  const kpiTile = (label: string, kpi: { value: number; delta_week?: number; trend?: number[] }, color: string, textColor: string) => (
+    <div className="dash-kpi-card card">
+      <div className="kpi-label-text">{label}</div>
+      <div className="kpi-value-row">
+        <span className="kpi-big-num">{kpi.value}</span>
+      </div>
+      <div className="kpi-footer-row">
+        {kpi.delta_week !== undefined && (
+          <div className="kpi-change-text" style={{ color: textColor }}>
+            <TrendingUp size={13} />
+            <span>↑ {kpi.delta_week} this week</span>
+          </div>
+        )}
+        {kpi.trend && kpi.trend.length >= 2 && (
+          <div className="kpi-mini-spark">
+            <Sparkline data={kpi.trend} color={color} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
 
   return (
     <>
-      <Header
-        title="Dashboard"
-        subtitle={`Brand risk overview for ${brand.name}`}
-        onOpenMobileMenu={onOpenMobileMenu}
-      />
+      {header}
 
       <div className="panel-content">
         <div className="pdf-dashboard-page">
+          {dash.error && <ErrorBox error={dash.error} onRetry={dash.reload} compact />}
+
           {/* Hero Banner Box */}
           <div className="dash-hero-card">
             <div className="dash-hero-text">
               <h2 className="dash-hero-title">
-                Protect {brand.name} across social media and app stores
+                Protect {brandName} across social media and app stores
               </h2>
               <p className="dash-hero-sub">
                 We compare public profiles, pages and apps against your official assets. Anything on your allowlist is never flagged.
               </p>
               <div className="dash-hero-status">
                 <span className="live-dot" />
-                <span>Last scan 12 Oct 2026, 11:58 AM · 6 of 8 sources online</span>
+                <span data-testid="hero-status">{statusLine}</span>
               </div>
             </div>
 
@@ -176,10 +160,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenMobileMenu }
               <button
                 type="button"
                 className="btn-primary"
-                onClick={handleRunScan}
-                disabled={scanning}
+                onClick={() => void scan.start()}
+                disabled={scan.scanning || !canWrite}
+                title={canWrite ? undefined : 'Your role can view but not start scans'}
               >
-                <span>{scanning ? 'Scanning…' : 'Run scan now'}</span>
+                <span>{scan.scanning ? `Scanning… ${scan.progress}%` : 'Run scan now'}</span>
                 <ArrowRight size={15} />
               </button>
               <button
@@ -192,64 +177,20 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenMobileMenu }
             </div>
           </div>
 
+          {scan.error && <Notice>{scan.error}</Notice>}
+          {scan.last && !scan.error && <Notice kind="info">{scanSummary(scan.last)}</Notice>}
+
           {/* Row 1: 4 KPI Cards */}
           <div className="dash-kpi-row">
-            {/* KPI 1 */}
-            <div className="dash-kpi-card card">
-              <div className="kpi-label-text">Total detections</div>
-              <div className="kpi-value-row">
-                <span className="kpi-big-num">{totalDetections}</span>
-              </div>
-              <div className="kpi-footer-row">
-                <div className="kpi-change-text" style={{ color: '#8b9bff' }}>
-                  <TrendingUp size={13} />
-                  <span>↑ 4 this week</span>
-                </div>
-                <div className="kpi-mini-spark">
-                  <Sparkline data={[4, 6, 8, 7, 9, 10, 11]} color="#6366f1" />
-                </div>
-              </div>
-            </div>
-
-            {/* KPI 2 */}
-            <div className="dash-kpi-card card">
-              <div className="kpi-label-text">Social impersonations</div>
-              <div className="kpi-value-row">
-                <span className="kpi-big-num">{socialDetections}</span>
-              </div>
-              <div className="kpi-footer-row">
-                <div className="kpi-change-text" style={{ color: '#f0566a' }}>
-                  <TrendingUp size={13} />
-                  <span>↑ 2 this week</span>
-                </div>
-                <div className="kpi-mini-spark">
-                  <Sparkline data={[2, 3, 3, 4, 5, 5, 6]} color="#f0566a" />
-                </div>
-              </div>
-            </div>
-
-            {/* KPI 3 */}
-            <div className="dash-kpi-card card">
-              <div className="kpi-label-text">Suspicious apps</div>
-              <div className="kpi-value-row">
-                <span className="kpi-big-num">{appDetections}</span>
-              </div>
-              <div className="kpi-footer-row">
-                <div className="kpi-change-text" style={{ color: '#f0566a' }}>
-                  <TrendingUp size={13} />
-                  <span>↑ 3 this week</span>
-                </div>
-                <div className="kpi-mini-spark">
-                  <Sparkline data={[1, 2, 2, 3, 3, 4, 5]} color="#f0566a" />
-                </div>
-              </div>
-            </div>
+            {kpiTile('Total detections', k.total_detections, '#6366f1', '#8b9bff')}
+            {kpiTile('Social impersonations', k.social_impersonations, '#f0566a', '#f0566a')}
+            {kpiTile('Suspicious apps', k.suspicious_apps, '#f0566a', '#f0566a')}
 
             {/* KPI 4 */}
             <div className="dash-kpi-card card">
               <div className="kpi-label-text">Official assets protected</div>
               <div className="kpi-value-row">
-                <span className="kpi-big-num">{totalOfficial}</span>
+                <span className="kpi-big-num">{k.official_assets.value}</span>
               </div>
               <div className="kpi-footer-row">
                 <div className="kpi-protected-badge">
@@ -269,12 +210,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenMobileMenu }
               </div>
               <div className="donut-wrap">
                 <Donut
-                  data={impersonationTypesData}
-                  totalValue={String(totalDetections)}
+                  data={impersonationTypesData.map((t) => ({ label: t.label, percentage: t.percentage, color: t.color }))}
+                  totalValue={String(k.total_detections.value)}
                   totalLabel="Detections"
                 />
               </div>
               <div className="types-legend-list">
+                {impersonationTypesData.length === 0 && <Empty>No detections yet.</Empty>}
                 {impersonationTypesData.map((t, idx) => (
                   <div key={idx} className="legend-row-item">
                     <div className="legend-item-left">
@@ -293,16 +235,17 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenMobileMenu }
                 <h3 className="panel-card-title">Where we found them</h3>
               </div>
               <div className="source-bars-list">
-                {whereWeFoundThemData.map((src, idx) => (
+                {d.by_platform.length === 0 && <Empty>Nothing found yet.</Empty>}
+                {d.by_platform.map((src, idx) => (
                   <div key={idx} className="source-bar-row">
                     <div className="source-bar-info">
-                      <span className="source-bar-name">{src.label}</span>
+                      <span className="source-bar-name">{platformLabel(src.platform)}</span>
                       <span className="source-bar-count">{src.count}</span>
                     </div>
                     <div className="source-bar-track">
                       <div
                         className="source-bar-fill"
-                        style={{ width: `${(src.count / src.max) * 100}%` }}
+                        style={{ width: `${(src.count / maxPlatform) * 100}%` }}
                       />
                     </div>
                   </div>
@@ -319,17 +262,20 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenMobileMenu }
                 </Link>
               </div>
               <div className="needs-review-list">
-                {needsReviewItems.map((item) => (
+                {d.needs_review.length === 0 && <Empty>Nothing needs review.</Empty>}
+                {d.needs_review.map((item) => (
                   <div
                     key={item.id}
                     className="review-item-row"
-                    onClick={() => navigate('/social')}
+                    onClick={() => open(item.id, item.type)}
                   >
                     <div className="review-item-text">
                       <span className="review-item-name">{item.name}</span>
-                      <span className="review-item-sub">{item.detail}</span>
+                      <span className="review-item-sub">
+                        {platformLabel(item.platform)} · {typeLabel(item.type).toLowerCase()} · {timeAgo(item.found_at)}
+                      </span>
                     </div>
-                    <span className="chip chip-red">{item.level}</span>
+                    <span className={`chip ${bandChip(item.risk_band)}`}>{riskBandLabel(item.risk_band)}</span>
                   </div>
                 ))}
               </div>
@@ -359,23 +305,25 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenMobileMenu }
                     </tr>
                   </thead>
                   <tbody>
-                    {recentDetections.map((row, idx) => (
-                      <tr
-                        key={idx}
-                        onClick={() =>
-                          navigate(row.platform.includes('Play') || row.platform.includes('Store') ? '/apps' : '/social')
-                        }
-                      >
+                    {d.recent.length === 0 && (
+                      <tr>
+                        <td colSpan={5}>
+                          <Empty>No detections yet. Run a scan to look for impersonations.</Empty>
+                        </td>
+                      </tr>
+                    )}
+                    {d.recent.map((row) => (
+                      <tr key={row.id} onClick={() => open(row.id, row.type)}>
                         <td className="main-entity-cell">
                           <div className="entity-main-name">{row.name}</div>
-                          <div className="entity-sub-reason">{row.sub}</div>
+                          <div className="entity-sub-reason">{row.summary}</div>
                         </td>
-                        <td className="cell-muted">{row.platform}</td>
-                        <td className="cell-muted">{row.type}</td>
-                        <td className="cell-bold">{row.match}</td>
+                        <td className="cell-muted">{platformLabel(row.platform)}</td>
+                        <td className="cell-muted">{typeLabel(row.type, true)}</td>
+                        <td className="cell-bold">{row.score}/100</td>
                         <td>
-                          <span className={`chip ${row.statusClass}`}>
-                            {row.status}
+                          <span className={`chip ${statusChip(row.status)}`}>
+                            {statusLabel(row.status)}
                           </span>
                         </td>
                       </tr>
@@ -393,22 +341,33 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenMobileMenu }
                   <Sparkles size={16} className="sparkle-icon" />
                   <h3 className="panel-card-title">Why it was flagged</h3>
                 </div>
-                <p className="why-flagged-body">
-                  <strong>@acrne_bank_support</strong> on Instagram scored 94. It is not on your allowlist, and its name, logo and bio all point to {brand.name}.
-                </p>
-                <div className="why-flagged-tags">
-                  <span className="tag-pill">“rn” reads as “m”</span>
-                  <span className="tag-pill">Added word: support</span>
-                  <span className="tag-pill">Logo 91% match</span>
-                  <span className="tag-pill">Bio asks for KYC</span>
-                </div>
-                <button
-                  type="button"
-                  className="btn-primary review-btn"
-                  onClick={() => navigate('/social')}
-                >
-                  Review detection
-                </button>
+                {top ? (
+                  <>
+                    <p className="why-flagged-body">
+                      <strong>{top.name}</strong> on {platformLabel(top.platform)} scored {top.score}.{' '}
+                      {top.on_allowlist ? 'It is on your allowlist.' : 'It is not on your allowlist'}
+                      {!top.on_allowlist && uniqueSignals.length > 0
+                        ? `, and its ${joinWords(uniqueSignals)} point to ${brandName}.`
+                        : !top.on_allowlist
+                        ? '.'
+                        : ''}
+                    </p>
+                    <div className="why-flagged-tags">
+                      {top.tags.map((tag, i) => (
+                        <span key={i} className="tag-pill">{tag}</span>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      className="btn-primary review-btn"
+                      onClick={() => open(top.id, top.platform === 'google_play' || top.platform === 'app_store' || top.platform === 'third_party_apk' ? 'fake_app' : 'social')}
+                    >
+                      Review detection
+                    </button>
+                  </>
+                ) : (
+                  <Empty>No flagged detection to explain yet.</Empty>
+                )}
               </div>
 
               {/* Source health mini card */}
@@ -420,14 +379,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenMobileMenu }
                   </Link>
                 </div>
                 <div className="source-mini-list">
-                  {sources.slice(0, 6).map((src) => (
+                  {d.sources.slice(0, 6).map((src) => (
                     <div key={src.id} className="source-mini-row">
                       <div className="source-mini-left">
                         <span
                           className={`source-status-dot ${
-                            src.status === 'Online'
+                            src.status === 'online'
                               ? 'dot-green'
-                              : src.status === 'Slow'
+                              : src.status === 'slow'
                               ? 'dot-orange'
                               : 'dot-red'
                           }`}
@@ -435,9 +394,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenMobileMenu }
                         <span className="source-mini-name">{src.name}</span>
                       </div>
                       <span className="source-mini-status">
-                        {src.status === 'Online'
+                        {src.status === 'online'
                           ? 'Online'
-                          : src.status === 'Slow'
+                          : src.status === 'slow'
                           ? 'Slow, retrying'
                           : 'Unavailable, cached'}
                       </span>
@@ -449,9 +408,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenMobileMenu }
           </div>
 
           {/* Bottom Note */}
-          <div className="page-bottom-note">
-            Sample data for the fictional brand Acme Bank. Not real detections.
-          </div>
+          <SampleNote brandName={brandName} />
         </div>
       </div>
     </>

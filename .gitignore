@@ -41,3 +41,10 @@ server/data/
 *.db
 *.sqlite3
 .ruff_cache/
+
+# frontend test artifacts (Phase 5)
+frontend/test-results/
+frontend/playwright-report/
+frontend/e2e/.artifacts/
+frontend/e2e/screenshots/
+frontend/coverage/

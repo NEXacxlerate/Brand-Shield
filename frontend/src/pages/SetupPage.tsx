@@ -1,37 +1,111 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Shield, ShieldCheck } from 'lucide-react';
-import { useAppStore } from '../data/store';
+import { ApiError } from '../api/client';
+import { fmtBytes, sourceStatusLabel } from '../api/format';
+import { sm } from '../api/sm';
+import { ErrorBox, Loading, Notice } from '../components/common/States';
+import { useApi } from '../hooks/useApi';
+import { refreshBrand, setBrandCache, useBrand } from '../hooks/useBrand';
+import { checkLogoFile } from '../lib/logoCheck';
 import './SetupPage.css';
 
 export const SetupPage: React.FC = () => {
   const navigate = useNavigate();
-  const { brand, setBrand } = useAppStore();
+  const { brand, loading: brandLoading } = useBrand();
   const [step, setStep] = useState(1);
-  const [companyName, setCompanyName] = useState(brand.name || 'Acme Bank');
-  const [aliasesText, setAliasesText] = useState(
-    brand.aliases && brand.aliases.length > 0
-      ? brand.aliases.join(', ')
-      : 'Acme, AcmeBank, Acme Bank India'
-  );
+  const [companyName, setCompanyName] = useState('');
+  const [aliasesText, setAliasesText] = useState('');
+  const [prefilled, setPrefilled] = useState(false);
+  const [pendingLogo, setPendingLogo] = useState<File | null>(null);
+  const [logoError, setLogoError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
 
-  const handleContinue = () => {
-    if (step < 3) {
-      setStep(step + 1);
-    } else {
-      // Update store
-      const splitAliases = aliasesText
-        .split(',')
-        .map((a) => a.trim())
-        .filter(Boolean);
-      setBrand((prev) => ({
-        ...prev,
-        name: companyName,
-        aliases: splitAliases,
-      }));
-      navigate('/dashboard');
+  // An existing brand is edited, not duplicated (one brand per workspace).
+  useEffect(() => {
+    if (brand && !prefilled) {
+      setCompanyName(brand.name);
+      setAliasesText(brand.aliases.join(', '));
+      setPrefilled(true);
+    }
+  }, [brand, prefilled]);
+
+  const sources = useApi((signal) => sm.sources(signal), [], step === 3);
+
+  const pickLogo = async (file: File | undefined) => {
+    setLogoError(null);
+    if (!file) return;
+    const res = await checkLogoFile(file);
+    if (!res.ok) {
+      setPendingLogo(null);
+      setLogoError(res.error);
+      return;
+    }
+    setPendingLogo(file);
+  };
+
+  /** Step 1: create the brand (or update the existing one) and upload the chosen logo. */
+  const saveBrand = async (): Promise<boolean> => {
+    const name = companyName.trim();
+    if (!name) {
+      setError('Enter your company or brand name.');
+      return false;
+    }
+    const aliases = aliasesText
+      .split(',')
+      .map((a) => a.trim())
+      .filter(Boolean);
+    setBusy(true);
+    setError(null);
+    try {
+      let saved = brand
+        ? await sm.updateBrand(brand.id, { name, aliases, industry: brand.industry, keywords: brand.keywords, domains: brand.domains })
+        : await sm.createBrand({ name, aliases });
+      if (pendingLogo) {
+        await sm.uploadLogo(saved.id, pendingLogo);
+        saved = await sm.brand(saved.id);
+        setPendingLogo(null);
+      }
+      setBrandCache(saved);
+      return true;
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Could not save the brand.');
+      return false;
+    } finally {
+      setBusy(false);
     }
   };
+
+  const launch = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await sm.startScan('all');
+    } catch (e) {
+      // 409 = a scan is already running: nothing to do, the dashboard follows it.
+      if (!(e instanceof ApiError && e.status === 409)) {
+        setError(`${e instanceof ApiError ? e.message : 'The scan could not be started.'} You can start it from the dashboard.`);
+        setBusy(false);
+        return;
+      }
+    }
+    void refreshBrand();
+    navigate('/dashboard');
+  };
+
+  const handleContinue = async () => {
+    if (step === 1) {
+      if (await saveBrand()) setStep(2);
+    } else if (step === 2) {
+      setStep(3);
+    } else {
+      await launch();
+    }
+  };
+
+  const logo = brand?.logo ?? null;
 
   return (
     <div className="setup-container">
@@ -130,19 +204,39 @@ export const SetupPage: React.FC = () => {
               </div>
 
               <div className="logo-upload-box">
-                <div className="logo-preview-badge">A</div>
+                <div className="logo-preview-badge">{(companyName || brand?.name || 'A').charAt(0).toUpperCase()}</div>
                 <div className="logo-preview-info">
-                  <div className="logo-status-title">Official logo uploaded</div>
-                  <div className="logo-meta">✓ PNG · 512 × 512 · 84 KB · square</div>
+                  <div className="logo-status-title">
+                    {pendingLogo ? 'New logo selected' : logo ? 'Official logo uploaded' : 'No official logo yet'}
+                  </div>
+                  <div className="logo-meta">
+                    {pendingLogo
+                      ? `${pendingLogo.name} · ${fmtBytes(pendingLogo.size)} · uploaded when you continue`
+                      : logo
+                      ? `✓ ${logo.format.toUpperCase()} · ${logo.width} × ${logo.height} · ${fmtBytes(logo.size_bytes)} · ${logo.square ? 'square' : 'not square'}`
+                      : 'PNG, JPEG or WebP, at least 256 × 256, roughly square, max 2 MB'}
+                  </div>
                 </div>
+                <input
+                  ref={fileInput}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  hidden
+                  data-testid="setup-logo-input"
+                  onChange={(e) => {
+                    void pickLogo(e.target.files?.[0]);
+                    e.target.value = '';
+                  }}
+                />
                 <button
                   type="button"
                   className="btn-secondary btn-sm replace-btn"
-                  onClick={() => alert('Select a new logo PNG/SVG to upload.')}
+                  onClick={() => fileInput.current?.click()}
                 >
-                  Replace
+                  {logo || pendingLogo ? 'Replace' : 'Upload'}
                 </button>
               </div>
+              {logoError && <Notice>{logoError}</Notice>}
             </div>
           )}
 
@@ -151,43 +245,58 @@ export const SetupPage: React.FC = () => {
               <div className="setup-field">
                 <label className="setup-label">Official Accounts Verified</label>
                 <div className="mini-account-pill-list">
-                  <span className="mini-pill">@acmebank (Instagram)</span>
-                  <span className="mini-pill">@AcmeBank (X)</span>
-                  <span className="mini-pill">acmebank (Facebook)</span>
+                  {(brand?.official_accounts ?? []).map((a) => (
+                    <span key={a.id} className="mini-pill">{a.handle} ({a.platform})</span>
+                  ))}
+                  {!brand?.official_accounts.length && <span className="mini-pill">None added yet</span>}
                 </div>
               </div>
               <div className="setup-field">
                 <label className="setup-label">Official Mobile Apps</label>
                 <div className="mini-account-pill-list">
-                  <span className="mini-pill">Acme Bank Mobile (com.acmebank.mobile)</span>
-                  <span className="mini-pill">Acme UPI (com.acmebank.upi)</span>
+                  {(brand?.official_apps ?? []).map((a) => (
+                    <span key={a.id} className="mini-pill">{a.name} ({a.package_id})</span>
+                  ))}
+                  {!brand?.official_apps.length && <span className="mini-pill">None added yet</span>}
                 </div>
               </div>
+              <p style={{ color: 'var(--text-muted)', fontSize: '12.5px' }}>
+                Add or remove official accounts and apps on the <NavLink to="/brand">Brand Profile</NavLink> page.
+              </p>
             </div>
           )}
 
           {step === 3 && (
             <div className="step-form-content">
               <div className="setup-scan-preview">
-                <p style={{ color: 'var(--text-muted)', fontSize: '13.5px', marginBottom: '14px' }}>
-                  Ready to scan 8 threat intelligence sources including Instagram, X, Facebook, Google Play, and Telegram.
-                </p>
-                <div className="setup-scan-sources">
-                  <span className="source-dot-pill">Instagram Online</span>
-                  <span className="source-dot-pill">Google Play Online</span>
-                  <span className="source-dot-pill">X Online</span>
-                </div>
+                {sources.loading && <Loading what="Checking sources" />}
+                {sources.error && <ErrorBox error={sources.error} onRetry={sources.reload} compact />}
+                {sources.data && (
+                  <>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '13.5px', marginBottom: '14px' }}>
+                      Ready to scan {sources.data.summary.total} sources including{' '}
+                      {sources.data.items.slice(0, 5).map((s) => s.name).join(', ')}.
+                    </p>
+                    <div className="setup-scan-sources">
+                      {sources.data.items.slice(0, 3).map((s) => (
+                        <span key={s.id} className="source-dot-pill">{s.name} {sourceStatusLabel(s.status)}</span>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           )}
 
+          {error && <Notice>{error}</Notice>}
           <div className="setup-action-footer">
             <button
               type="button"
               className="btn-primary continue-btn"
-              onClick={handleContinue}
+              onClick={() => void handleContinue()}
+              disabled={busy || (step === 1 && brandLoading)}
             >
-              {step < 3 ? 'Continue' : 'Launch Protection Dashboard'}
+              {busy ? (step === 3 ? 'Starting scan…' : 'Saving…') : step < 3 ? 'Continue' : 'Launch Protection Dashboard'}
             </button>
           </div>
         </div>

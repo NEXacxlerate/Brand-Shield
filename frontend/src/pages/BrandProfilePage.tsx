@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Check,
@@ -7,111 +7,235 @@ import {
   Trash2,
 } from 'lucide-react';
 import { Header } from '../components/layout/Header';
-import { useAppStore } from '../data/store';
+import { ErrorBox, Loading, NoBrand, Notice } from '../components/common/States';
+import { ApiError } from '../api/client';
+import { fmtBytes, platformLabel, SOURCE_LABEL } from '../api/format';
+import { sm } from '../api/sm';
+import type { Brand } from '../api/types';
+import { refreshBrand, setBrandCache, useBrand } from '../hooks/useBrand';
+import { useMe } from '../hooks/useMe';
+import { checkLogoFile } from '../lib/logoCheck';
 import './BrandProfilePage.css';
 
-export const BrandProfilePage: React.FC = () => {
-  const {
-    brand,
-    setBrand,
-    officialAccounts,
-    officialApps,
-    addOfficialAccount,
-    removeOfficialAccount,
-    addOfficialApp,
-    removeOfficialApp,
-  } = useAppStore();
+const ACCOUNT_PLATFORMS: { value: string; label: string }[] = [
+  { value: 'instagram', label: 'Instagram' },
+  { value: 'x', label: 'X' },
+  { value: 'facebook', label: 'Facebook' },
+  { value: 'linkedin', label: 'LinkedIn' },
+  { value: 'youtube', label: 'YouTube' },
+];
 
-  const [companyName, setCompanyName] = useState(brand.name);
-  const [industry, setIndustry] = useState(brand.industry);
-  const [aliases, setAliases] = useState<string[]>(brand.aliases || []);
+const message = (e: unknown, fallback: string) => (e instanceof ApiError ? e.message : fallback);
+
+export const BrandProfilePage: React.FC = () => {
+  const { brand, loading, missing, error, reload } = useBrand();
+  const { canWrite } = useMe();
+
+  const [companyName, setCompanyName] = useState('');
+  const [industry, setIndustry] = useState('');
+  const [aliases, setAliases] = useState<string[]>([]);
   const [newAlias, setNewAlias] = useState('');
-  const [keywords, setKeywords] = useState<string[]>(brand.keywords || []);
+  const [keywords, setKeywords] = useState<string[]>([]);
   const [newKeyword, setNewKeyword] = useState('');
-  const [domains, setDomains] = useState<string[]>(brand.domains || []);
+  const [domains, setDomains] = useState<string[]>([]);
   const [newDomain, setNewDomain] = useState('');
 
   // Add account inputs
-  const [accPlatform, setAccPlatform] = useState<'Instagram' | 'X' | 'Facebook' | 'LinkedIn' | 'YouTube'>('Instagram');
+  const [accPlatform, setAccPlatform] = useState('instagram');
   const [accHandle, setAccHandle] = useState('');
+  const [accError, setAccError] = useState<string | null>(null);
+  const [accWarning, setAccWarning] = useState<string | null>(null);
+  const [accBusy, setAccBusy] = useState(false);
 
   // Add app inputs
   const [showAddApp, setShowAddApp] = useState(false);
   const [appName, setAppName] = useState('');
   const [appPackage, setAppPackage] = useState('');
-  const [appPublisher, setAppPublisher] = useState('Acme Bank Ltd');
-  const [appStore, setAppStore] = useState('Google Play');
+  const [appPublisher, setAppPublisher] = useState('');
+  const [appStore, setAppStore] = useState('google_play');
+  const [appError, setAppError] = useState<string | null>(null);
+  const [appBusy, setAppBusy] = useState(false);
 
+  const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [logoError, setLogoError] = useState<string | null>(null);
+  const [logoBusy, setLogoBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const loadedFor = useRef<number | null>(null);
 
-  const handleAddAlias = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && newAlias.trim()) {
+  const fill = (b: Brand) => {
+    setCompanyName(b.name);
+    setIndustry(b.industry);
+    setAliases(b.aliases);
+    setKeywords(b.keywords);
+    setDomains(b.domains);
+  };
+
+  // Fill the form once per brand; later refreshes (adding an account, uploading a logo) must not wipe unsaved edits.
+  useEffect(() => {
+    if (brand && loadedFor.current !== brand.id) {
+      loadedFor.current = brand.id;
+      fill(brand);
+    }
+  }, [brand]);
+
+  const addTag = (value: string, list: string[], setList: (v: string[]) => void, clear: () => void) => {
+    const v = value.trim();
+    if (v && !list.some((x) => x.toLowerCase() === v.toLowerCase())) setList([...list, v]);
+    clear();
+  };
+
+  const makeAdder = (value: string, list: string[], setList: (v: string[]) => void, clear: () => void) => (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && value.trim()) {
       e.preventDefault();
-      if (!aliases.includes(newAlias.trim())) {
-        setAliases([...aliases, newAlias.trim()]);
-      }
+      addTag(value, list, setList, clear);
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    if (!brand) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      // A tag typed but not confirmed with Enter is still part of what the person sees: include it.
+      const withPending = (list: string[], pending: string) =>
+        pending.trim() && !list.some((x) => x.toLowerCase() === pending.trim().toLowerCase()) ? [...list, pending.trim()] : list;
+      const saved = await sm.updateBrand(brand.id, {
+        name: companyName,
+        industry,
+        aliases: withPending(aliases, newAlias),
+        keywords: withPending(keywords, newKeyword),
+        domains: withPending(domains, newDomain),
+      });
+      setBrandCache(saved);
+      fill(saved);
       setNewAlias('');
-    }
-  };
-
-  const handleAddKeyword = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && newKeyword.trim()) {
-      e.preventDefault();
-      if (!keywords.includes(newKeyword.trim())) {
-        setKeywords([...keywords, newKeyword.trim()]);
-      }
       setNewKeyword('');
-    }
-  };
-
-  const handleAddDomain = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && newDomain.trim()) {
-      e.preventDefault();
-      if (!domains.includes(newDomain.trim())) {
-        setDomains([...domains, newDomain.trim()]);
-      }
       setNewDomain('');
+      setSavedSuccess(true);
+      setTimeout(() => setSavedSuccess(false), 3000);
+    } catch (e) {
+      setSaveError(message(e, 'Could not save the brand profile.'));
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleSaveProfile = () => {
-    setBrand((prev) => ({
-      ...prev,
-      name: companyName,
-      industry,
-      aliases,
-      keywords,
-      domains,
-    }));
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 3000);
+  const handleLogoFile = async (file: File | undefined) => {
+    if (!file || !brand) return;
+    setLogoError(null);
+    const res = await checkLogoFile(file); // same rules as the server, so the person knows before waiting
+    if (!res.ok) {
+      setLogoError(res.error);
+      return;
+    }
+    setLogoBusy(true);
+    try {
+      await sm.uploadLogo(brand.id, file);
+      setBrandCache({ ...(await sm.brand(brand.id)) });
+    } catch (e) {
+      setLogoError(message(e, 'Could not upload the logo.')); // the server's own message (413, 415, 422)
+    } finally {
+      setLogoBusy(false);
+    }
   };
 
-  const handleCreateAccount = (e: React.FormEvent) => {
+  const handleCreateAccount = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!accHandle.trim()) return;
-    addOfficialAccount(accPlatform, accHandle);
-    setAccHandle('');
+    if (!brand || !accHandle.trim()) return;
+    setAccBusy(true);
+    setAccError(null);
+    setAccWarning(null);
+    try {
+      const acc = await sm.addAccount(brand.id, accPlatform, accHandle.trim());
+      setAccHandle('');
+      if (acc.status !== 'verified') {
+        setAccWarning(acc.warning || `${acc.handle} was added, but its URL could not be reached.`);
+      }
+      await refreshBrand();
+    } catch (err) {
+      setAccError(message(err, 'Could not add the account.')); // 409 duplicate, 422 handle format
+    } finally {
+      setAccBusy(false);
+    }
   };
 
-  const handleCreateApp = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!appName.trim() || !appPackage.trim()) return;
-    addOfficialApp(appName, appPackage, appPublisher, [appStore]);
-    setAppName('');
-    setAppPackage('');
-    setShowAddApp(false);
+  const handleRemoveAccount = async (id: number) => {
+    if (!brand) return;
+    setActionError(null);
+    try {
+      await sm.removeAccount(brand.id, id);
+      await refreshBrand();
+    } catch (err) {
+      setActionError(message(err, 'Could not remove the account.'));
+    }
   };
+
+  const handleCreateApp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!brand || !appName.trim() || !appPackage.trim() || !appPublisher.trim()) return;
+    setAppBusy(true);
+    setAppError(null);
+    try {
+      await sm.addApp(brand.id, { name: appName.trim(), package_id: appPackage.trim(), publisher: appPublisher.trim(), stores: [appStore] });
+      setAppName('');
+      setAppPackage('');
+      setShowAddApp(false);
+      await refreshBrand();
+    } catch (err) {
+      setAppError(message(err, 'Could not add the app.'));
+    } finally {
+      setAppBusy(false);
+    }
+  };
+
+  const handleRemoveApp = async (id: number) => {
+    if (!brand) return;
+    setActionError(null);
+    try {
+      await sm.removeApp(brand.id, id);
+      await refreshBrand();
+    } catch (err) {
+      setActionError(message(err, 'Could not remove the app.'));
+    }
+  };
+
+  const header = <Header title="Brand Profile" subtitle="Tell us what is official. Everything else is compared against it." />;
+
+  if (missing) {
+    return (
+      <>
+        {header}
+        <div className="panel-content">
+          <NoBrand />
+        </div>
+      </>
+    );
+  }
+  if (!brand) {
+    return (
+      <>
+        {header}
+        <div className="panel-content">{error ? <ErrorBox error={error} onRetry={() => void reload()} /> : loading ? <Loading what="Loading brand profile" /> : null}</div>
+      </>
+    );
+  }
+
+  const logo = brand.logo;
+  const health = brand.profile_health;
+  const officialAccounts = brand.official_accounts;
+  const officialApps = brand.official_apps;
 
   return (
     <>
-      <Header
-        title="Brand Profile"
-        subtitle="Tell us what is official. Everything else is compared against it."
-      />
+      {header}
 
       <div className="panel-content">
         <div className="brand-profile-page">
+          {error && <ErrorBox error={error} onRetry={() => void reload()} compact />}
           {/* Main 2-column layout */}
           <div className="profile-layout-grid">
             {/* Left Column: Sections 1, 2, 3 */}
@@ -127,8 +251,9 @@ export const BrandProfilePage: React.FC = () => {
 
                 <div className="two-field-row">
                   <div className="form-field">
-                    <label className="field-lbl">Company or brand name</label>
+                    <label className="field-lbl" htmlFor="bp-name">Company or brand name</label>
                     <input
+                      id="bp-name"
                       type="text"
                       className="field-input"
                       value={companyName}
@@ -136,8 +261,9 @@ export const BrandProfilePage: React.FC = () => {
                     />
                   </div>
                   <div className="form-field">
-                    <label className="field-lbl">Industry (helps avoid false positives)</label>
+                    <label className="field-lbl" htmlFor="bp-industry">Industry (helps avoid false positives)</label>
                     <input
+                      id="bp-industry"
                       type="text"
                       className="field-input"
                       value={industry}
@@ -166,9 +292,10 @@ export const BrandProfilePage: React.FC = () => {
                       type="text"
                       className="inline-tag-input"
                       placeholder="Add an alias and press Enter"
+                      aria-label="Add an alias"
                       value={newAlias}
                       onChange={(e) => setNewAlias(e.target.value)}
-                      onKeyDown={handleAddAlias}
+                      onKeyDown={makeAdder(newAlias, aliases, setAliases, () => setNewAlias(''))}
                     />
                   </div>
                 </div>
@@ -194,9 +321,10 @@ export const BrandProfilePage: React.FC = () => {
                         type="text"
                         className="inline-tag-input"
                         placeholder="Add keyword"
+                        aria-label="Add a keyword"
                         value={newKeyword}
                         onChange={(e) => setNewKeyword(e.target.value)}
-                        onKeyDown={handleAddKeyword}
+                        onKeyDown={makeAdder(newKeyword, keywords, setKeywords, () => setNewKeyword(''))}
                       />
                     </div>
                   </div>
@@ -220,9 +348,10 @@ export const BrandProfilePage: React.FC = () => {
                         type="text"
                         className="inline-tag-input"
                         placeholder="Add domain"
+                        aria-label="Add a domain"
                         value={newDomain}
                         onChange={(e) => setNewDomain(e.target.value)}
-                        onKeyDown={handleAddDomain}
+                        onKeyDown={makeAdder(newDomain, domains, setDomains, () => setNewDomain(''))}
                       />
                     </div>
                   </div>
@@ -230,24 +359,39 @@ export const BrandProfilePage: React.FC = () => {
 
                 {/* Official Logo Box */}
                 <div className="official-logo-box">
-                  <div className="logo-preview-square">A</div>
+                  <div className="logo-preview-square">{brand.name.charAt(0).toUpperCase()}</div>
                   <div className="logo-box-info">
                     <div className="logo-box-title">Official logo</div>
                     <div className="logo-box-desc">
                       Used for logo matching on profile pictures and app icons.
                     </div>
-                    <div className="logo-box-specs">
-                      ✓ PNG or SVG ✓ 512 × 512 px ✓ 84 KB (max 2 MB) ✓ Square
+                    <div className="logo-box-specs" data-testid="logo-specs">
+                      {logo
+                        ? `✓ ${logo.format.toUpperCase()} ✓ ${logo.width} × ${logo.height} px ✓ ${fmtBytes(logo.size_bytes)} (max 2 MB) ${logo.square ? '✓ Square' : '✗ Not square'}`
+                        : 'No logo uploaded yet. PNG, JPEG or WebP, at least 256 × 256 px, roughly square, max 2 MB.'}
                     </div>
                   </div>
+                  <input
+                    ref={fileInput}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    hidden
+                    data-testid="logo-input"
+                    onChange={(e) => {
+                      void handleLogoFile(e.target.files?.[0]);
+                      e.target.value = '';
+                    }}
+                  />
                   <button
                     type="button"
                     className="btn-secondary btn-sm"
-                    onClick={() => alert('Select a new PNG/SVG file to update brand logo.')}
+                    onClick={() => fileInput.current?.click()}
+                    disabled={logoBusy || !canWrite}
                   >
-                    Replace logo
+                    {logoBusy ? 'Uploading…' : logo ? 'Replace logo' : 'Upload logo'}
                   </button>
                 </div>
+                {logoError && <Notice onClose={() => setLogoError(null)}>{logoError}</Notice>}
               </div>
 
               {/* SECTION 2: Official social accounts */}
@@ -265,15 +409,16 @@ export const BrandProfilePage: React.FC = () => {
                 </div>
 
                 <div className="official-accounts-list">
+                  {officialAccounts.length === 0 && <div className="subform-hint">No official accounts yet.</div>}
                   {officialAccounts.map((acc) => (
                     <div key={acc.id} className="official-account-item">
                       <div className="account-item-left">
                         <div className="platform-avatar">
-                          {acc.platform.charAt(0)}
+                          {platformLabel(acc.platform).charAt(0)}
                         </div>
                         <div className="account-handle-info">
                           <span className="account-handle-title">
-                            {acc.handle} on {acc.platform}
+                            {acc.handle} on {platformLabel(acc.platform)}
                           </span>
                           <span className="account-url-sub">{acc.url}</span>
                         </div>
@@ -282,16 +427,18 @@ export const BrandProfilePage: React.FC = () => {
                       <div className="account-item-right">
                         <span
                           className={`chip ${
-                            acc.status === 'Verified' ? 'chip-green' : 'chip-orange'
+                            acc.status === 'verified' ? 'chip-green' : 'chip-orange'
                           }`}
                         >
-                          {acc.status}
+                          {acc.status === 'verified' ? 'Verified' : 'Unreachable'}
                         </span>
                         <button
                           type="button"
                           className="item-delete-btn"
-                          onClick={() => removeOfficialAccount(acc.id)}
+                          onClick={() => void handleRemoveAccount(acc.id)}
                           title="Remove from allowlist"
+                          aria-label={`Remove ${acc.handle} from allowlist`}
+                          disabled={!canWrite}
                         >
                           <Trash2 size={14} />
                         </button>
@@ -299,29 +446,30 @@ export const BrandProfilePage: React.FC = () => {
                     </div>
                   ))}
                 </div>
+                {actionError && <Notice onClose={() => setActionError(null)}>{actionError}</Notice>}
 
                 {/* Add account row */}
                 <div className="add-account-subform">
                   <div className="subform-title">Add an official account</div>
-                  <form onSubmit={handleCreateAccount} className="add-account-row">
+                  <form onSubmit={(e) => void handleCreateAccount(e)} className="add-account-row">
                     <div className="add-field-group">
-                      <label className="sub-lbl">Platform</label>
+                      <label className="sub-lbl" htmlFor="acc-platform">Platform</label>
                       <select
+                        id="acc-platform"
                         className="field-select"
                         value={accPlatform}
-                        onChange={(e) => setAccPlatform(e.target.value as any)}
+                        onChange={(e) => setAccPlatform(e.target.value)}
                       >
-                        <option value="Instagram">Instagram</option>
-                        <option value="X">X</option>
-                        <option value="Facebook">Facebook</option>
-                        <option value="LinkedIn">LinkedIn</option>
-                        <option value="YouTube">YouTube</option>
+                        {ACCOUNT_PLATFORMS.map((p) => (
+                          <option key={p.value} value={p.value}>{p.label}</option>
+                        ))}
                       </select>
                     </div>
 
                     <div className="add-field-group flex-fill">
-                      <label className="sub-lbl">Handle</label>
+                      <label className="sub-lbl" htmlFor="acc-handle">Handle</label>
                       <input
+                        id="acc-handle"
                         type="text"
                         className="field-input"
                         placeholder="@yourbrand"
@@ -330,13 +478,15 @@ export const BrandProfilePage: React.FC = () => {
                       />
                     </div>
 
-                    <button type="submit" className="btn-secondary add-btn">
-                      Add to allowlist
+                    <button type="submit" className="btn-secondary add-btn" disabled={accBusy || !canWrite}>
+                      {accBusy ? 'Adding…' : 'Add to allowlist'}
                     </button>
                   </form>
                   <p className="subform-hint">
                     Enter the exact handle your organization owns.
                   </p>
+                  {accError && <Notice onClose={() => setAccError(null)}>{accError}</Notice>}
+                  {accWarning && <Notice kind="info" onClose={() => setAccWarning(null)}>{accWarning}</Notice>}
                 </div>
               </div>
 
@@ -361,6 +511,11 @@ export const BrandProfilePage: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody>
+                      {officialApps.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="subform-hint">No official apps yet.</td>
+                        </tr>
+                      )}
                       {officialApps.map((app) => (
                         <tr key={app.id}>
                           <td className="app-name-cell">
@@ -370,11 +525,11 @@ export const BrandProfilePage: React.FC = () => {
                             <div>
                               <div className="app-main-title">{app.name}</div>
                               <div className="app-stores-sub">
-                                {app.stores.join(' · ')}
+                                {app.stores.map((s) => (SOURCE_LABEL as Record<string, string>)[s] ?? s).join(' · ')}
                               </div>
                             </div>
                           </td>
-                          <td className="package-id-cell">{app.packageId}</td>
+                          <td className="package-id-cell">{app.package_id}</td>
                           <td className="publisher-cell">{app.publisher}</td>
                           <td>
                             <span className="chip chip-green">Verified</span>
@@ -383,8 +538,10 @@ export const BrandProfilePage: React.FC = () => {
                             <button
                               type="button"
                               className="item-delete-btn"
-                              onClick={() => removeOfficialApp(app.id)}
+                              onClick={() => void handleRemoveApp(app.id)}
                               title="Remove app"
+                              aria-label={`Remove ${app.name}`}
+                              disabled={!canWrite}
                             >
                               <Trash2 size={14} />
                             </button>
@@ -396,11 +553,12 @@ export const BrandProfilePage: React.FC = () => {
                 </div>
 
                 {showAddApp && (
-                  <form onSubmit={handleCreateApp} className="add-app-popup-box">
+                  <form onSubmit={(e) => void handleCreateApp(e)} className="add-app-popup-box">
                     <div className="two-field-row">
                       <div className="form-field">
-                        <label className="field-lbl">App Name</label>
+                        <label className="field-lbl" htmlFor="app-name">App Name</label>
                         <input
+                          id="app-name"
                           type="text"
                           className="field-input"
                           placeholder="Acme Pay"
@@ -410,8 +568,9 @@ export const BrandProfilePage: React.FC = () => {
                         />
                       </div>
                       <div className="form-field">
-                        <label className="field-lbl">Package or Bundle ID</label>
+                        <label className="field-lbl" htmlFor="app-package">Package or Bundle ID</label>
                         <input
+                          id="app-package"
                           type="text"
                           className="field-input"
                           placeholder="com.acme.pay"
@@ -423,37 +582,44 @@ export const BrandProfilePage: React.FC = () => {
                     </div>
                     <div className="two-field-row">
                       <div className="form-field">
-                        <label className="field-lbl">Publisher</label>
+                        <label className="field-lbl" htmlFor="app-publisher">Publisher</label>
                         <input
+                          id="app-publisher"
                           type="text"
                           className="field-input"
+                          placeholder="Acme Bank Ltd"
                           value={appPublisher}
                           onChange={(e) => setAppPublisher(e.target.value)}
                           required
                         />
                       </div>
                       <div className="form-field">
-                        <label className="field-lbl">Store</label>
+                        <label className="field-lbl" htmlFor="app-store">Store</label>
                         <select
+                          id="app-store"
                           className="field-select"
                           value={appStore}
                           onChange={(e) => setAppStore(e.target.value)}
                         >
-                          <option value="Google Play">Google Play</option>
-                          <option value="App Store">Apple App Store</option>
+                          <option value="google_play">Google Play</option>
+                          <option value="app_store">Apple App Store</option>
                         </select>
                       </div>
                     </div>
+                    {appError && <Notice onClose={() => setAppError(null)}>{appError}</Notice>}
                     <div className="add-app-actions">
                       <button
                         type="button"
                         className="btn-secondary btn-sm"
-                        onClick={() => setShowAddApp(false)}
+                        onClick={() => {
+                          setShowAddApp(false);
+                          setAppError(null);
+                        }}
                       >
                         Cancel
                       </button>
-                      <button type="submit" className="btn-primary btn-sm">
-                        Confirm App
+                      <button type="submit" className="btn-primary btn-sm" disabled={appBusy || !canWrite}>
+                        {appBusy ? 'Adding…' : 'Confirm App'}
                       </button>
                     </div>
                   </form>
@@ -471,14 +637,16 @@ export const BrandProfilePage: React.FC = () => {
                   <button
                     type="button"
                     className="btn-secondary btn-sm"
-                    onClick={() => alert('Enter App Store or Google Play listing link to import metadata automatically.')}
+                    onClick={() => setInfo('Importing from a store listing is not available yet. Enter the app name, package ID and publisher by hand.')}
                   >
                     Import from store listing URL
                   </button>
                 </div>
+                {info && <Notice kind="info" onClose={() => setInfo(null)}>{info}</Notice>}
               </div>
 
               {/* Bottom Save Bar */}
+              {saveError && <Notice>{saveError}</Notice>}
               <div className="profile-bottom-save-bar">
                 <span className="save-note-text">
                   Changes are applied to the next scan after you save.
@@ -487,16 +655,20 @@ export const BrandProfilePage: React.FC = () => {
                   <button
                     type="button"
                     className="btn-secondary"
-                    onClick={() => window.location.reload()}
+                    onClick={() => {
+                      fill(brand);
+                      setSaveError(null);
+                    }}
                   >
                     Cancel
                   </button>
                   <button
                     type="button"
                     className="btn-primary"
-                    onClick={handleSaveProfile}
+                    onClick={() => void handleSaveProfile()}
+                    disabled={saving || !canWrite}
                   >
-                    {savedSuccess ? 'Saved successfully ✓' : 'Save brand profile'}
+                    {saving ? 'Saving…' : savedSuccess ? 'Saved successfully ✓' : 'Save brand profile'}
                   </button>
                 </div>
               </div>
@@ -509,34 +681,27 @@ export const BrandProfilePage: React.FC = () => {
                 <h3 className="side-card-title">Profile health</h3>
                 <div className="health-gauge-row">
                   <div className="health-circle-badge">
-                    <span className="health-pct-num">86%</span>
+                    <span className="health-pct-num" data-testid="health-pct">{health.percent}%</span>
                   </div>
                   <div className="health-gauge-text">
-                    Good coverage. Fix one unreachable URL to reach 100%.
+                    {health.message}
                   </div>
                 </div>
 
                 <div className="health-checklist">
-                  <div className="checklist-item ok">
-                    <Check size={14} className="chk-icon" />
-                    <span>Brand name and aliases</span>
-                  </div>
-                  <div className="checklist-item ok">
-                    <Check size={14} className="chk-icon" />
-                    <span>Official logo meets requirements</span>
-                  </div>
-                  <div className="checklist-item ok">
-                    <Check size={14} className="chk-icon" />
-                    <span>Official domains added</span>
-                  </div>
-                  <div className="checklist-item ok">
-                    <Check size={14} className="chk-icon" />
-                    <span>Apps include publisher names</span>
-                  </div>
-                  <div className="checklist-item warn">
-                    <AlertCircle size={14} className="chk-icon-warn" />
-                    <span>YouTube URL could not be reached</span>
-                  </div>
+                  {health.checks.map((c) =>
+                    c.ok ? (
+                      <div key={c.key} className="checklist-item ok">
+                        <Check size={14} className="chk-icon" />
+                        <span>{c.label}</span>
+                      </div>
+                    ) : (
+                      <div key={c.key} className="checklist-item warn" title={c.why ?? undefined}>
+                        <AlertCircle size={14} className="chk-icon-warn" />
+                        <span>{c.label}</span>
+                      </div>
+                    )
+                  )}
                 </div>
               </div>
 
@@ -545,15 +710,15 @@ export const BrandProfilePage: React.FC = () => {
                 <h3 className="side-card-title">Allowlist: never flagged</h3>
                 <div className="allowlist-tri-stats">
                   <div className="allowlist-stat">
-                    <span className="allowlist-num">{officialAccounts.length}</span>
+                    <span className="allowlist-num">{brand.allowlist.accounts}</span>
                     <span className="allowlist-lbl">Accounts</span>
                   </div>
                   <div className="allowlist-stat">
-                    <span className="allowlist-num">{officialApps.length}</span>
+                    <span className="allowlist-num">{brand.allowlist.apps}</span>
                     <span className="allowlist-lbl">Apps</span>
                   </div>
                   <div className="allowlist-stat">
-                    <span className="allowlist-num">{domains.length}</span>
+                    <span className="allowlist-num">{brand.allowlist.domains}</span>
                     <span className="allowlist-lbl">Domains</span>
                   </div>
                 </div>

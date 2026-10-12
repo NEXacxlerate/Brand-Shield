@@ -83,3 +83,15 @@
 - Evaluation: synthetic numbers (5 built-in brands, seed 7) cached in memory per process and labelled optimistic; real precision only from reviewer decisions (confirmed / (confirmed + dismissed)); recall of real detections cannot be measured.
 - Audit actions added: `scan.started`, `scan.finished`, `detection.status_changed`, `detection.marked_official`, `report.generated`, `report.approved`, `settings.updated`, `lookalike.case_added`, `lookalike.case_removed`, `lookalike.cases_run`, `evaluation.run` (plus the existing `account.added`, `app.added`, `source.monitor_toggled`, `settings.data_mode_changed`). `scan.started`/`finished` by the scheduler carry actor `scheduler`.
 - Migration `0003_scan_pipeline` (SQLite batch mode, also written for PostgreSQL but **not run on Postgres**).
+
+
+## Phase 5 choices (frontend connection; flagged for review)
+
+- **No offline/sample session in the browser.** `RequireAuth` redirects without a token; login shows real errors. Sample data only ever comes from the server (`data_mode`), is badged ("Sample data" in the header, the detail panel and the footer note) and is never invented client-side.
+- **`/setup` requires an admin login** (decision 4). The sidebar brand card links to `/setup` while no brand exists.
+- **Settings Save is admin-only**; analysts and viewers see the same form read-only. The data-mode switch lives in Settings > Account (admin only).
+- **Reports:** the form selects detections client-side (types, status, date range) and sends explicit `detection_ids`, because the status filter of the server takes one status and has no "all". Drafts only; approve is a separate button; nothing is sent.
+- **Evaluation** is a new route `/evaluation`, linked from Settings > Account, so the designed pages stay as they are.
+- **Source events** are derived from recent scans (no event feed exists).
+- **Refresh tokens:** single-flight per tab; a simultaneous refresh in two tabs can log both out (theft detection of the server). Accepted for now.
+- **Browser tests** use a dedicated launcher (`server/scripts/e2e_server.py`), random per-run credentials passed only through the environment of the child processes, and a temp database; no `server/.env` is read and no network is used.

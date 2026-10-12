@@ -1,6 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, ChevronDown, LogOut, Menu } from 'lucide-react';
+import { sm } from '../../api/sm';
+import { resetSampleFlag, useIsSample } from '../../api/sample';
+import { resetBrand } from '../../hooks/useBrand';
+import { useMe } from '../../hooks/useMe';
+import '../common/States.css';
 import './Layout.css';
 
 interface HeaderProps {
@@ -18,10 +23,16 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
-  const user = { name: 'Harini', email: 'admin@company.com' };
+  const { user: me } = useMe();
+  const sample = useIsSample();
+  // Until /api/me answers (or if it cannot be reached) the chip shows no invented identity.
+  const user = { name: me?.name || '', email: me?.email || '' };
 
-  const handleSignOut = () => {
-    localStorage.removeItem('scammind_auth');
+  const handleSignOut = async () => {
+    // Revokes the refresh token on the server and removes the session (the one real storage key) from both storages.
+    await sm.logout();
+    resetBrand();
+    resetSampleFlag();
     navigate('/login', { replace: true });
   };
 
@@ -51,6 +62,12 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="header-right">
         {actions && <div className="header-actions">{actions}</div>}
 
+        {sample && (
+          <span className="sample-badge" data-testid="sample-badge" title="The data on this page is sample data, not real detections.">
+            Sample data
+          </span>
+        )}
+
         <button type="button" className="bell-btn" aria-label="Notifications">
           <Bell size={18} strokeWidth={1.8} />
           <span className="bell-dot" />
@@ -66,7 +83,7 @@ export const Header: React.FC<HeaderProps> = ({
             onClick={() => setMenuOpen((o) => !o)}
             onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setMenuOpen((o) => !o)}
           >
-            <div className="user-avatar">{user.name.charAt(0)}</div>
+            <div className="user-avatar">{(user.name || user.email || '?').charAt(0).toUpperCase()}</div>
             <div className="user-info">
               <span className="user-name">{user.name}</span>
               <span className="user-email">{user.email}</span>
@@ -76,7 +93,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           {menuOpen && (
             <div className="user-menu" role="menu">
-              <div className="user-menu-role">Signed in as {user.name}</div>
+              <div className="user-menu-role">Signed in as {user.name || user.email}</div>
               <button
                 type="button"
                 role="menuitem"

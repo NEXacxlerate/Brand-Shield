@@ -112,3 +112,35 @@ Added to `server/requirements.txt` after reading the licenses from the installed
 No GPL or AGPL packages were added. `fakeredis` was NOT used (the tests inject fake `redis` / `rq` modules instead). Playwright (optional screenshot hook) is NOT installed and NOT in requirements; its license is unverified because it was never downloaded.
 
 **Not verified:** a real Redis server and a real RQ worker run. Only the dispatch logic (queue name, function path, job id, fallback to a thread when Redis is unreachable) is tested, against fake modules.
+
+
+## Frontend (Phase 5)
+
+Licenses read from `node_modules/*/package.json` after `npm install` (2026-10-13, 123 packages audited in `frontend/node_modules`); `npm audit` reported 0 vulnerabilities.
+
+Runtime dependencies (unchanged by Phase 5): react 19.3.0 (MIT), react-dom 19.3.0 (MIT), react-router-dom 7.18.4 (MIT), lucide-react 1.55.0 (ISC), d3-geo 3.1.1 (ISC; used only by the orphaned pages' map).
+
+Dev dependencies added in Phase 5 (all direct, all `devDependencies`, none ships to users):
+
+| Package | Version | License | Used for |
+|---|---|---|---|
+| vitest | 5.0.4 | MIT | unit tests (`npm test`) |
+| jsdom | 29.1.1 | MIT | DOM for the unit tests |
+| @testing-library/react | 16.3.3 | MIT | component and hook tests |
+| @testing-library/jest-dom | 7.0.1 | MIT | DOM matchers |
+| @testing-library/user-event | 14.6.7 | MIT | simulated typing and clicks |
+| @playwright/test | 1.64.0 | Apache-2.0 | browser smoke tests (`npm run test:e2e`) |
+
+Licenses across the whole installed tree: MIT 97, ISC 6, Apache-2.0 8, BSD-3-Clause 2, BSD-2-Clause 2, MIT-0 2, BlueOak-1.0.0 1, CC0-1.0 1, MPL-2.0 2. All of these are permissive except the one flagged below.
+
+### Needs review (Frontend)
+
+| Package | License | Why flagged |
+|---|---|---|
+| lightningcss 1.33.0 (+ lightningcss-win32-x64-msvc) | MPL-2.0 | File-level weak copyleft. It was already in the tree before Phase 5 (a dependency of Vite) and is a build tool, not shipped in the bundle. Only matters if we modify lightningcss files. |
+| Playwright browser download (Chromium, ffmpeg, winldd) | Chromium: BSD-3-Clause and many bundled third-party licenses; ffmpeg build: LGPL; not verified file by file | Downloaded by `npx playwright install chromium` into the user's profile (`%LOCALAPPDATA%\ms-playwright`), used only to run tests, never committed or shipped. Licenses of the binaries are NOT verified here; the npm packages themselves (`playwright`, `playwright-core`) are Apache-2.0. |
+| lru-cache 11.5.3 | BlueOak-1.0.0 | Permissive but an uncommon identifier (transitive, via jsdom). |
+| @csstools/* 6.x / 1.x | MIT-0 | Public-domain-like, permissive (transitive, via jsdom). |
+| mdn-data 2.27.1 | CC0-1.0 | Data package (transitive, via jsdom); public-domain dedication. |
+
+No GPL or AGPL package was found in the frontend tree.

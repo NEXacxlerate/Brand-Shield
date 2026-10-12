@@ -3,7 +3,8 @@
 Brand-protection workspace: find fake profiles, look-alike websites and clone apps, link them into the campaign behind them, and prepare an
 evidence-backed takedown report that **a person approves**.
 
-* `frontend/` React + TypeScript + Vite app (12 pages; source in `frontend/src`)
+* `frontend/` React + TypeScript + Vite app (10 designed screens + evaluation view; see [frontend/README.md](frontend/README.md) to run it against `server/`)
+* `server/` the FastAPI server the frontend talks to (see [server/README.md](server/README.md))
 * `backend/` FastAPI API with the TrustMesh detection engine: see [backend/README.md](backend/README.md) for what is real and what is sample data
 
 ## Run everything
@@ -24,8 +25,8 @@ cd backend && pip install -r requirements-dev.txt && cp .env.example .env && uvi
 cd frontend && npm install && npm run dev
 ```
 
-If the API cannot be reached the login page offers "Continue with sample data (offline)", the pages render the bundled sample data and the
-header shows an **Offline: showing sample data** chip.
+Note: the frontend now targets `server/` (Phase 5). The old `backend/` is a different product and is not used by the frontend any more; the
+frontend has no offline sample mode (sample data only comes from the server and is badged). See `frontend/README.md`.
 
 ```bash
 cd frontend && npm run build   # type-check + production build

@@ -394,3 +394,62 @@ Store `auditLog` (`AuditLogItem {id,user,action,target,time}`) written by `addAu
 7. **Evaluation (precision/recall)** and **audit-log viewer** are requested but have no screen in the PDF or code; confirm whether a screen is required or API-only.
 8. **Evidence**: screenshots storage and the exact meaning of the SHA-256 (hash of screenshot file?).
 9. **Multi-brand**: sidebar brand card has a chevron; confirm single brand per org.
+
+
+---
+
+## 17. Phase 5 status (frontend connected to `server/`)
+
+Sections 1 to 16 above describe the frontend **before** Phase 5 (they are kept as the record of what was replaced). This section is the current state.
+The UI (layout, classes, copy, CSS) of the 10 designed pages was kept; only the data wiring changed, plus the additions listed under "New".
+
+### Wired (all against the real API, no domain data in browser storage)
+
+| Area | What now comes from the API |
+|---|---|
+| API layer (`src/api/client.ts`, `sm.ts`, `types.ts`, `format.ts`, `sample.ts`) | Typed fetch client, Bearer token, single-flight refresh-on-401 with refresh-token rotation, error mapping (`detail` string, 422 list by field, 429 with Retry-After, network), AbortController. One session key `scammind.auth` (+ `scammind.user`); sign-out calls `POST /auth/logout` and clears both storages. |
+| Route guard / login | No offline session. `RequireAuth` redirects to `/login`; `/setup` is behind it (admin must be signed in). Login shows the server error ("Incorrect email or password", the 429 text, the network message). |
+| Header / sidebar | User chip from `GET /api/me`; sidebar brand card and "N official assets" from the brand; global **Sample data** badge whenever any answer carries `is_sample: true` (or a data mode resolving to sample). |
+| Setup | Creates or updates the brand (`POST/PUT /brands`), client pre-check + `POST /brands/{id}/logo`, real official assets, source list, first scan (`POST /scan`). |
+| Dashboard | Everything from `GET /dashboard`: hero status (last scan, sources online, next scan), KPI values/deltas/sparklines, donut, platform bars, needs review, recent detections, why flagged, source health. Run scan now = start + poll `/jobs/{id}` with progress. Rows deep-link to `/social?detection=<id>` or `/apps?...`. |
+| Brand Profile | Brand identity save (`PUT`), logo upload with the server rules and errors, accounts (duplicate 409, handle format 422, unreachable warning), apps, profile health (percent, checks), allowlist counts. |
+| Social / App Store | List sorted by risk (server), tab counts from `counts`, detail panel (reasons with points, evidence with SHA-256, official side from the allowlist), actions confirm / keep reviewing / dismiss / mark as official with optimistic update and rollback, excluded-as-official and false-positive guard lists, source bar with real status, Retry (apps), scan button with progress. |
+| Look-alike Lab | Live `POST /lookalike/test` (350 ms debounce, stale calls cancelled); verdict, match %, rule chips and the 5 normalization steps come from the server; "Run test cases" calls the runner and shows "N of M pass". The hard-coded "Flagged 94%" is gone. |
+| Source Health | Sources with status, last sync, message, cached age, next retry; KPI counts; real "Next scan" time and schedule; Monitor toggle (optimistic, rollback); Retry per source; Tavily credit meter; retry back-off text from the API. |
+| Reports | Selection from the filters (types, status, date range computed from today), live preview (`/reports/preview` with ids), create **draft** (`POST /reports`, csv or html), recent exports list, preview in a sandboxed iframe, CSV/HTML download via fetch + blob with auth, approve. App rows show display names, social rows handles. Nothing is ever sent. |
+| Settings | GET/PUT `/settings` with a Save bar (admin only; others see a read-only form). Schedule, monitored platforms (same state as the Source Health toggle), sensitivity with a live server preview, look-alike rules, impersonation words. |
+
+### New (requested additions)
+
+- **Data mode** switch Live / Sample / Auto in Settings > Account (admin; read-only for others), using `/settings/data-mode`.
+- **Evaluation view** at `/evaluation` (linked from Settings > Account; no sidebar entry, so the designed screens are unchanged): precision / recall / F1 per technique and overall, the labelled look-alike case results, reviewer precision, and the server's "synthetic numbers are optimistic" label shown first.
+- Tavily credit meter on Source Health; "Sample data" badge in the header and in the Social/Apps detail panel; the footer note is shown only while the data is sample.
+- Loading / empty / error (with Retry) states using new minimal classes in `components/common/States.css` (tokens only).
+
+### Deliberate wording changes (flagged for review)
+
+1. Reports format button "PDF report" is now **"Printable report"** (the server has no PDF library: `format: "pdf"` returns 422). A hint says "Print, then Save as PDF".
+2. Notifications tab: the second checkbox "Daily digest summary at 9:00 AM" is now **"Weekly digest summary"** (the stored field is `weekly_digest`); every row says "(not delivered yet)" and the tab states `delivery: not implemented`. The webhook row now has a URL field (https only).
+3. Source Health step 3 text is built from the real back-off of the API (`1m,5m,15m,1h,6h`) instead of "1, 5 and 15 minutes, then hourly".
+4. The Settings sensitivity note says "of the N candidates found so far" (the `total` of the server includes cleared candidates), not "current detections".
+5. App detail: "Description overlap 88%" cannot be shown (the server returns points, not a percentage, and no matched phrases), so it shows "+N points" or "No description overlap found". The publisher banner appears only when the publisher really differs.
+6. The App Store detail panel now has an "Evidence kept" block (required by the task; the original code only had it on Social).
+7. Display names: detections use "App Store" / "Third-party APK"; sources and Settings use "Apple App Store" / "Third-party APK sites" (as in the design). `type.replace('_', ' ')` is replaced by a label map ("Fake brand page").
+
+### Still not wired / known limits
+
+- Sidebar search box ("Search detections", inert), bell button (inert), "Support" (still an alert), brand switcher chevron (single brand).
+- "Forgot password?" has no endpoint: the button shows an honest message. There is no reset page.
+- "Import from store listing URL": the server has no import endpoint; the button explains that.
+- **No source-event feed in the API**: "Recent source events" is built from the source reports of the latest scans (`GET /scans`), and says so. The user audit log is no longer shown there.
+- Retry is synchronous in the server (it answers with the finished result), so there is no job to poll; a polling fallback exists for a future async server but has only unit-level coverage.
+- Logo: PNG, JPEG or WebP, at least 256 px, roughly square, max 2 MB (the server refuses SVG), not "PNG or SVG" as the design copy says.
+- Official page bio / followers / joined, app downloads and icon match, screenshots: not collected in sample mode (screenshots are off by default), so they show as not collected, never invented.
+- Reports use up to 200 detections (API limit per list call). Audit log viewer: only "Export Audit Log" (CSV) is wired; there is no audit screen.
+- Token refresh is single-flight **per browser tab**. Two tabs that refresh at the same instant can present the same rotated refresh token twice; the server treats that as theft and revokes all refresh tokens of that user, so both tabs are signed out. Not mitigated (would need a cross-tab lock).
+- Unverified: live mode with a real Tavily key or real stores (no live calls were made); slow/unavailable source states are covered by unit tests only (the sample collector always reports online); PostgreSQL.
+- Differences between the design PDF and the code that existed before Phase 5 and were NOT changed: KPI card icons, hero glow, the score ring/bars under "Why it scored", default "Google Play" tab on the Apps page.
+
+### Tests
+
+`cd frontend && npm test` (Vitest + Testing Library: API client refresh/error mapping/abort, hooks, login errors, route guard, header, optimistic rollback, source health) and `npm run test:e2e` (Playwright walk of every page against the real backend in sample mode). See `frontend/README.md`.

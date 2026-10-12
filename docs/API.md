@@ -917,3 +917,10 @@ Created as **DRAFT**; a person approves; nothing is sent anywhere. Formats `csv`
 - Evaluation: no `by_threshold`, no date/type/platform filters; `synthetic`, `label` and `reviewed` added.
 - `GET /detections/excluded` lists every allowlist asset (with `times_seen`) rather than only assets met in a scan.
 - The look-alike `official` verdict also covers the exact brand name (`official_basis: "name"`), as the PDF's "Acme Bank" test case expects.
+
+
+## 19. Phase 5 notes (frontend connection)
+
+- `GET /api/lookalike/test-cases` seeding race fixed: the 12 default cases are seeded under a process lock (two requests arriving together, such as React StrictMode in development, used to create 24 cases). Single API process only; with several processes a unique index is still needed.
+- There is still no `GET /api/sources/events`. The UI builds "Recent source events" from `GET /api/scans` (`source_report`).
+- `server/scripts/e2e_server.py` starts the API for the browser tests: temp SQLite, `Settings(_env_file=None)`, sample collector, stubbed URL checker (no network). Not for production.

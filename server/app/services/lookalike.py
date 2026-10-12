@@ -7,6 +7,8 @@ scored too, and only an exact official handle / URL / package id excludes a cand
 
 from __future__ import annotations
 
+import threading
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -36,13 +38,24 @@ DEFAULT_CASES: list[tuple[str, str]] = [
 ]
 
 
+_SEED_LOCK = threading.Lock()
+
+
 def ensure_default_cases(db: Session) -> None:
-    """Seed the 12 default cases once (only when the table is empty, so an admin's deletions are respected)."""
+    """Seed the 12 default cases once (only when the table is empty, so an admin's deletions are respected).
+
+    Two requests can arrive together (a page that loads the list twice, React StrictMode in development). Without a lock
+    both would see an empty table and insert 12 rows each (24 cases). The lock serialises the check-then-insert inside this
+    process; with several API processes a unique index would be needed (not built: one process today).
+    """
     if db.scalar(select(LookalikeCase.id).limit(1)) is not None:
         return
-    for name, expected in DEFAULT_CASES:
-        db.add(LookalikeCase(name=name, expected=expected, builtin=True, source="sample"))
-    db.commit()
+    with _SEED_LOCK:
+        if db.scalar(select(LookalikeCase.id).limit(1)) is not None:  # another request seeded while we waited
+            return
+        for name, expected in DEFAULT_CASES:
+            db.add(LookalikeCase(name=name, expected=expected, builtin=True, source="sample"))
+        db.commit()
 
 
 def _normalization(name: str, brand: Brand, added: list[str]) -> list[dict]:

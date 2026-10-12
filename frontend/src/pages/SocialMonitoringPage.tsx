@@ -1,105 +1,99 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import {
-  AlertTriangle,
-  RotateCw,
-} from 'lucide-react';
+import React from 'react';
+import { RotateCw } from 'lucide-react';
 import { Header } from '../components/layout/Header';
-import { useAppStore } from '../data/store';
+import { ActionRow, EvidenceBox, ExcludedCard, GuardCard, ReasonsBox, SourcesBar } from '../components/monitor/MonitorParts';
+import { Empty, ErrorBox, Loading, NoBrand, Notice, SampleNote } from '../components/common/States';
+import { fmtDayTime, platformLabel, statusChip, statusLabel, typeLabel } from '../api/format';
+import { useBrand } from '../hooks/useBrand';
+import { useMe } from '../hooks/useMe';
+import { useMonitor } from '../hooks/useMonitor';
 import './SocialMonitoringPage.css';
 
+const TABS: { key: string; label: string; count: (c: { all: number; by_type: Record<string, number> }) => number }[] = [
+  { key: 'all', label: 'All', count: (c) => c.all },
+  { key: 'fake_profile', label: 'Fake profiles', count: (c) => c.by_type.fake_profile ?? 0 },
+  { key: 'fake_brand_page', label: 'Fake brand pages', count: (c) => c.by_type.fake_brand_page ?? 0 },
+  { key: 'scam_account', label: 'Scam accounts', count: (c) => c.by_type.scam_account ?? 0 },
+];
+
 export const SocialMonitoringPage: React.FC = () => {
-  const { detections, updateDetectionStatus, markAsOfficial } = useAppStore();
+  const m = useMonitor('social');
+  const { brand, missing } = useBrand();
+  const { canWrite } = useMe();
+  const brandName = brand?.name ?? '';
 
-  const socialDetections = detections.filter((d) => d.category === 'social');
-  const [filterType, setFilterType] = useState<'all' | 'fake_profile' | 'fake_brand_page' | 'scam_account'>('all');
-  const [selectedId, setSelectedId] = useState<string>('det-1');
-  const [scanning, setScanning] = useState(false);
+  const { items, selectedRow, list, scan } = m;
+  const detail = m.detail.data && selectedRow && m.detail.data.id === selectedRow.id ? m.detail.data : null;
+  const counts = list.data?.counts;
 
-  const filtered = socialDetections.filter((d) => {
-    if (filterType === 'all') return true;
-    return d.type === filterType;
-  });
-
-  const selected = socialDetections.find((d) => d.id === selectedId) || socialDetections[0];
-
-  const handleScanNow = () => {
-    setScanning(true);
-    setTimeout(() => {
-      setScanning(false);
-      alert('Social scan complete: 486 accounts analyzed. No new threats.');
-    }, 1200);
+  const act = (a: 'confirmed' | 'reviewing' | 'dismissed' | 'official') => {
+    if (!selectedRow) return;
+    if (a === 'official') void m.markOfficial(selectedRow.id);
+    else void m.review(selectedRow.id, a);
   };
+
+  const header = (
+    <Header
+      title="Social Media Monitoring"
+      subtitle={`Fake profiles, fake brand pages and scam accounts using the ${brandName || 'brand'} identity`}
+    />
+  );
+
+  if (missing || list.error?.status === 404) {
+    return (
+      <>
+        {header}
+        <div className="panel-content">
+          <NoBrand />
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
-      <Header
-        title="Social Media Monitoring"
-        subtitle="Fake profiles, fake brand pages and scam accounts using the Acme Bank identity"
-      />
+      {header}
 
       <div className="panel-content">
         <div className="social-page-wrap">
           {/* Top Sources Bar */}
-          <div className="sources-status-bar">
-            <div className="sources-pills-row">
-              <span className="source-lbl">Sources</span>
-              <span className="source-pill"><span className="src-dot dot-green" />Instagram</span>
-              <span className="source-pill"><span className="src-dot dot-green" />Facebook</span>
-              <span className="source-pill"><span className="src-dot dot-green" />X</span>
-              <span className="source-pill warn"><span className="src-dot dot-orange" />Telegram · slow</span>
-              <span className="source-pill"><span className="src-dot dot-green" />LinkedIn</span>
-            </div>
-
-            <div className="source-warning-box">
-              <AlertTriangle size={14} className="warn-icon" />
-              <span>Telegram is responding slowly. Results may be incomplete. Retrying in 4 minutes. <a href="#details" className="warn-details-link">Details</a></span>
-            </div>
-          </div>
+          <SourcesBar state={m.sources} variant="social" onRetried={m.reloadAll} />
 
           {/* Filter Tabs & Scan Action */}
           <div className="filters-action-bar">
             <div className="filter-tabs-group">
-              <button
-                type="button"
-                className={`filter-tab ${filterType === 'all' ? 'active' : ''}`}
-                onClick={() => setFilterType('all')}
-              >
-                All 6
-              </button>
-              <button
-                type="button"
-                className={`filter-tab ${filterType === 'fake_profile' ? 'active' : ''}`}
-                onClick={() => setFilterType('fake_profile')}
-              >
-                Fake profiles 3
-              </button>
-              <button
-                type="button"
-                className={`filter-tab ${filterType === 'fake_brand_page' ? 'active' : ''}`}
-                onClick={() => setFilterType('fake_brand_page')}
-              >
-                Fake brand pages 1
-              </button>
-              <button
-                type="button"
-                className={`filter-tab ${filterType === 'scam_account' ? 'active' : ''}`}
-                onClick={() => setFilterType('scam_account')}
-              >
-                Scam accounts 2
-              </button>
+              {TABS.map((t) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  className={`filter-tab ${m.filter === t.key ? 'active' : ''}`}
+                  onClick={() => m.setFilter(t.key)}
+                >
+                  {t.label}
+                  {counts ? ` ${t.count(counts)}` : ''}
+                </button>
+              ))}
             </div>
 
             <button
               type="button"
               className="btn-primary scan-btn"
-              onClick={handleScanNow}
-              disabled={scanning}
+              onClick={() => void scan.start()}
+              disabled={scan.scanning || !canWrite}
+              title={canWrite ? undefined : 'Your role can view but not start scans'}
             >
-              <RotateCw size={14} className={scanning ? 'spin' : ''} />
-              <span>{scanning ? 'Scanning…' : 'Scan social platforms now'}</span>
+              <RotateCw size={14} className={scan.scanning ? 'spin' : ''} />
+              <span>{scan.scanning ? `Scanning… ${scan.progress}%` : 'Scan social platforms now'}</span>
             </button>
           </div>
+          {scan.error && <Notice>{scan.error}</Notice>}
+          {scan.last && !scan.error && (
+            <Notice kind="info">
+              {scan.last.result
+                ? `Social scan finished: ${scan.last.result.accounts_or_apps_checked} candidates checked, ${scan.last.result.new_detections} new ${scan.last.result.new_detections === 1 ? 'detection' : 'detections'}.`
+                : scan.last.message}
+            </Notice>
+          )}
 
           {/* Main 2-Column Split */}
           <div className="social-main-grid">
@@ -111,39 +105,35 @@ export const SocialMonitoringPage: React.FC = () => {
               </div>
 
               <div className="detections-scroll-list">
-                {filtered.map((item) => (
+                {list.loading && <Loading what="Loading detections" />}
+                {list.error && <ErrorBox error={list.error} onRetry={list.reload} compact />}
+                {list.data && items.length === 0 && (
+                  <Empty>
+                    {m.filter === 'all' ? 'No detections yet. Run a scan to look for impersonations.' : 'No detections of this type.'}
+                  </Empty>
+                )}
+                {items.map((item) => (
                   <div
                     key={item.id}
-                    className={`detection-row-card ${selected?.id === item.id ? 'active' : ''}`}
-                    onClick={() => setSelectedId(item.id)}
+                    className={`detection-row-card ${selectedRow?.id === item.id ? 'active' : ''}`}
+                    onClick={() => m.select(item.id)}
+                    data-testid="detection-row"
                   >
                     <div className="detection-row-left">
                       <div className="platform-symbol">
-                        {item.platform.charAt(0)}
+                        {platformLabel(item.platform).charAt(0)}
                       </div>
                       <div className="detection-row-meta">
                         <div className="detection-row-name">{item.name}</div>
                         <div className="detection-row-handle">
-                          {item.handleOrPackage} · {item.platform} · {item.type.replace('_', ' ')}
+                          {item.handle ?? item.package_id ?? item.name} · {platformLabel(item.platform)} · {typeLabel(item.type)}
                         </div>
                       </div>
                     </div>
 
                     <div className="detection-row-right">
                       <span className="score-val">{item.score}</span>
-                      <span
-                        className={`chip ${
-                          item.status === 'New'
-                            ? 'chip-blue'
-                            : item.status === 'Reviewing'
-                            ? 'chip-orange'
-                            : item.status === 'Confirmed'
-                            ? 'chip-red'
-                            : 'chip-green'
-                        }`}
-                      >
-                        {item.status}
-                      </span>
+                      <span className={`chip ${statusChip(item.status)}`}>{statusLabel(item.status)}</span>
                     </div>
                   </div>
                 ))}
@@ -151,38 +141,36 @@ export const SocialMonitoringPage: React.FC = () => {
             </div>
 
             {/* Right Detection Detail */}
-            {selected && (
+            {selectedRow && !detail && (
               <div className="card detection-detail-card">
+                {m.detail.error ? <ErrorBox error={m.detail.error} onRetry={m.detail.reload} /> : <Loading what="Loading detection" />}
+              </div>
+            )}
+            {selectedRow && detail && (
+              <div className="card detection-detail-card" data-testid="detection-detail">
                 <div className="detail-meta-header">
                   <span className="detail-timestamp">
-                    Detection detail · {selected.foundAt}
+                    Detection detail · {fmtDayTime(detail.found_at)}
                   </span>
+                  {detail.source === 'sample' && (
+                    <span className="sample-badge" data-testid="detail-sample-badge">Sample data</span>
+                  )}
                 </div>
 
                 <div className="detail-subject-row">
                   <div className="detail-subject-info">
-                    <h2 className="detail-subject-title">{selected.name}</h2>
+                    <h2 className="detail-subject-title">{detail.name}</h2>
                     <div className="detail-subject-chips">
-                      <span className="handle-sub">{selected.handleOrPackage} on {selected.platform}</span>
-                      <span className="chip chip-purple">{selected.type.replace('_', ' ')}</span>
-                      <span
-                        className={`chip ${
-                          selected.status === 'New'
-                            ? 'chip-blue'
-                            : selected.status === 'Reviewing'
-                            ? 'chip-orange'
-                            : selected.status === 'Confirmed'
-                            ? 'chip-red'
-                            : 'chip-green'
-                        }`}
-                      >
-                        {selected.status}
+                      <span className="handle-sub">{detail.handle ?? detail.package_id ?? detail.name} on {platformLabel(detail.platform)}</span>
+                      <span className="chip chip-purple">{typeLabel(detail.type)}</span>
+                      <span className={`chip ${statusChip(detail.status)}`} data-testid="detail-status">
+                        {statusLabel(detail.status)}
                       </span>
                     </div>
                   </div>
 
                   <div className="big-risk-badge">
-                    <span className="risk-num">{selected.score}</span>
+                    <span className="risk-num">{detail.score}</span>
                     <span className="risk-lbl">Risk</span>
                   </div>
                 </div>
@@ -193,22 +181,24 @@ export const SocialMonitoringPage: React.FC = () => {
                   <div className="vs-card official-vs">
                     <div className="vs-card-head">
                       <span className="vs-type-tag">OFFICIAL</span>
-                      <span className="vs-status-tag">On allowlist</span>
+                      <span className="vs-status-tag">
+                        {detail.official?.on_allowlist ? 'On allowlist' : `No official ${platformLabel(detail.platform)} account listed`}
+                      </span>
                     </div>
                     <div className="vs-profile-row">
-                      <div className="vs-avatar vs-avatar-official">A</div>
+                      <div className="vs-avatar vs-avatar-official">{(detail.official?.name || brandName || 'A').charAt(0).toUpperCase()}</div>
                       <div>
-                        <div className="vs-profile-name">Acme Bank</div>
-                        <div className="vs-profile-handle">@acmebank</div>
+                        <div className="vs-profile-name">{detail.official?.name || brandName}</div>
+                        <div className="vs-profile-handle">{detail.official?.handle ?? ''}</div>
                       </div>
                     </div>
                     <p className="vs-bio-text">
-                      Official page of Acme Bank. We will never ask for your PIN, OTP or KYC details over DM.
+                      {detail.official?.bio || 'The official page bio is not collected, so it is not shown.'}
                     </p>
                     <div className="vs-footer-stats">
-                      <span>Followers: 2.4M</span>
-                      <span>Joined: 2014</span>
-                      <span>Link: acmebank.com</span>
+                      {detail.official?.followers != null && <span>Followers: {detail.official.followers}</span>}
+                      {detail.official?.joined != null && <span>Joined: {detail.official.joined}</span>}
+                      {detail.official?.link && <span>Link: {detail.official.link}</span>}
                     </div>
                   </div>
 
@@ -216,87 +206,32 @@ export const SocialMonitoringPage: React.FC = () => {
                   <div className="vs-card suspect-vs">
                     <div className="vs-card-head">
                       <span className="vs-type-tag suspect-tag">SUSPECT</span>
-                      <span className="vs-match-tag">Logo {selected.logoMatchPercent || 91}% match</span>
+                      <span className="vs-match-tag" title={detail.logo?.reason ?? undefined}>
+                        {detail.suspect?.logo_match_percent != null ? `Logo ${detail.suspect.logo_match_percent}% match` : 'Logo not compared'}
+                      </span>
                     </div>
                     <div className="vs-profile-row">
-                      <div className="vs-avatar vs-avatar-suspect">A</div>
+                      <div className="vs-avatar vs-avatar-suspect">{detail.name.charAt(0).toUpperCase()}</div>
                       <div>
-                        <div className="vs-profile-name">{selected.name}</div>
-                        <div className="vs-profile-handle">{selected.handleOrPackage}</div>
+                        <div className="vs-profile-name">{detail.name}</div>
+                        <div className="vs-profile-handle">{detail.handle ?? detail.package_id ?? ''}</div>
                       </div>
                     </div>
-                    <p className="vs-bio-text">
-                      {selected.bioSnippet ||
-                        'Official Acme Bank support. DM us your KYC details to avoid account block.'}
-                    </p>
+                    <p className="vs-bio-text">{detail.suspect?.bio || 'No bio was collected.'}</p>
                     <div className="vs-footer-stats">
-                      <span>Followers: {selected.followers || '214'}</span>
-                      <span>Joined: {selected.joined || '12 days ago'}</span>
-                      <span>Link: acme-kyc-update.in</span>
+                      {detail.suspect?.followers != null && <span>Followers: {detail.suspect.followers}</span>}
+                      {detail.suspect?.joined != null && <span>Joined: {detail.suspect.joined}</span>}
+                      {(detail.suspect?.link || detail.profile_url) && <span>Link: {detail.suspect?.link || detail.profile_url}</span>}
                     </div>
                   </div>
                 </div>
 
-                {/* Why it scored */}
-                <div className="scored-breakdown-box">
-                  <div className="scored-head">
-                    <h4 className="scored-title">Why it scored {selected.score}</h4>
-                    <span className="scored-sub">Points added by each signal</span>
-                  </div>
-                  <div className="signals-list">
-                    {selected.reasons.map((r, i) => (
-                      <div key={i} className="signal-item">
-                        <span className="signal-label">{r.label}</span>
-                        <span className="signal-pts">+{r.points}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Evidence kept */}
-                <div className="evidence-kept-box">
-                  <div className="evidence-title">Evidence kept</div>
-                  <div className="evidence-row">
-                    <span className="evidence-link">Profile screenshot</span>
-                    <span className="evidence-link">Profile URL</span>
-                    <span className="evidence-text">Captured {selected.foundAt}</span>
-                    <span className="evidence-sha">
-                      SHA-256 {selected.evidence.sha256.substring(0, 4)}…{selected.evidence.sha256.substring(selected.evidence.sha256.length - 4)}
-                    </span>
-                  </div>
-                </div>
+                <ReasonsBox d={detail} />
+                <EvidenceBox d={detail} />
 
                 {/* Action buttons */}
-                <div className="detail-actions-row">
-                  <button
-                    type="button"
-                    className="btn-danger-outline"
-                    onClick={() => updateDetectionStatus(selected.id, 'Confirmed')}
-                  >
-                    Confirm impersonation
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={() => updateDetectionStatus(selected.id, 'Reviewing')}
-                  >
-                    Keep reviewing
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={() => updateDetectionStatus(selected.id, 'Dismissed')}
-                  >
-                    Dismiss as false positive
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={() => markAsOfficial(selected.id)}
-                  >
-                    Mark as official
-                  </button>
-                </div>
+                <ActionRow confirmLabel="Confirm impersonation" disabled={!canWrite || m.busyId === detail.id || detail.status === 'marked_official'} onAction={act} />
+                {m.actionError && <Notice onClose={m.clearActionError}>{m.actionError}</Notice>}
 
                 <div className="analyst-confirm-note">
                   A person confirms every detection. No takedown request is sent automatically.
@@ -307,80 +242,11 @@ export const SocialMonitoringPage: React.FC = () => {
 
           {/* Bottom Dual Panels */}
           <div className="social-bottom-dual-grid">
-            {/* Excluded as official */}
-            <div className="card bottom-dual-card">
-              <div className="dual-card-head">
-                <span className="dual-head-icon">🛡️</span>
-                <h3 className="panel-card-title">Excluded as official</h3>
-              </div>
-              <p className="dual-card-desc">
-                These matched your allowlist by exact handle and were never scored.
-              </p>
-              <div className="allowlist-items-list">
-                <div className="excluded-row">
-                  <span>@acmebank on Instagram</span>
-                  <span className="chip chip-green">Official · not flagged</span>
-                </div>
-                <div className="excluded-row">
-                  <span>@AcmeBank on X</span>
-                  <span className="chip chip-green">Official · not flagged</span>
-                </div>
-                <div className="excluded-row">
-                  <span>acmebank on Facebook</span>
-                  <span className="chip chip-green">Official · not flagged</span>
-                </div>
-                <div className="excluded-row">
-                  <span>company/acmebank on LinkedIn</span>
-                  <span className="chip chip-green">Official · not flagged</span>
-                </div>
-                <div className="excluded-row">
-                  <span>@acmebank on YouTube</span>
-                  <span className="chip chip-green">Official · not flagged</span>
-                </div>
-              </div>
-            </div>
-
-            {/* False-positive guard */}
-            <div className="card bottom-dual-card">
-              <div className="dual-card-head">
-                <span className="dual-head-icon">✓</span>
-                <h3 className="panel-card-title">False-positive guard</h3>
-              </div>
-              <p className="dual-card-desc">
-                Similar-sounding names that belong to other businesses are cleared automatically.
-              </p>
-              <div className="allowlist-items-list">
-                <div className="excluded-row">
-                  <div>
-                    <div className="guard-entity-title">Acme Bakery · Facebook page</div>
-                    <div className="guard-entity-sub">Category Bakery, logo 6% match</div>
-                  </div>
-                  <span className="chip chip-neutral">Not flagged</span>
-                </div>
-                <div className="excluded-row">
-                  <div>
-                    <div className="guard-entity-title">Acme Hotels · Instagram</div>
-                    <div className="guard-entity-sub">Category Hospitality, logo 4% match</div>
-                  </div>
-                  <span className="chip chip-neutral">Not flagged</span>
-                </div>
-                <div className="excluded-row">
-                  <div>
-                    <div className="guard-entity-title">@acme_weather · X</div>
-                    <div className="guard-entity-sub">Category Weather app, logo 3% match</div>
-                  </div>
-                  <span className="chip chip-neutral">Not flagged</span>
-                </div>
-              </div>
-              <Link to="/lookalike" className="see-names-link">
-                See how names are matched →
-              </Link>
-            </div>
+            <ExcludedCard state={m.excluded} kind="account" description="These matched your allowlist by exact handle and were never scored." />
+            <GuardCard state={m.guard} kind="social" description="Similar-sounding names that belong to other businesses are cleared automatically." />
           </div>
 
-          <div className="page-bottom-note">
-            Sample data for the fictional brand Acme Bank. Not real detections.
-          </div>
+          <SampleNote brandName={brandName} />
         </div>
       </div>
     </>

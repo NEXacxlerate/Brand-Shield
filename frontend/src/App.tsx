@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, Outlet, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AppLayout } from './components/layout/AppLayout';
-import { session } from './api';
-import { onUnauthorized } from './api/client';
+import { onUnauthorized, session } from './api/client';
+import { resetBrand } from './hooks/useBrand';
 
 // Pages matching PDF
 import { LoginPage } from './pages/LoginPage';
@@ -15,14 +15,22 @@ import { LookalikeLabPage } from './pages/LookalikeLabPage';
 import { SourceHealthPage } from './pages/SourceHealthPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { EvaluationPage } from './pages/EvaluationPage';
 
 function RequireAuth() {
   const navigate = useNavigate();
-  useEffect(() => onUnauthorized(() => navigate('/login', { replace: true })), [navigate]);
+  const location = useLocation();
+  useEffect(
+    () =>
+      onUnauthorized(() => {
+        resetBrand();
+        navigate('/login', { replace: true });
+      }),
+    [navigate]
+  );
 
-  if (!session.isAuthenticated()) {
-    session.startOffline();
-  }
+  // No silent offline session: without a token the user must sign in.
+  if (!session.isAuthenticated()) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
 
   return <Outlet />;
 }
@@ -34,10 +42,10 @@ function App() {
         {/* 1. /login: Sign in */}
         <Route path="/login" element={<LoginPage />} />
 
-        {/* 2. /setup: 3-step first-run */}
-        <Route path="/setup" element={<SetupPage />} />
-
         <Route element={<RequireAuth />}>
+          {/* 2. /setup: 3-step first-run (the admin must be signed in) */}
+          <Route path="/setup" element={<SetupPage />} />
+
           {/* 3. /dashboard */}
           <Route
             path="/dashboard"
@@ -114,6 +122,16 @@ function App() {
             element={
               <AppLayout>
                 <SettingsPage />
+              </AppLayout>
+            }
+          />
+
+          {/* 11. /evaluation: precision, recall and F1 (linked from Settings) */}
+          <Route
+            path="/evaluation"
+            element={
+              <AppLayout>
+                <EvaluationPage />
               </AppLayout>
             }
           />
