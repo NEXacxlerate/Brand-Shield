@@ -1,0 +1,206 @@
+.pdf-settings-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.settings-tabs-row {
+  display: flex;
+  gap: 8px;
+}
+
+.settings-tab-btn {
+  padding: 8px 18px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid #1f1f28;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #8c8f9f;
+}
+
+.settings-tab-btn.active {
+  background: #14172c;
+  border-color: #4f63f0;
+  color: #ffffff;
+}
+
+.settings-two-col-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.35fr;
+  gap: 20px;
+}
+
+/* Left Card */
+.settings-left-card {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settings-lbl {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #c4c6d6;
+}
+
+.settings-select {
+  height: 42px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid #23232c;
+  padding: 0 12px;
+  font-size: 13.5px;
+  color: #ffffff;
+}
+
+.checkboxes-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settings-chk-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: #b1b4c6;
+  cursor: pointer;
+}
+
+.settings-chk-input {
+  accent-color: #4f63f0;
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}
+
+/* Right Stack */
+.settings-right-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.sensitivity-card {
+  padding: 22px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sensitivity-threshold-text {
+  font-size: 13px;
+  color: #b1b4c6;
+}
+
+.slider-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sensitivity-range-slider {
+  width: 100%;
+  accent-color: #4f63f0;
+  height: 6px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.slider-labels-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #7b7e92;
+}
+
+.sensitivity-summary-note {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #8c8f9f;
+}
+
+/* Look-alike rules card */
+.lookalike-rules-card {
+  padding: 22px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.rules-checkbox-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.impersonation-words-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  padding-top: 14px;
+}
+
+.words-pill-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid #23232c;
+  padding: 6px 10px;
+  border-radius: 10px;
+}
+
+.impersonation-word-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(79, 99, 240, 0.15);
+  border: 1px solid rgba(79, 99, 240, 0.3);
+  font-size: 11.5px;
+  color: #8b9bff;
+  font-weight: 600;
+}
+
+.remove-word-btn {
+  color: inherit;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+.add-word-input {
+  border: none;
+  background: transparent;
+  color: #ffffff;
+  font-size: 12px;
+  flex: 1;
+  min-width: 90px;
+}
+
+.try-rules-link {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #8b9bff;
+  margin-top: 4px;
+}
+
+@media (max-width: 1050px) {
+  .settings-two-col-grid {
+    grid-template-columns: 1fr;
+  }
+}

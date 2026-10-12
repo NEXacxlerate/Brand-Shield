@@ -1,0 +1,343 @@
+.login-screen {
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+  background-color: #07070a;
+  color: #f2f3f7;
+  overflow: hidden;
+}
+
+/* Left Hero Pane */
+.login-hero-pane {
+  flex: 1.15;
+  background: radial-gradient(circle at 10% 20%, #0d0f1c 0%, #07070a 80%);
+  padding: 48px 60px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.login-brand-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 56px;
+  z-index: 2;
+}
+
+.login-brand-name {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #ffffff;
+}
+
+.login-hero-copy {
+  max-width: 540px;
+  margin-bottom: 44px;
+  z-index: 2;
+}
+
+.login-hero-title {
+  font-size: 42px;
+  font-weight: 800;
+  line-height: 1.18;
+  letter-spacing: -0.03em;
+  color: #ffffff;
+  margin-bottom: 20px;
+}
+
+.login-hero-subtitle {
+  font-size: 15px;
+  line-height: 1.6;
+  color: #9fa2b4;
+}
+
+/* 3 Pillars Grid */
+.login-pillars-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  max-width: 620px;
+  z-index: 2;
+}
+
+.login-pillar-card {
+  background: rgba(18, 19, 27, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 20px 18px;
+  backdrop-filter: blur(12px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pillar-icon-box {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pillar-blue {
+  background: rgba(79, 157, 255, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(79, 157, 255, 0.3);
+}
+
+.pillar-green {
+  background: rgba(52, 211, 153, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.3);
+}
+
+.pillar-purple {
+  background: rgba(167, 139, 250, 0.15);
+  color: #c084fc;
+  border: 1px solid rgba(167, 139, 250, 0.3);
+}
+
+.pillar-heading {
+  font-size: 14px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.pillar-detail {
+  font-size: 12px;
+  line-height: 1.45;
+  color: #8b8e9f;
+}
+
+/* Atmospheric glowing orbs */
+.hero-orbs-wrap {
+  position: absolute;
+  bottom: -60px;
+  left: 20px;
+  width: 500px;
+  height: 340px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.hero-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(65px);
+}
+
+.orb-1 {
+  width: 200px;
+  height: 200px;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.5) 0%, rgba(59, 130, 246, 0) 70%);
+  bottom: 40px;
+  left: 30px;
+}
+
+.orb-2 {
+  width: 230px;
+  height: 230px;
+  background: radial-gradient(circle, rgba(217, 70, 239, 0.45) 0%, rgba(217, 70, 239, 0) 70%);
+  bottom: 20px;
+  left: 170px;
+}
+
+.orb-3 {
+  width: 190px;
+  height: 190px;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.4) 0%, rgba(139, 92, 246, 0) 70%);
+  bottom: 60px;
+  left: 310px;
+}
+
+/* Right Form Pane */
+.login-form-pane {
+  flex: 0.95;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px;
+  background-color: #09090d;
+}
+
+.login-form-box {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+}
+
+.login-form-title {
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  color: #ffffff;
+  margin-bottom: 8px;
+}
+
+.login-form-subtitle {
+  font-size: 13.5px;
+  color: #8b8e9f;
+  margin-bottom: 28px;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.auth-error-alert {
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(240, 86, 106, 0.15);
+  border: 1px solid rgba(240, 86, 106, 0.4);
+  color: #ff8a98;
+  font-size: 13px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.form-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #d1d3df;
+}
+
+.link-btn {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #8b9bff;
+  padding: 0;
+}
+
+.link-btn:hover {
+  text-decoration: underline;
+}
+
+.form-input {
+  height: 44px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid #23232c;
+  padding: 0 14px;
+  font-size: 14px;
+  color: #ffffff;
+  transition: border-color 0.15s ease;
+}
+
+.form-input:focus {
+  border-color: #4f63f0;
+}
+
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+  margin: 4px 0;
+}
+
+.custom-checkbox {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid #36384a;
+  background: rgba(255, 255, 255, 0.04);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  transition: all 0.15s ease;
+}
+
+.custom-checkbox.checked {
+  background: #4f63f0;
+  border-color: #4f63f0;
+}
+
+.checkbox-text {
+  font-size: 13px;
+  color: #b1b4c6;
+}
+
+.auth-submit-btn {
+  height: 46px;
+  width: 100%;
+  font-size: 14.5px;
+  font-weight: 700;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #4f63f0 0%, #635bff 100%);
+  color: #ffffff;
+  box-shadow: 0 4px 20px rgba(79, 99, 240, 0.4);
+}
+
+.new-org-separator {
+  text-align: center;
+  margin: 8px 0 2px;
+  font-size: 13px;
+  color: #7b7e93;
+}
+
+.auth-setup-btn {
+  height: 44px;
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid #23232c;
+  background: rgba(255, 255, 255, 0.025);
+  color: #e2e4ee;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.auth-setup-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.auth-audit-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 18px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #717387;
+}
+
+.notice-lock-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #717387;
+}
+
+@media (max-width: 960px) {
+  .login-screen {
+    flex-direction: column;
+  }
+  .login-hero-pane {
+    padding: 36px 24px;
+  }
+  .login-form-pane {
+    padding: 40px 24px;
+  }
+  .login-pillars-grid {
+    grid-template-columns: 1fr;
+  }
+}

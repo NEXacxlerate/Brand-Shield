@@ -1,0 +1,155 @@
+.appstore-page-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.alert-red {
+  background: rgba(240, 86, 106, 0.12) !important;
+  border-color: rgba(240, 86, 106, 0.35) !important;
+  color: #ff8a98 !important;
+}
+
+.red-warn {
+  color: #ff8a98 !important;
+}
+
+.warn-icon-red {
+  color: #f0566a;
+  flex-shrink: 0;
+}
+
+.retry-inline-btn {
+  color: #8b9bff;
+  font-weight: 600;
+  text-decoration: underline;
+  padding: 0;
+  margin-left: 4px;
+}
+
+.appstore-main-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.6fr;
+  gap: 20px;
+}
+
+.app-detail-card {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.app-icon-squircle {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #4f63f0, #8b5cf6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  color: #ffffff;
+  flex-shrink: 0;
+}
+
+.package-sub {
+  font-family: monospace;
+  font-size: 12px;
+  color: #8c8f9f;
+}
+
+/* Publisher Alert Box */
+.publisher-alert-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: rgba(240, 86, 106, 0.08);
+  border: 1px solid rgba(240, 86, 106, 0.25);
+  color: #f8a5af;
+}
+
+.alert-box-icon {
+  color: #f0566a;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.alert-box-text {
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.alert-box-text strong {
+  color: #ffffff;
+}
+
+.vs-app-specs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11.5px;
+  color: #9ea1b2;
+  margin-top: auto;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  padding-top: 8px;
+}
+
+/* Description Overlap Card */
+.description-overlap-card {
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.015);
+  border: 1px solid #1c1c24;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.overlap-head {
+  display: flex;
+  justify-content: space-between;
+}
+
+.overlap-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.overlap-snippet {
+  font-size: 12.5px;
+  color: #a4a7b9;
+  line-height: 1.5;
+}
+
+.overlap-keywords {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.keyword-highlight-pill {
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(79, 99, 240, 0.15);
+  border: 1px solid rgba(79, 99, 240, 0.3);
+  font-size: 11px;
+  color: #8b9bff;
+  font-weight: 600;
+}
+
+.overlap-sub-note {
+  font-size: 11px;
+  color: #6e7185;
+  margin-top: 2px;
+}
+
+@media (max-width: 1050px) {
+  .appstore-main-grid {
+    grid-template-columns: 1fr;
+  }
+}

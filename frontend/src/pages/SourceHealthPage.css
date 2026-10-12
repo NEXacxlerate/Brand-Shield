@@ -1,0 +1,279 @@
+.sources-page-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* 4 KPI Row */
+.source-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.source-kpi-card {
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.source-kpi-status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.source-kpi-lbl {
+  font-size: 13px;
+  font-weight: 600;
+  color: #c4c6d6;
+}
+
+.source-kpi-num {
+  font-size: 28px;
+  font-weight: 800;
+  color: #ffffff;
+  line-height: 1.1;
+  margin-top: 4px;
+}
+
+.source-kpi-sub {
+  font-size: 12px;
+  color: #7b7e92;
+}
+
+.dot-blue {
+  background: #60a5fa;
+  box-shadow: 0 0 6px #60a5fa;
+}
+
+/* Middle 2-Column Section */
+.source-middle-grid {
+  display: grid;
+  grid-template-columns: 1.8fr 1.2fr;
+  gap: 20px;
+}
+
+.sources-list-container-card {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sources-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.header-sync-info {
+  font-size: 12px;
+  color: #7b7e92;
+}
+
+.sources-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.source-detail-row {
+  padding: 16px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid #1c1c24;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.source-row-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.source-identity-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.source-logo-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.source-title-desc {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.source-title-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.source-desc-meta {
+  font-size: 11.5px;
+  color: #7b7e92;
+}
+
+.source-controls-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.monitor-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: #c4c6d6;
+  cursor: pointer;
+  user-select: none;
+}
+
+.monitor-checkbox {
+  accent-color: #4f63f0;
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}
+
+.source-status-message {
+  font-size: 12px;
+  line-height: 1.45;
+  color: #a4a7b9;
+}
+
+.source-row-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.source-sync-text {
+  font-size: 11.5px;
+  color: #6e7185;
+}
+
+.retry-btn {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+/* Right Side Stack */
+.source-side-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.guide-rule-card {
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.unavailable-steps-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.unavailable-step-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.step-circle {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #14172c;
+  color: #8b9bff;
+  font-size: 11.5px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.step-msg {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: #9295a8;
+}
+
+/* Recent Source Events */
+.recent-events-card {
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.source-events-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.event-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.event-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #34d399;
+  flex-shrink: 0;
+}
+
+.event-info {
+  flex: 1;
+}
+
+.event-title {
+  color: #c4c6d6;
+}
+
+.event-time {
+  color: #6e7185;
+  font-size: 11.5px;
+}
+
+@media (max-width: 1050px) {
+  .source-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .source-middle-grid {
+    grid-template-columns: 1fr;
+  }
+}
