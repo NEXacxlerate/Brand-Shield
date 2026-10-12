@@ -1,7 +1,7 @@
 # ScamMind AI: API Specification (derived from the frontend contract)
 
 Source of truth for screens: `ScamMind AI Screens.pdf` (10 screens). Frontend facts: `docs/FRONTEND_CONTRACT.md`.
-This is a **proposed** contract. Legend used on every endpoint:
+This started as a **proposed** contract. Phases 1, 3 and 4 have since built most of it: sections titled "Phase N implementation notes" (section 9 for sources, **section 18 for everything in Phase 4**) are authoritative and override anything older in this file when they differ. Legend used on every endpoint:
 
 - **[CALLED]** = the frontend already calls this URL today (in `frontend/src/api/*.ts`).
   Important: of the 10 routed pages only Login calls the API. Most [CALLED] endpoints below are called only by the **orphaned** old-product pages or by `api/client.ts` itself. Each is labelled accordingly.
@@ -60,17 +60,17 @@ Network failure (no HTTP response) is handled client-side as "Cannot reach the s
 | `platform` | `instagram`, `facebook`, `x`, `telegram`, `linkedin`, `youtube`, `google_play`, `app_store`, `third_party_apk` | Instagram, Facebook, X, Telegram, LinkedIn, YouTube, Google Play, App Store (source name: "Apple App Store"), Third-party APK (source name: "Third-party APK sites") |
 | detection platforms | all except `youtube` (youtube only appears for official accounts) | |
 | official account platform | instagram, x, facebook, linkedin, youtube | |
-| `detection.status` | `new`, `reviewing`, `confirmed`, `dismissed`, `marked_official` | New, Reviewing, Confirmed, Dismissed, Marked official |
+| `detection.status` | `new`, `reviewing`, `confirmed`, `dismissed`, `marked_official` (+ internal `cleared`, never listed) | New, Reviewing, Confirmed, Dismissed, Marked official |
 | `risk_band` | `high` (score >= 85), `medium` (70 to 84), `low` (< 70) | High / Medium / Low. **Proposed**; PDF only shows "High". |
 | `account.status` | `verified`, `unreachable` | Verified, Unreachable |
 | `source.status` | `online`, `slow`, `unavailable` | Online, Slow, Unavailable |
 | `source.kind` | `social`, `store` | |
 | `scan.scope` | `all`, `social`, `apps` | |
-| `job.state` | `queued`, `running`, `done`, `error` | |
+| `job.state` | `queued`, `running`, `done`, `error` (kept for the UI). The richer `scan.status` is `queued`, `running`, `completed`, `partial`, `failed` | |
 | `lookalike.verdict` | `flagged`, `not_flagged`, `official` | Flagged, Not flagged, Official |
-| `export.format` | `pdf`, `csv` | PDF report, CSV data |
+| `export.format` | `csv`, `html` (printable). `pdf` is refused with 422: no PDF library | CSV data, Printable report |
 | `data_mode` | `live`, `sample` | |
-| `scan_schedule` | `5m`, `15m`, `1h`, `1d` | Every 5 minutes, Every 15 minutes, Hourly, Daily |
+| `scan_schedule` | `off`, `5m`, `15m`, `1h`, `1d` (`off` added in Phase 4) | Every 5 minutes, Every 15 minutes, Hourly, Daily |
 
 ---
 
@@ -403,7 +403,7 @@ These endpoints exist now. Where this differs from the proposal above, **this se
 ```json
 "tavily_credits": { "provider": "tavily", "month": "2026-10", "used": 12, "budget": 900, "remaining": 888, "reported_used": 12 }
 ```
-`used` is the larger of our own counter and the usage Tavily reports. A row that has never been checked in the current mode is shown as `online` with message "Not checked yet." (or `unavailable` with the reason when no live collector covers it); rows written under the other data mode are not presented as current. `next_scan_at` and `schedule` are `null` until Phase 4 (scheduler).
+`used` is the larger of our own counter and the usage Tavily reports. A row that has never been checked in the current mode is shown as `online` with message "Not checked yet." (or `unavailable` with the reason when no live collector covers it); rows written under the other data mode are not presented as current. `next_scan_at` and `schedule` were `null` in Phase 3; since Phase 4 they carry the scheduler values (section 18.2).
 
 **PATCH /api/sources/{id}** `{ "monitored": bool }` (analyst, admin). Returns the item. Audit `source.monitor_toggled` (`monitored=true|false`) only when the value changes. Unmonitored platforms are not queried and their candidates are dropped.
 
@@ -653,3 +653,267 @@ Not present at all: accounts, official apps, logo upload, detections review acti
 8. Single brand per org (sidebar chevron implies switching).
 9. Notifications: align the UI copy with the data model (`high_risk_immediate` threshold 85?, daily vs weekly digest, webhook).
 10. Platform names for the wire enum (`app_store` vs source label "Apple App Store").
+
+
+---
+
+## 18. Phase 4 implementation notes (authoritative)
+
+Implemented in `server/app/api/{scans,detections,dashboard,lookalike,settings,reports,evaluation}.py`, logic in `server/app/services/`. Where this section differs from sections 6 to 14 above, **this section wins**. Roles: `viewer` = GET and pure computations only; `analyst` = scans, detection actions, reports, running look-alike cases/evaluation; `admin` = also settings, data mode, adding/removing look-alike cases. Every error is `{"detail": ...}`. Nothing here ever sends a takedown, report, email or webhook: humans approve, the system records.
+
+### 18.1 Conventions added in Phase 4
+- `brand_id` is optional everywhere and defaults to the single brand (404 `No brand profile yet...` when none exists).
+- Detection ids are integers. Timestamps ISO-8601 UTC `Z`.
+- **Sample honesty:** every list/aggregate response has top-level `data_mode` (`live|sample`, the *effective* mode) and `is_sample`; list responses also have `includes_sample`. Rows carry `source` (`live|sample`). Lists default to rows of the current mode only (in `live` mode sample rows are hidden, never mixed in); `?source=sample|live|all` overrides.
+- Detection `status` values: `new | reviewing | confirmed | dismissed | marked_official`. `marked_official` and internal `cleared` rows never appear in `GET /detections` (even with `?status=marked_official`): official assets are only visible through the excluded list.
+- Risk band: `high` >= 85, `medium` 70 to 84, `low` < 70 (`risk_band`).
+
+### 18.2 Scans and jobs
+
+**POST /api/scan** (analyst, admin) body `{ "scope": "all|social|apps", "brand_id": 1 }` (both optional). 202:
+```json
+{ "job_id": "job_19d4f...", "scan_id": 1, "status": "queued", "scan": { /* scan object below */ } }
+```
+With the in-process or RQ executor the scan usually still shows `queued`/`running`; poll `GET /api/jobs/{job_id}`. 409 `{"detail":"Create the brand profile before scanning."}` when there is no brand. **409 when a scan for the brand is already queued/running:**
+```json
+{ "detail": "A scan is already running", "job_id": "job_...", "scan_id": 3, "scan": { "status": "running" } }
+```
+A queued/running scan older than 30 minutes is failed automatically (dead worker) so a new one can start. Audit `scan.started` (actor = user, or `scheduler`).
+
+**Scan object** (`GET /api/jobs/{job_id}`, `GET /api/scans/{id}`, items of `GET /api/scans`, `scan` in responses):
+```json
+{
+  "id": 1, "job_id": "job_19d4f...", "kind": "scan", "brand_id": 1, "scope": "all",
+  "status": "partial", "state": "done", "progress": 100,
+  "message": "Scan finished with some sources unavailable. Results from the other sources were saved.",
+  "steps": [ { "source": "sample", "state": "done", "status": "online", "checked": 17, "new_detections": 0, "message": "Working normally." },
+             { "source": "tavily", "state": "error", "status": "unavailable", "checked": 0, "new_detections": 0, "message": "..." } ],
+  "result": { "sources_checked": 8, "sources_online": 6, "accounts_or_apps_checked": 17, "new_detections": 9, "official_excluded": 2,
+              "partial_sources": ["telegram"], "unavailable_sources": ["app_store"], "finished_at": "2026-10-13T12:00:00Z" },
+  "counts": { "candidates_found": 17, "duplicates_removed": 0, "unique_candidates": 17, "official_excluded": 2, "prefiltered": 0, "evaluated": 15,
+              "detections_new": 9, "detections_updated": 0, "detections_protected": 0, "cleared_new": 6, "logo_compared": 0, "logo_unavailable": 15,
+              "llm_checked": 0, "llm_errors": 0, "official_detections_closed": 0, "truncated": 0 },
+  "source_report": [ { "collector": "sample", "status": "online", "reason": null, "message": "Working normally.", "latency_ms": 4, "candidates": 17,
+                       "from_cache": false, "cached_age_seconds": null, "next_retry_at": null, "consecutive_failures": 0, "in_backoff": false,
+                       "warnings": [], "data_source": "sample" } ],
+  "timings": { "collect_ms": 44, "process_ms": 106, "total_ms": 165 },
+  "errors": [ "tavily: no_key: ..." ],
+  "started_by": "Harini", "data_mode": "sample", "is_sample": true,
+  "created_at": "...Z", "started_at": "...Z", "finished_at": "...Z"
+}
+```
+- `status`: `queued | running | completed | partial | failed`. `partial` = some source unavailable or returned partial results (everything the other sources found is saved). `failed` = internal crash, or **every** active source unavailable with nothing to analyse. `state` is the old job vocabulary (`completed`/`partial` => `done`, `failed` => `error`). `started_by` is a user name or `scheduler`. `errors` are short summaries with secrets redacted.
+- `counts.detections_protected` = existing detections with a human decision that a re-scan left untouched (only evidence/last_seen/score history updated).
+
+**GET /api/jobs/{job_id}**: the scan object (404 unknown). **GET /api/scans** `?limit=20&offset=0&brand_id=` -> `{ "total", "items": [scan] }` newest first. **GET /api/scans/latest** -> `{ "scan": scan | null }`. **GET /api/scans/{id}**.
+
+**GET /api/scan/status** (any role):
+```json
+{ "last_scan_at": "...Z", "last_scan_status": "completed", "last_full_sync_at": "...Z", "next_scan_at": "...Z", "schedule": "1d",
+  "running_job_id": null, "data_mode": "sample", "is_sample": true,
+  "scheduler": { "enabled": true, "schedule": "1d", "interval_minutes": 1440, "interval_source": "setting", "effective_interval_minutes": 1440,
+                 "stretched_for_credits": false, "paused_for_credits": false, "next_scan_at": "...Z", "reason": "Next scheduled scan is not due yet." } }
+```
+`next_scan_at` is `null` when the scheduler is off/disabled. `interval_source` is `env` when `SCAN_INTERVAL_MINUTES` is set (it wins; `0` = off) else `setting`. `GET /api/sources` `summary.next_scan_at` and `summary.schedule` now carry the same values (they were `null` in Phase 3).
+
+**Scheduler credit rule** (also in DECISIONS.md): when Tavily is in the live chain, one scan costs `max queries x credits per query`; one scan is always kept in reserve for manual scans; with less than one scan left above the reserve, scheduled scans pause until the next month (`paused_for_credits`); otherwise the interval is stretched to `days_left x 24h / affordable_scans` when that is longer than configured (`stretched_for_credits`). Manual scans are never blocked by the rule.
+
+`POST /api/sources/{id}/retry` is still synchronous (section 9); it was not turned into a job.
+
+### 18.3 Detections
+
+**GET /api/detections** (any role). Query: `category=social|apps`; `type=` a detection type (`fake_profile|fake_brand_page|scam_account|fake_app`) **or** `social|app|apps` (category shorthand); `platform`; `band=high|medium|low`; `status` (repeatable; `keep_reviewing` accepted for `reviewing`); `source=live|sample|all`; `q` (name / handle / package id / publisher, case-insensitive, wildcards escaped); `min_score`; `from`, `to` (ISO, by `found_at`); `sort=score_desc` (default) `|score_asc|found_desc|found_asc|last_seen_desc`; `limit` (1 to 200, default 50), `offset`; `brand_id`.
+```json
+{
+  "total": 9, "limit": 50, "offset": 0, "data_mode": "sample", "is_sample": true, "includes_sample": true,
+  "counts": { "all": 9, "by_type": {"fake_profile":1,"fake_brand_page":2,"scam_account":5,"fake_app":1},
+              "by_platform": {"facebook":2,"instagram":2,"x":2}, "by_status": {"new":9}, "by_band": {"low":8,"medium":1} },
+  "items": [ { "id": 3, "category": "social", "type": "scam_account", "platform": "x", "name": "...", "handle": "@cmebank", "package_id": null,
+               "publisher": null, "profile_url": "https://x.com/cmebank", "score": 70, "risk_band": "medium", "status": "new",
+               "summary": "homoglyph (look-alike character), suspicious bio", "tags": ["Homoglyph (look-alike character)", "Suspicious bio"],
+               "found_at": "...Z", "last_seen_at": "...Z", "stale": false, "source": "sample" } ]
+}
+```
+**Tab counts:** `counts.all`, `by_type` and `by_platform` use the same filters as the list *except* the tab being counted (a `type` filter does not change `by_type`; a `platform` filter does not change `by_platform`), so "All 9 / Fake profiles 1 / ..." always adds up. `by_status` ignores the `status` filter. Counts cover only listed statuses (`new, reviewing, confirmed, dismissed`).
+
+**GET /api/detections/{id}** (any role; works for any status):
+```json
+{ "id": 3, "category": "social", "type": "scam_account", "platform": "x", "name": "...", "handle": "@cmebank", "score": 70, "risk_band": "medium",
+  "status": "new", "summary": "...", "tags": ["..."], "found_at": "...Z", "last_seen_at": "...Z", "source": "sample",
+  "brand_id": 1, "first_seen_at": "...Z",
+  "name_match": { "verdict": "flagged", "pct": 96, "techniques": ["homoglyph"], "technique_labels": ["homoglyph (look-alike character)"], "squat_category": "typo",
+                  "added_words": [], "impersonation_words": [], "edit_distance": 0, "notes": ["..."] },
+  "matched_text": "...", "raw_total": 70, "capped": false, "threshold": 25,
+  "reasons": [ { "signal": "name_similarity", "label": "Name similarity", "detail": "Spelled to look like \"Acme Bank\" ...", "points": 33, "max_points": 34 },
+               { "signal": "bio_signals", "label": "Bio content", "detail": "kyc_lure (+9): ...", "points": 22, "max_points": 28 } ],
+  "official": { "name": "Acme Bank", "handle": "@acmebank", "url": "instagram.com/acmebank", "bio": null, "followers": null, "joined": null, "link": "acmebank.com", "on_allowlist": true },
+  "suspect": { "bio": "...", "followers": 323, "following": 3654, "posts": 2, "joined": "2026-10-07", "verified": false, "link": "https://x.com/cmebank", "logo_match_percent": null },
+  "logo": { "status": "compared | unavailable", "similarity": 91.2, "reason": "Logo unavailable: the source gave no profile picture URL" },
+  "evidence": { "page_url": "...", "captured_at": "...Z", "sha256": "...", "snapshot_url": "/api/detections/3/evidence", "screenshot_url": null, "screenshot_sha256": null, "history": [] },
+  "score_history": [ { "at": "...Z", "score": 70, "scan_id": 1 } ],
+  "notes": [ { "at": "...Z", "actor": "Harini", "text": "...", "kind": "reviewer | system" } ],
+  "history": [ { "at": "...Z", "actor": "system", "kind": "scan | status | note | evidence", "from": null, "to": "new", "note": "Found by scan job_..." } ],
+  "extras": { }, "data_mode": "sample", "is_sample": true }
+```
+- `reasons[].points` sum to `raw_total`; `score = min(100, raw_total)`; `capped` says whether the cap changed anything. Every reason has a `detail` sentence.
+- `official` is the brand's own asset on the same platform/store (null fields when no official account exists on that platform; the official page's bio and followers are not collected, so they stay `null` rather than invented). App detections add `publisher_differs`, `official_publisher`, `suspect: { stores, downloads, released, icon_match_percent, rating, rating_count }`, `description: { snippet, overlap_points }` and `official: { name, package_id, publisher, stores, downloads, on_allowlist, official_publishers }`.
+- `evidence.sha256` is the SHA-256 of the saved snapshot file. `GET /api/detections/{id}/evidence` returns `{ page_url, captured_at, sha256, hash_verified, snapshot, screenshot_available, screenshot_sha256, history }` (it re-hashes the file: `hash_verified:false` means the file changed or is missing). `GET .../evidence/screenshot` returns the PNG or 404 (screenshots are OFF by default; the Playwright hook is not installed).
+
+**Actions** (analyst, admin; each writes a history event and an audit row with actor and note; body `{ "note": "optional" }`, note max 1000 chars):
+- `POST /api/detections/{id}/status` `{ "status": "reviewing|confirmed|dismissed", "note": "" }` (`keep_reviewing`, `confirm`, `dismiss` accepted). Returns the detail object plus `"audit_id"`. 422 for `new`/`cleared`/`marked_official` or unknown values; 409 when the detection is `marked_official`; a no-op (no audit row) when the status is unchanged and no note is given.
+- `POST /api/detections/{id}/confirm`, `/keep-reviewing`, `/dismiss`: same as status with that value; body optional.
+- `POST /api/detections/{id}/mark-official` `{ "note": "", "publisher": "Acme Bank Ltd" }` -> `{ "detection": {detail}, "allowlist_entry": { "kind": "account|app", "id": 6 }, "official_assets": 8, "audit_id": 12 }`. Adds the asset to `official_accounts` / `official_apps` (verified), writes an `official_matches` row (reason `marked_official`) and sets `marked_official`; it disappears from every detection list and the next scan drops it before scoring. 409 if already marked; 422 for a third-party APK listing, a detection without handle/package, or a handle longer than 30 characters. Audit `detection.marked_official` + `account.added|app.added`. Not reversible through the API.
+- Adding an official account/app on the Brand Profile page (`POST /api/brands/{id}/accounts|apps`) also closes any existing detection for exactly that asset (`marked_official`, audited).
+- A **re-scan never resets a human decision** (see DECISIONS.md): only `last_seen_at`, score history, evidence and (for a score move of 10+ points) a system note change.
+
+**GET /api/detections/excluded** (any role, `?category=social|apps`): the allowlist, with how often scans met each asset:
+```json
+{ "total": 2, "data_mode": "sample", "is_sample": true, "items": [
+  { "kind": "account", "id": 1, "platform": "instagram", "label": "@acmebank on instagram", "status": "Official · not flagged", "reason": "exact_handle",
+    "matched_rule": "Exact official instagram handle.", "times_seen": 2, "last_seen_at": "...Z", "source": "live" },
+  { "kind": "app", "id": 1, "platform": null, "label": "Acme Bank Mobile · com.acmebank.mobile", "sub": "Acme Bank Ltd · google_play", "status": "Official · not flagged",
+    "reason": "package_id", "matched_rule": "Exact official package id.", "times_seen": 1, "last_seen_at": "...Z", "source": "live" } ] }
+```
+(`source` here is the origin of the allowlist entry; this list is not filtered by data mode.) A scan also stores per-asset `official_matches` rows (reason `exact_handle|exact_url|package_id|apple_id|bundle_id|marked_official`, `matched_rule`, `times_seen`).
+
+**GET /api/detections/false-positives** (any role, `?category=`, `?source=`): candidates below the threshold whose name partly resembles the brand (status `cleared`), such as "Acme Bakery":
+```json
+{ "total": 4, "data_mode": "sample", "is_sample": true, "items": [
+  { "id": 12, "name": "Acme Hotels", "platform": "facebook", "category": "social", "handle": "acmehotels", "package_id": null, "publisher": null, "score": 2,
+    "name_match_percent": 30, "logo_match_percent": null, "icon_match_percent": null, "logo_note": "Logo unavailable: sample data has no images",
+    "reason": "Name partly resembles the brand (30%); logo unavailable: ...; score 2 is below the review threshold of 25; no other brand evidence.",
+    "status": "not_flagged", "last_seen_at": "...Z", "source": "sample" } ] }
+```
+
+### 18.4 Dashboard
+
+**GET /api/dashboard** (any role, `?brand_id=`). Every number is computed from stored rows for the current data mode; "open" = `new + reviewing + confirmed`.
+```json
+{
+  "brand": {"id":1,"name":"Acme Bank"}, "data_mode": "sample", "is_sample": true, "includes_sample": true,
+  "kpis": { "total_detections": {"value":9,"delta_week":9,"trend":[0,0,0,0,0,0,9]}, "social_impersonations": {"value":8,"delta_week":8,"trend":[]},
+            "suspicious_apps": {"value":1,"delta_week":1,"trend":[]}, "official_assets": {"value":3} },
+  "counts": { "by_status": {"new":9,"reviewing":0,"confirmed":0,"dismissed":0}, "by_band": {"high":0,"medium":1,"low":8},
+              "by_type": {"fake_profile":1,"fake_brand_page":2,"scam_account":5,"fake_app":1}, "by_category": {"social":8,"apps":1}, "cleared": 6 },
+  "by_type": [ {"type":"scam_account","count":5,"percent":56} ],
+  "by_platform": [ {"platform":"x","count":2} ], "total_open": 9,
+  "needs_review": [ {"id":3,"name":"@cmebank","platform":"x","type":"scam_account","found_at":"...Z","risk_band":"medium","score":70} ],
+  "recent": [ {"id":3,"name":"@cmebank","summary":"...","platform":"x","type":"scam_account","score":70,"status":"new","found_at":"...Z","source":"sample"} ],
+  "top_detection": {"id":3,"name":"@cmebank","platform":"x","score":70,"risk_band":"medium","on_allowlist":false,"tags":["..."],"source":"sample"},
+  "why_flagged": {"detection_id":3,"score":70,"reasons":[{"signal":"name_similarity","label":"Name similarity","detail":"...","points":33}]},
+  "sources": [ {"id":1,"slug":"instagram","name":"Instagram","kind":"social","status":"online","monitored":true,"message":"..."} ], "sources_online": 8, "sources_total": 8,
+  "last_scan_at": "...Z", "last_scan": { }, "next_scan_at": "...Z", "schedule": { },
+  "credits": { "provider":"tavily","month":"2026-10","used":12,"budget":900,"remaining":888,"reported_used":12 }
+}
+```
+`by_type[].percent` adds up to 100. `needs_review` = `new`/`reviewing` by score, max 5. `recent` = newest open, max 6. `delta_week` = open detections first found in the last 7 days; `trend` = cumulative open count at the end of each of the last 7 days (oldest first, last entry = `value`). `last_scan` is a scan object; `schedule` is the `scheduler` object of `GET /scan/status`. `credits` is `null` in sample mode. Lists never contain official assets.
+
+### 18.5 Look-alike Lab
+
+- **POST /api/lookalike/test** (any role; pure) `{ "name": "acrnebank-refund", "brand_id": 1, "platform": null }` (`name` 1 to 200 chars, whitespace collapsed, control characters removed). 200:
+```json
+{ "input": "acrnebank-refund", "brand": "Acme Bank", "verdict": "flagged", "official_basis": null, "match_percent": 92, "engine_verdict": "flagged",
+  "techniques": ["added_word","homoglyph"], "technique_labels": ["added word","homoglyph (look-alike character)"], "squat_category": "combo", "edit_distance": 0,
+  "headline": "Flagged as a look-alike of Acme Bank", "explanation": "...",
+  "reasons": [ {"rule":"added_words","label":"Added word"}, {"rule":"character_swaps","label":"Homoglyph (look-alike character)"}, {"rule":"impersonation_words","label":"Impersonation word: refund"} ],
+  "normalization": [ {"step":1,"label":"You typed","value":"acrnebank-refund"}, {"step":2,"label":"Lower-cased","value":"acrnebank-refund"},
+                     {"step":3,"label":"Look-alike characters folded","value":"acrnebank-refund"}, {"step":4,"label":"Spaces and symbols removed","value":"acmebankrefund"},
+                     {"step":5,"label":"Brand and extra words","value":"acmebank + refund"} ],
+  "on_allowlist": false }
+```
+`verdict`: `flagged | not_flagged | official`. `official` with `official_basis: "allowlist"` = exact official handle/package; `official_basis: "name"` = the typed text is exactly the brand name/alias (real scans never exclude by name; the explanation says so). The engine's `review` verdict is reported as `not_flagged` (see `engine_verdict`). It uses the Settings rules and impersonation words.
+- **GET /api/lookalike/test-cases** -> `{ "total": 12, "items": [ {"id":1,"name":"acrnebank","expected":"flagged","builtin":true,"source":"sample"} ] }` (the 12 defaults are seeded on first use: 7 flagged, 3 not flagged, 2 official).
+- **POST /api/lookalike/test-cases** (admin) `{ "name", "expected": "flagged|not_flagged|official" }` -> 201 item; 409 duplicate. **DELETE /api/lookalike/test-cases/{id}** (admin). Audit `lookalike.case_added|case_removed`.
+- **POST /api/lookalike/test-cases/run** (analyst, admin; audited as `lookalike.cases_run`):
+```json
+{ "total": 12, "passed": 12, "failed": 0, "summary": "12 of 12 pass", "ran_at": "...Z",
+  "items": [ { "id": 1, "name": "acrnebank", "expected": "flagged", "result": "flagged", "pass": true, "match_percent": 96, "builtin": true } ] }
+```
+`result` is computed by the same function as `/lookalike/test`, never copied from `expected`.
+
+### 18.6 Settings
+
+**GET /api/settings** (any role) and **PUT /api/settings** (admin, partial body; audit `settings.updated` listing the changed keys, only when something changed):
+```json
+{
+  "data_mode": "auto", "effective_data_mode": "sample",
+  "monitoring": { "schedule": "1d",
+                  "sources": { "instagram": true, "facebook": true, "x": true, "telegram": true, "linkedin": true, "google_play": true, "app_store": true, "third_party_apk": true },
+                  "sensitivity": 75, "threshold": 25,
+                  "rules": { "character_swaps": true, "digits_and_symbols": true, "added_words": true, "spacing_and_separators": true, "transposed_or_missing": true },
+                  "impersonation_words": ["support","helpline","official","refund","rewards","kyc"] },
+  "scheduler": { },
+  "notifications": { "email_alerts": false, "high_risk_immediate": false, "weekly_digest": false, "webhook_url": "", "webhook_configured": false, "delivery": "not_implemented" },
+  "account": { "organization": "Acme Bank", "user": { "name": "Harini", "email": "admin@company.com", "role": "admin" } },
+  "updated_at": "...Z"
+}
+```
+Validation (422): `schedule` in `off|5m|15m|1h|1d` (default `1d`); `sensitivity` 50 to 95 (default 75; `threshold = 100 - sensitivity`); `rules` keys must be the five above; `impersonation_words` lowercased, trimmed, de-duplicated, each max 30 chars, max 50; `sources` keys must be platform slugs (**this map and `PATCH /api/sources/{id}` are the same state**; a change writes `source.monitor_toggled`); `webhook_url` must be `https://` or empty; `data_mode` in `live|sample|auto` (audited as `settings.data_mode_changed`). `webhook_url` is returned to admins only (other roles get `""` plus `webhook_configured`). **Notification settings are stored preferences only; nothing is delivered.** `SCAN_INTERVAL_MINUTES` in the environment overrides `monitoring.schedule`.
+
+**POST /api/settings/sensitivity-preview** (any role) `{ "sensitivity": 75 }` -> `{ "sensitivity": 75, "threshold": 25, "would_review": 9, "total": 15, "data_mode": "sample", "is_sample": true, "message": "A balanced setting for most teams." }` (counts stored candidates of the current mode that the detection rule would send to review at that sensitivity; `total` includes cleared ones).
+
+### 18.7 Reports
+
+Created as **DRAFT**; a person approves; nothing is sent anywhere. Formats `csv` and `html` (printable HTML with print CSS; browser "Print to PDF" produces a PDF). **`format: "pdf"` returns 422: no PDF library is installed.** Rows are snapshotted when the report is created. Every user-controlled string is HTML-escaped in the HTML export (plus a `Content-Security-Policy: default-src 'none'` header and `nosniff`); CSV cells starting with `= + - @ TAB CR` get a leading `'` (formula-injection guard).
+- **GET /api/reports/preview** (any role) `?from=&to=&types=fake_app,fake_profile&status=&ids=1,2&include_evidence=true&brand_id=` -> `{ title, brand, from, to, data_mode, is_sample, includes_sample, stats: { detections, social, apps, confirmed, official_excluded }, include_evidence, rows: [ {n,id,name,platform,type,score,status} ] }`. Default selection = confirmed detections of the current mode; `ids` selects specific ones. Rows by score desc. **GET /api/reports/preview.html** takes the same query and returns the printable HTML (unsaved).
+- **POST /api/reports** (analyst, admin) `{ "detection_ids": [1,2], "from": "2026-10-01", "to": "2026-10-13", "types": [], "status": null, "include_evidence": true, "format": "html|csv", "title": "..." }` -> 201:
+```json
+{ "id": 17, "title": "Brand Protection Report", "filename": "acme-bank-detections-2026-10-13.html", "format": "html", "status": "draft", "size_bytes": 8120,
+  "created_by": "Harini", "created_at": "...Z", "approved_by": null, "approved_at": null, "from": null, "to": null, "count": 2, "detection_ids": [1,2],
+  "stats": { "detections": 2, "social": 2, "apps": 0, "confirmed": 2, "official_excluded": 3 }, "include_evidence": true, "includes_sample": true, "source": "sample",
+  "download_url": "/api/reports/17/download", "preview_url": "/api/reports/17/preview", "csv_url": "/api/reports/17/export.csv", "html_url": "/api/reports/17/export.html" }
+```
+  Without `detection_ids` the detections with the given `status` (default `confirmed`) that match the filters are used. 422 for `pdf`, no matching detections, unknown ids, or `cleared`/`marked_official` ids. Audit `report.generated`. CSV columns: `id,name,handle_or_package,platform,type,status,score,found_at,publisher,url,reasons` (+ `evidence_sha256,evidence_url,captured_at` when `include_evidence`).
+- **GET /api/reports** `?limit=10&offset=0` -> `{ total, items: [report] }`. **GET /api/reports/{id}** (adds `rows`). **GET /api/reports/{id}/preview** (inline HTML), **/export.html** and **/export.csv** (attachments, available for every report whatever its stored `format`), **/download** (attachment in the report's own format).
+- **POST /api/reports/{id}/approve** (analyst, admin): `draft` -> `approved` with `approved_by/approved_at`; 409 if already approved. Audit `report.approved`. The HTML shows a DRAFT banner until approved and a "sample data" banner when it contains sample rows.
+
+### 18.8 Evaluation
+
+**GET /api/evaluation** (any role) and **POST /api/evaluation/run** (analyst, admin; refreshes the cache; audit `evaluation.run`):
+```json
+{ "data_mode": "sample", "is_sample": true, "label": "Synthetic numbers are optimistic. ...",
+  "synthetic": { "seed": 7, "per_technique": 25, "brands": 5, "computed_at": "...Z", "cached": true,
+                 "by_technique": [ { "technique": "character_swap", "tp": 25, "fp": 0, "fn": 0, "precision": 1.0, "recall": 1.0, "f1": 1.0, "n_pos": 25, "label_ok": 1.0 } ],
+                 "overall": { "tp": 0, "fp": 0, "fn": 0, "precision": 1.0, "recall": 0.99, "f1": 0.99, "n_pos": 0, "label_ok": 1.0 }, "false_positives": [] },
+  "lookalike_tests": { "total": 12, "passed": 12, "failed": 0, "summary": "12 of 12 pass", "ran_at": "...Z", "true_positives": 7, "false_negatives": 0, "false_positives": 0,
+                       "true_negatives": 5, "precision": 1.0, "recall": 1.0, "flagged_expected": 7, "not_flagged_expected": 3, "official_expected": 2, "items": [] },
+  "reviewed": { "confirmed": 2, "dismissed": 1, "marked_official": 0, "pending": 8 },
+  "detection": { "true_positives": 2, "false_positives": 1, "precision": 0.667, "definition": "precision = confirmed / (confirmed + dismissed), from reviewer decisions. Recall cannot be measured without labelled ground truth." },
+  "by_type": [ { "type": "fake_app", "confirmed": 1, "dismissed": 0, "precision": 1.0 } ] }
+```
+`synthetic` comes from `engine/synthetic.py` over 5 built-in brands (precision/recall per technique and overall; cached in memory per process). **These synthetic numbers are optimistic**: the test names are made with the same tricks the matcher was built to catch. Real-world precision is only `detection.precision` (reviewer decisions); real recall cannot be measured. This replaces the proposed `by_threshold` and `from/to/type/platform` filters of section 14 (not built).
+
+### 18.9 Audit actions written by Phase 4
+`scan.started`, `scan.finished`, `detection.status_changed`, `detection.marked_official` (+ `account.added` / `app.added`), `report.generated`, `report.approved`, `settings.updated`, `settings.data_mode_changed`, `source.monitor_toggled`, `lookalike.case_added`, `lookalike.case_removed`, `lookalike.cases_run`, `evaluation.run`. Scheduler-started scans are recorded with actor `scheduler`. (`data_mode.changed` in section 13 is named `settings.data_mode_changed`.)
+
+### 18.10 Phase 4 endpoint index
+
+| Method and path | Role | Notes |
+|---|---|---|
+| POST /api/scan | analyst, admin | 202; 409 + running scan when one is queued/running |
+| GET /api/jobs/{job_id}, /api/scans, /api/scans/latest, /api/scans/{id}, /api/scan/status | any | |
+| GET /api/detections, /api/detections/{id}, /api/detections/excluded, /api/detections/false-positives | any | |
+| GET /api/detections/{id}/evidence, /api/detections/{id}/evidence/screenshot | any | screenshot 404 unless captured |
+| POST /api/detections/{id}/status, /confirm, /keep-reviewing, /dismiss, /mark-official | analyst, admin | audited |
+| GET /api/dashboard | any | |
+| POST /api/lookalike/test | any | pure |
+| GET /api/lookalike/test-cases | any | |
+| POST /api/lookalike/test-cases/run | analyst, admin | audited |
+| POST /api/lookalike/test-cases, DELETE /api/lookalike/test-cases/{id} | admin | audited |
+| GET /api/settings, POST /api/settings/sensitivity-preview | any | webhook hidden from non-admins |
+| PUT /api/settings | admin | audited |
+| GET /api/reports, /api/reports/{id}, /api/reports/preview, /api/reports/preview.html, /api/reports/{id}/preview, /export.csv, /export.html, /download | any | |
+| POST /api/reports, POST /api/reports/{id}/approve | analyst, admin | audited; draft first |
+| GET /api/evaluation | any | cached |
+| POST /api/evaluation/run | analyst, admin | audited |
+
+### 18.11 Deviations from the proposal in sections 6 to 14
+- Scan start returns `{job_id, scan_id, status, scan}` (a superset of `{job_id}`); jobs carry the richer scan object; `state` keeps the old vocabulary.
+- Detection `category=` is `social|apps`; `type=` additionally accepts `social|app|apps`. Sort values are `score_desc|score_asc|found_desc|found_asc|last_seen_desc`; `min_score`, `band`, `source`, `q`, `from`, `to` as proposed or added.
+- `official` / `suspect` details of the official page are `null` when not collected (not invented). Logo percent is `logo.similarity` / `suspect.logo_match_percent`; it is `null` with a "Logo unavailable" reason when no comparison was possible.
+- Report formats are `csv` and `html`; **PDF is not built** (422). Reports are DRAFT until approved (`POST /reports/{id}/approve`, not in the PDF screens). Report creation takes `detection_ids`; the default selection is confirmed detections.
+- `mark-official` also accepts Telegram and refuses third-party APK listings and handles over 30 characters.
+- Settings: `schedule` gains `off`; notification fields are stored but nothing is sent (`delivery: "not_implemented"`); `account.organization` is the brand name (there is no organisation table); `monitoring` gains `threshold`; the response gains `effective_data_mode` and `scheduler`.
+- Evaluation: no `by_threshold`, no date/type/platform filters; `synthetic`, `label` and `reviewed` added.
+- `GET /detections/excluded` lists every allowlist asset (with `times_seen`) rather than only assets met in a scan.
+- The look-alike `official` verdict also covers the exact brand name (`official_basis: "name"`), as the PDF's "Acme Bank" test case expects.

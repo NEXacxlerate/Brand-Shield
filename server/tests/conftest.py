@@ -9,11 +9,13 @@ os.environ.update(
         "ADMIN_PASSWORD": "Admin-Pass-for-tests-1",
         "ADMIN_NAME": "Test Admin",
         "DATABASE_URL": "sqlite://",
+        "SCAN_EXECUTOR": "inline",  # scans run synchronously in tests (no threads, no Redis)
+        "SCHEDULER_ENABLED": "false",
     }
 )
 
 # A real key in the shell must never reach a test run.
-for _name in ("TAVILY_API_KEY", "SEARXNG_BASE_URL", "ANTHROPIC_API_KEY"):
+for _name in ("TAVILY_API_KEY", "SEARXNG_BASE_URL", "ANTHROPIC_API_KEY", "REDIS_URL", "SCAN_INTERVAL_MINUTES"):
     os.environ.pop(_name, None)
 
 import httpx  # noqa: E402

@@ -25,6 +25,7 @@ from app.core.time import as_utc, iso_z, utcnow
 from app.db.session import get_db
 from app.models import Source, User
 from app.services import audit, data_mode
+from app.services.scheduler import schedule_status
 
 router = APIRouter()
 
@@ -118,6 +119,7 @@ def list_sources(
     now = utcnow()
     items = [source_item(r, selection, states, now) for r in rows if kind is None or r.kind == kind]
     syncs = [as_utc(r.last_sync) for r in rows if r.last_sync]
+    sched = schedule_status(request.app.state.scan_ctx, db, now)
     return {
         "data_mode": selection.effective_mode,
         "requested_data_mode": selection.requested_mode,
@@ -126,8 +128,8 @@ def list_sources(
             "slow": sum(i["status"] == "slow" for i in items),
             "unavailable": sum(i["status"] == "unavailable" for i in items),
             "total": len(items),
-            "next_scan_at": None,
-            "schedule": None,
+            "next_scan_at": _iso(sched["next_scan_at"]),
+            "schedule": sched["schedule"],
             "last_full_sync_at": _iso(max(syncs)) if syncs else None,
             "retry_policy": RETRY_POLICY,
         },

@@ -28,3 +28,10 @@ def set_data_mode(db: Session, mode: str, user: User) -> tuple[str, str]:
     audit.record(db, user, "settings.data_mode_changed", KEY, f"{old} -> {mode}")
     db.commit()
     return old, mode
+
+
+def effective_mode(db: Session, settings) -> str:
+    """'live' or 'sample': what the data mode setting resolves to right now (auto looks at configured sources)."""
+    from app.collectors.selection import select_collectors
+
+    return select_collectors(settings, get_data_mode(db)).effective_mode

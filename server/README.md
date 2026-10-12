@@ -48,3 +48,13 @@ Errors are always `{"detail": ...}` (string, or a list of `{loc,msg,type}` for 4
 See `../docs/COLLECTORS.md` (how each collector works, what to provide, first live check). New endpoints:
 GET `/api/sources`, PATCH `/api/sources/{id}`, POST `/api/sources/{id}/retry`, GET/PUT `/api/settings/data-mode` (details in `../docs/API.md`, section 9).
 Tests never touch the network: HTTP is mocked and real network/DNS access is blocked by a test guard; fixtures are hand-written (`tests/fixtures/README.md`).
+
+## Phase 4: scan pipeline, background worker, screens API
+
+Everything the 10 screens need is documented in `../docs/API.md` section 18. Key points:
+
+- A scan runs in the API process (thread) when `REDIS_URL` is unset. With `REDIS_URL` set it is queued on RQ; start a worker in a second terminal:
+  `.\.venv\Scripts\python -m app.worker` (from `server/`). Real Redis/RQ runs are not covered by the automated tests.
+- The scheduler loop starts with the API unless `SCHEDULER_ENABLED=false` (never under `APP_ENV=test`). `SCAN_INTERVAL_MINUTES` (0 = off) overrides the Settings page.
+- New migration: `alembic upgrade head` (0003).
+- Nothing is sent or reported automatically; humans approve detections and reports.

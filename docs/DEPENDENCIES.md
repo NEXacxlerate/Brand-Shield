@@ -13,6 +13,7 @@ Direct dependencies are listed in `server/requirements.txt` / `requirements-dev.
 | colorama | 0.4.6 | (License field empty; classifier says BSD License) | Metadata unclear but upstream is BSD-3-Clause. Windows-only dev/test dependency of pytest/click. |
 | pillow | 12.3.0 | MIT-CMU | Permissive (HPND-style); listed only because the identifier is uncommon. |
 | email-validator | 2.3.0 | Unlicense | Public-domain dedication; some legal teams prefer a named license. |
+| python-dateutil | 2.9.0.post0 | "Dual License" (BSD and Apache-2.0 per its classifiers) | Transitive (rq -> croniter -> python-dateutil). Either license is permissive; the metadata `License` field just says "Dual License". |
 
 No GPL or AGPL packages were found.
 
@@ -26,7 +27,8 @@ No GPL or AGPL packages were found.
 | anyio | 4.15.1 | MIT | no |
 | bcrypt | 5.0.0 | Apache-2.0 | yes |
 | certifi | 2026.7.22 | MPL-2.0 | no |
-| click | 8.5.0 | BSD-3-Clause | no |
+| click | 8.5.0 | BSD-3-Clause | no (rq dependency) |
+| croniter | 6.2.4 | MIT | no (rq dependency, added in Phase 4) |
 | colorama | 0.4.6 | BSD (classifier) | no |
 | dnspython | 2.9.0 | ISC | no |
 | email-validator | 2.3.0 | Unlicense | yes |
@@ -53,7 +55,11 @@ No GPL or AGPL packages were found.
 | Pygments | 2.21.0 | BSD-2-Clause | no |
 | PyJWT | 2.15.1 | MIT | yes |
 | pytest | 8.4.2 | MIT | dev |
+| python-dateutil | 2.9.0.post0 | Dual License (classifiers: BSD and Apache Software License) | no (croniter dependency, added in Phase 4) |
 | python-dotenv | 1.2.4 | BSD-3-Clause | no |
+| redis | 6.4.0 | MIT | yes (Phase 4) |
+| rq | 2.12.0 | BSD-2-Clause | yes (Phase 4) |
+| six | 1.17.0 | MIT | no (python-dateutil dependency, added in Phase 4) |
 | python-multipart | 0.0.32 | Apache-2.0 | yes |
 | PyYAML | 6.0.3 | MIT | no |
 | ruff | 0.17.0 | MIT | dev |
@@ -89,3 +95,20 @@ Optional package, lazily imported, NOT installed and NOT in requirements (`serve
 | google-play-scraper (import name `google_play_scraper`) | **UNVERIFIED.** Believed MIT from memory of the upstream project; metadata could not be checked offline and the package was not downloaded | `GooglePlayCollector` (search), only if the user installs it | **Needs review before use:** confirm the license from the wheel metadata, pin a version, and review the terms-of-use risk (it scrapes Google Play pages, there is no official search API). Without it the source reports `not_installed` and the app works. Tests inject a fake search function and never import it. |
 
 External services (no package): Tavily Search API (needs `TAVILY_API_KEY`; plan terms apply), Apple iTunes Search API (no key, about 20 calls per minute), optional self-hosted SearXNG (AGPL-3.0 software run by the operator as a separate service, not linked or bundled; legal may want to note it).
+
+
+## Phase 4 (scan pipeline, background worker)
+
+Added to `server/requirements.txt` after reading the licenses from the installed package metadata (`importlib.metadata`, 2026-10-13):
+
+| Package | Version | License (from metadata) | Why |
+|---|---|---|---|
+| rq | 2.12.0 | BSD-2-Clause (`License-Expression`; classifier "BSD License") | Redis queue + worker for scans (`python -m app.worker`). Imported lazily, so the app and the tests run without it being used. |
+| redis | 6.4.0 | MIT (`License-Expression`; classifier "MIT License") | Redis client used by rq and by the job dispatcher. Lazy import. |
+| croniter | 6.2.4 | MIT | Pulled in by rq (scheduled jobs; we do not use rq's scheduler). |
+| python-dateutil | 2.9.0.post0 | Dual: BSD and Apache-2.0 (classifiers; the `License` field only says "Dual License") | Pulled in by croniter. |
+| six | 1.17.0 | MIT | Pulled in by python-dateutil. |
+
+No GPL or AGPL packages were added. `fakeredis` was NOT used (the tests inject fake `redis` / `rq` modules instead). Playwright (optional screenshot hook) is NOT installed and NOT in requirements; its license is unverified because it was never downloaded.
+
+**Not verified:** a real Redis server and a real RQ worker run. Only the dispatch logic (queue name, function path, job id, fallback to a thread when Redis is unreachable) is tested, against fake modules.

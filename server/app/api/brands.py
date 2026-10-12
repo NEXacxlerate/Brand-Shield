@@ -29,6 +29,7 @@ from app.schemas.brand import (
 )
 from app.services import audit
 from app.services import validators as v
+from app.services.detections import sync_with_allowlist
 from app.services.logo import LogoError, process_logo, save_logo
 from app.services.profile_health import compute_profile_health
 from app.services.url_safety import UrlChecker
@@ -238,8 +239,11 @@ def add_account(
         last_checked_at=utcnow(),
     )
     db.add(account)
+    db.flush()
     _touch(brand)
     audit.record(db, user, "account.added", f"{v.display_handle(body.platform, body.handle)} on {body.platform}", result.status)
+    db.expire(brand, ["accounts"])
+    sync_with_allowlist(db, brand, user)  # an existing detection for exactly this handle leaves the detection lists
     try:
         db.commit()
     except IntegrityError as exc:
@@ -289,8 +293,11 @@ def add_app(
         stores=body.stores,
     )
     db.add(app)
+    db.flush()
     _touch(brand)
     audit.record(db, user, "app.added", f"{body.name} ({body.package_id})", ", ".join(body.stores))
+    db.expire(brand, ["apps"])
+    sync_with_allowlist(db, brand, user)
     try:
         db.commit()
     except IntegrityError as exc:

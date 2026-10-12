@@ -5,13 +5,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import Engine
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.api import audit, auth, brands, health, sources
+from app.api import audit, auth, brands, dashboard, detections, evaluation, health, lookalike, reports, scans, sources
+from app.api import settings as settings_api
 from app.collectors.selection import CollectorRuntime
 from app.core.config import Settings, get_settings
 from app.core.errors import install_error_handlers
 from app.core.logging import configure_logging
 from app.core.ratelimit import FailureLimiter
 from app.db.session import make_engine, make_session_factory
+from app.services.context import build_context
+from app.services.image_fetch import SafeFetcher
+from app.services.scheduler import SchedulerLoop
+from app.services.screenshot import ScreenshotProvider
 from app.services.seed import seed_admin
 from app.services.url_safety import UrlChecker
 
@@ -22,6 +27,8 @@ def create_app(
     engine: Engine | None = None,
     url_checker: UrlChecker | None = None,
     collector_runtime: CollectorRuntime | None = None,
+    image_fetcher: SafeFetcher | None = None,
+    screenshot_provider: ScreenshotProvider | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings.log_level, settings.secret_values)
@@ -38,7 +45,15 @@ def create_app(
             import logging
 
             logging.getLogger("app").warning("admin seed skipped: database not ready (run alembic upgrade head)")
+        loop = None
+        # The scheduler loop only runs when enabled, and never under APP_ENV=test.
+        if settings.scheduler_enabled and settings.app_env != "test":
+            loop = SchedulerLoop(app.state.scan_ctx, settings.scheduler_poll_seconds)
+            loop.start()
+        app.state.scheduler_loop = loop
         yield
+        if loop is not None:
+            loop.stop()
 
     app = FastAPI(title="ScamMind AI", version="0.1.0", lifespan=lifespan)
     app.state.settings = settings
@@ -51,6 +66,10 @@ def create_app(
         max_bytes=settings.url_check_max_bytes,
     )
     app.state.collector_runtime = collector_runtime or CollectorRuntime(settings, app.state.session_factory)
+    app.state.scan_ctx = build_context(
+        settings, app.state.session_factory, app.state.collector_runtime, fetcher=image_fetcher, screenshot=screenshot_provider
+    )
+    app.state.scheduler_loop = None
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
@@ -65,6 +84,8 @@ def create_app(
     api.include_router(brands.router)
     api.include_router(audit.router)
     api.include_router(sources.router)
+    for r in (scans, detections, dashboard, lookalike, settings_api, reports, evaluation):
+        api.include_router(r.router)
     app.include_router(health.router)
     app.include_router(api)
     return app

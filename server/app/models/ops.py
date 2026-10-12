@@ -53,13 +53,19 @@ class Scan(Base):
     job_id: Mapped[str] = mapped_column(String(40), unique=True)
     brand_id: Mapped[int] = mapped_column(ForeignKey("brands.id", ondelete="CASCADE"), index=True)
     scope: Mapped[str] = mapped_column(String(10), default="all")  # all | social | apps
-    state: Mapped[str] = mapped_column(String(10), default="queued")  # queued | running | done | error
+    # queued | running | completed | partial | failed  (API also exposes job.state: queued|running|done|error)
+    state: Mapped[str] = mapped_column(String(10), default="queued")
     progress: Mapped[int] = mapped_column(Integer, default=0)
     message: Mapped[str] = mapped_column(String(300), default="")
     steps: Mapped[list] = mapped_column(JSON, default=list)
     result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     data_mode: Mapped[str] = mapped_column(String(10), default="live")
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    started_by: Mapped[str] = mapped_column(String(120), default="scheduler")  # user name or 'scheduler'
+    counts: Mapped[dict] = mapped_column(JSON, default=dict)
+    source_report: Mapped[list] = mapped_column(JSON, default=list)  # one entry per collector
+    timings: Mapped[dict] = mapped_column(JSON, default=dict)
+    errors: Mapped[list] = mapped_column(JSON, default=list)  # short messages, never secrets
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -83,7 +89,13 @@ class Report(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     brand_id: Mapped[int] = mapped_column(ForeignKey("brands.id", ondelete="CASCADE"), index=True)
     filename: Mapped[str] = mapped_column(String(200))
-    format: Mapped[str] = mapped_column(String(5))  # pdf | csv
+    format: Mapped[str] = mapped_column(String(5))  # csv | html (pdf is not built: no PDF library is installed)
+    title: Mapped[str] = mapped_column(String(200), default="Brand Protection Report")
+    status: Mapped[str] = mapped_column(String(10), default="draft")  # draft | approved (a human approves; nothing is sent)
+    detection_ids: Mapped[list] = mapped_column(JSON, default=list)
+    snapshot: Mapped[list] = mapped_column(JSON, default=list)  # rows as they were when the report was created
+    approved_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     size_bytes: Mapped[int] = mapped_column(Integer, default=0)
     params: Mapped[dict] = mapped_column(JSON, default=dict)
     file_path: Mapped[str | None] = mapped_column(String(300), nullable=True)
@@ -119,3 +131,17 @@ class AuditLog(Base):
     target: Mapped[str] = mapped_column(String(300), default="")
     detail: Mapped[str] = mapped_column(Text, default="")
     source: Mapped[str] = mapped_column(String(10), default="live")
+
+
+class LookalikeCase(Base):
+    """A labelled look-alike test case (default 12 plus any an admin adds)."""
+
+    __tablename__ = "lookalike_cases"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))
+    expected: Mapped[str] = mapped_column(String(15))  # flagged | not_flagged | official
+    builtin: Mapped[bool] = mapped_column(Boolean, default=False)
+    source: Mapped[str] = mapped_column(String(10), default="live")
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

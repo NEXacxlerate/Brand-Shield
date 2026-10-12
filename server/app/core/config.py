@@ -63,6 +63,25 @@ class Settings(BaseSettings):
     collector_timeout_seconds: float = 15.0
     reachability_checks_per_scan: int = 0  # >0: SSRF-safe reachability check of this many result URLs (off by default)
 
+    # Scan pipeline, jobs and scheduler (Phase 4)
+    redis_url: SecretStr | None = None  # unset -> in-process runner (thread). May contain a password: treated as a secret.
+    scan_executor: str = "auto"  # auto (rq if REDIS_URL else thread) | rq | thread | inline (tests)
+    scan_queue_name: str = "scans"
+    scan_job_timeout_seconds: int = 900
+    scan_stale_minutes: int = 30  # a queued/running scan older than this is treated as dead and failed
+    scan_prefilter: bool = True  # skip logo/LLM steps for candidates with no name signal and no keyword hit
+    scan_logo_fetch: bool = True  # SSRF-safe download of candidate logos / icons (live data only, never sample)
+    scan_logo_max_bytes: int = 2 * 1024 * 1024
+    scan_logo_timeout_seconds: float = 5.0
+    scan_max_candidates: int = 500
+    scan_max_logo_fetches: int = 25  # per scan
+    screenshots_enabled: bool = False  # Playwright hook, OFF by default (package not installed)
+    scheduler_enabled: bool = True  # in-process scheduler loop (never started when APP_ENV=test)
+    scan_interval_minutes: int | None = None  # env SCAN_INTERVAL_MINUTES; overrides the Settings page; 0 = off
+    scheduler_poll_seconds: int = 60
+    scheduler_max_queries_per_scan: int | None = None  # credit estimate; default = tavily_max_queries_per_scan
+    anthropic_api_key: SecretStr | None = None  # only used when SCAM_LLM_ENABLED=true; never logged
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
@@ -70,7 +89,8 @@ class Settings(BaseSettings):
     @property
     def secret_values(self) -> list[str]:
         key = self.tavily_api_key.get_secret_value() if self.tavily_api_key else None
-        return [v for v in (self.jwt_secret, self.admin_password, key) if v]
+        extra = [x.get_secret_value() for x in (self.redis_url, self.anthropic_api_key) if x]
+        return [v for v in (self.jwt_secret, self.admin_password, key, *extra) if v]
 
 
 @lru_cache
