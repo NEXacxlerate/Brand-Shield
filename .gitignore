@@ -32,3 +32,12 @@ __pycache__/
 *.pyc
 frontend/node_modules/
 frontend/dist/
+
+# server (Phase 1+)
+.env
+server/.env
+server/.venv/
+server/data/
+*.db
+*.sqlite3
+.ruff_cache/
