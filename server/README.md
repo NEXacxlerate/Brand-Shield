@@ -42,3 +42,9 @@ Tests use SQLite in memory and never touch the network (the URL checker is injec
 | GET `/api/audit`, `/api/audit/export.csv` | analyst, admin |
 
 Errors are always `{"detail": ...}` (string, or a list of `{loc,msg,type}` for 422).
+
+## Phase 3: collectors with a fallback chain
+
+See `../docs/COLLECTORS.md` (how each collector works, what to provide, first live check). New endpoints:
+GET `/api/sources`, PATCH `/api/sources/{id}`, POST `/api/sources/{id}/retry`, GET/PUT `/api/settings/data-mode` (details in `../docs/API.md`, section 9).
+Tests never touch the network: HTTP is mocked and real network/DNS access is blocked by a test guard; fixtures are hand-written (`tests/fixtures/README.md`).

@@ -76,3 +76,16 @@ Optional packages, lazily imported, NOT installed and NOT in requirements (the e
 |---|---|---|---|
 | anthropic | MIT (wheel METADATA: `License: MIT`, classifier MIT) | `engine/llm.py` `AnthropicScamIntentLLM`, only when `SCAM_LLM_ENABLED=true` and `ANTHROPIC_API_KEY` is set | Metadata of the wheel downloaded 2026-10-13 (version string 1.13.0 as shown by pip). Sends bio text to a third party when enabled; off by default. Pin a version when it is first installed. |
 | open_clip_torch + torch | MIT (open_clip) / BSD-3-Clause (torch), from upstream project pages, NOT verified from metadata because not downloaded | `engine/logo_similarity.py` `ClipSimilarity` (optional CLIP embedder) | Heavy (hundreds of MB). Each pretrained model weight set has its own license; check before use. Unverified, do not install without a metadata check. |
+
+
+## Phase 3 (collectors)
+
+No package was added to `requirements.txt`. Everything uses `httpx` (already a direct dependency; its `MockTransport` is used in tests, so no `respx`).
+
+Optional package, lazily imported, NOT installed and NOT in requirements (`server/app/collectors/google_play.py`):
+
+| Package | License | Used by | Notes |
+|---|---|---|---|
+| google-play-scraper (import name `google_play_scraper`) | **UNVERIFIED.** Believed MIT from memory of the upstream project; metadata could not be checked offline and the package was not downloaded | `GooglePlayCollector` (search), only if the user installs it | **Needs review before use:** confirm the license from the wheel metadata, pin a version, and review the terms-of-use risk (it scrapes Google Play pages, there is no official search API). Without it the source reports `not_installed` and the app works. Tests inject a fake search function and never import it. |
+
+External services (no package): Tavily Search API (needs `TAVILY_API_KEY`; plan terms apply), Apple iTunes Search API (no key, about 20 calls per minute), optional self-hosted SearXNG (AGPL-3.0 software run by the operator as a separate service, not linked or bundled; legal may want to note it).

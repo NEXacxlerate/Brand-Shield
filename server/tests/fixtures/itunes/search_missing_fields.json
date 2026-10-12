@@ -1,0 +1,8 @@
+{"resultCount": 5, "results": [
+  {"trackName": "Only A Name"},
+  {"bundleId": "com.only.bundle"},
+  {"trackId": 4444444444},
+  {"wrapperType": "software"},
+  {"trackName": 123, "bundleId": ["x"], "averageUserRating": "n/a", "userRatingCount": null, "releaseDate": "not-a-date", "trackViewUrl": "javascript:alert(1)"},
+  "junk"
+]}

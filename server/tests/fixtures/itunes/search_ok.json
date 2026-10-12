@@ -1,0 +1,9 @@
+{
+  "resultCount": 4,
+  "results": [
+    {"wrapperType": "software", "kind": "software", "trackId": 1234567890, "trackName": "Acme Bank Rewards", "bundleId": "com.acmebnak.rewards", "sellerName": "Acme Rewards Pvt Ltd", "artistName": "Acme Rewards Pvt Ltd", "artworkUrl512": "https://is1-ssl.mzstatic.com/image/thumb/Purple/v4/aa/bb/cc/512x512bb.jpg", "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Purple/v4/aa/bb/cc/100x100bb.jpg", "trackViewUrl": "https://apps.apple.com/in/app/acme-bank-rewards/id1234567890?uo=4", "description": "Claim rewards and cashback. Verify your KYC in the app.", "averageUserRating": 2.3, "userRatingCount": 41, "releaseDate": "2026-09-20T07:00:00Z", "version": "1.0.2", "primaryGenreName": "Finance"},
+    {"wrapperType": "software", "trackId": 1111111111, "trackName": "Acme Bank", "bundleId": "com.acmebank.mobile", "sellerName": "Acme Bank Ltd", "artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/x/100x100bb.jpg", "trackViewUrl": "https://apps.apple.com/in/app/acme-bank/id1111111111", "description": "The official app.", "averageUserRating": 4.6, "userRatingCount": 250000, "releaseDate": "2019-03-01T08:00:00Z", "version": "7.4"},
+    {"wrapperType": "software", "trackId": 2222222222, "trackName": "Acme Bakery Orders", "bundleId": "com.acmebakery.orders", "sellerName": "Acme Bakery", "trackViewUrl": "https://apps.apple.com/in/app/acme-bakery-orders/id2222222222", "description": "Order bread."},
+    {"wrapperType": "software", "trackId": 3333333333, "trackName": "No Url App", "bundleId": "com.nourl.app"}
+  ]
+}

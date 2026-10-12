@@ -393,6 +393,33 @@ Query `limit=5`.
 ```
 (In this object `source` is the platform slug, so the sample/live marker is named `data_source`.) Keep separate from the user audit log (section 12).
 
+### Phase 3 implementation notes (collectors; implemented in `server/app/api/sources.py`)
+
+These endpoints exist now. Where this differs from the proposal above, **this section wins**.
+
+**GET /api/sources** (any signed-in role; `?kind=social|store`). Same item fields as above plus:
+`next_retry_at` (ISO or null), `cached_at`, `cached_age_seconds` (age of the last good result being shown when the source is unavailable), `collectors` (names of the collectors that cover this platform in the current mode), `stale_since`. `retry_in_minutes` is derived from `next_retry_at`. Top level adds:
+`requested_data_mode` (`live|sample|auto`), `data_mode` (the **effective** mode, `live|sample`), `summary.retry_policy` = `"1m,5m,15m,1h,6h"` (back-off, capped at 6 h, resets on success), and the credit meter:
+```json
+"tavily_credits": { "provider": "tavily", "month": "2026-10", "used": 12, "budget": 900, "remaining": 888, "reported_used": 12 }
+```
+`used` is the larger of our own counter and the usage Tavily reports. A row that has never been checked in the current mode is shown as `online` with message "Not checked yet." (or `unavailable` with the reason when no live collector covers it); rows written under the other data mode are not presented as current. `next_scan_at` and `schedule` are `null` until Phase 4 (scheduler).
+
+**PATCH /api/sources/{id}** `{ "monitored": bool }` (analyst, admin). Returns the item. Audit `source.monitor_toggled` (`monitored=true|false`) only when the value changes. Unmonitored platforms are not queried and their candidates are dropped.
+
+**POST /api/sources/{id}/retry** (analyst, admin). Runs the collectors that cover this platform now, ignoring back-off. **Synchronous in Phase 3** (Phase 4 turns it into a job): returns 202 with
+`{ "job_id": "retry_<hex>", "source_id": 4, "state": "done", "status": "online|slow|unavailable", "source": { ...item }, "reports": [ { "collector","status","reason","message","latency_ms","candidates","from_cache","cached_age_seconds","next_retry_at","consecutive_failures","in_backoff","warnings","data_source" } ] }`.
+409 when the source is online (nothing to retry), not monitored, no brand profile exists yet, or no collector is active for it. Audit `source.retry`. `GET /api/jobs/{job_id}` does not exist yet.
+
+**GET /api/settings/data-mode** (any signed-in role) and **PUT /api/settings/data-mode** (admin only) `{ "data_mode": "live|sample|auto" }`. Response of both:
+```json
+{ "data_mode": "auto", "effective_mode": "live", "reason": "Auto: live because configured: Tavily key.",
+  "chain": [ { "name": "tavily", "active": true, "configured": true, "reason": "Key present." }, { "name": "searxng", "active": false, "configured": false, "reason": "SEARXNG_BASE_URL not set: optional fallback skipped." } ] }
+```
+Default `auto`. 422 on any other value. Audit `settings.data_mode_changed` (`auto -> sample`). `auto` = live when at least one opt-in live collector is configured (Tavily key, SearXNG base URL or the optional google-play package), otherwise sample. This is stored under the `data_mode` key of the `settings` table; the general `GET/PUT /api/settings` (section 11) will read and write the same key.
+
+Source `status` meaning: `online` = last call fine; `slow` = latency above `SOURCE_SLOW_THRESHOLD_MS` (default 4000) or partial results (a query was rate limited mid-scan); `unavailable` = the collector raised `SourceUnavailable` (reasons: `no_key`, `invalid_key`, `quota`, `budget`, `rate_limited`, `unreachable`, `timeout`, `bad_response`, `not_installed`, `json_disabled`, `unsafe_base_url`, `not_configured`, `internal_error`).
+
 ---
 
 ## 10. Look-alike Lab

@@ -1,0 +1,10 @@
+{
+  "results": [
+    {"url": "https://www.instagram.com/acme_help_desk/"},
+    {"title": "No url at all", "content": "x"},
+    {"url": 12345, "title": ["bad"], "content": {"a": 1}},
+    "not-an-object",
+    null,
+    {"url": "https://t.me/acme_care_team", "title": null, "content": null, "score": "high"}
+  ]
+}

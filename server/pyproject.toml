@@ -14,5 +14,6 @@ ignore = ["B008"]  # FastAPI Depends() in defaults is idiomatic
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["E501"]
-"app/engine/*" = ["E501"]  # regex/word tables and long explanatory notes
+"app/engine/*" = ["E501"]
+"app/collectors/*" = ["E501"]  # provider message strings  # regex/word tables and long explanatory notes
 "scripts/*" = ["E501"]

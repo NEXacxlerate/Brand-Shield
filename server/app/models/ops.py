@@ -25,6 +25,27 @@ class Source(Base):
     source: Mapped[str] = mapped_column(String(10), default="live")
 
 
+class CollectorState(Base):
+    """Per-collector health, back-off state and the last good raw result (the cache shown when it is down)."""
+
+    __tablename__ = "collector_state"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    collector: Mapped[str] = mapped_column(String(40), unique=True)
+    status: Mapped[str] = mapped_column(String(15), default="online")  # online | slow | unavailable
+    reason: Mapped[str | None] = mapped_column(String(40), nullable=True)  # SourceUnavailable.reason
+    message: Mapped[str] = mapped_column(String(400), default="")
+    latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    consecutive_failures: Mapped[int] = mapped_column(Integer, default=0)
+    next_retry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    cache_brand_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cache: Mapped[list | None] = mapped_column(JSON, nullable=True)  # last good normalized candidates
+    cached_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    source: Mapped[str] = mapped_column(String(10), default="live")  # live | sample
+
+
 class Scan(Base):
     __tablename__ = "scans"
 

@@ -12,6 +12,11 @@ os.environ.update(
     }
 )
 
+# A real key in the shell must never reach a test run.
+for _name in ("TAVILY_API_KEY", "SEARXNG_BASE_URL", "ANTHROPIC_API_KEY"):
+    os.environ.pop(_name, None)
+
+import httpx  # noqa: E402
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -43,7 +48,20 @@ class FakeChecker:
 
 @pytest.fixture
 def settings(tmp_path) -> Settings:
-    return Settings(data_dir=tmp_path / "data", database_url="sqlite://")  # type: ignore[call-arg]
+    # _env_file=None: a developer's real server/.env (e.g. TAVILY_API_KEY) must not leak into tests
+    return Settings(_env_file=None, data_dir=tmp_path / "data", database_url="sqlite://")  # type: ignore[call-arg]
+
+
+@pytest.fixture(autouse=True)
+def _no_live_network(monkeypatch):
+    """Safety net: any real outbound HTTP or DNS lookup in a test is a bug. MockTransport is unaffected."""
+    import socket
+
+    def blocked(*_a, **_k):
+        raise AssertionError("live network access attempted in a test")
+
+    monkeypatch.setattr(httpx.HTTPTransport, "handle_request", blocked)
+    monkeypatch.setattr(socket, "getaddrinfo", blocked)
 
 
 @pytest.fixture

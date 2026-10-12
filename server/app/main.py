@@ -5,7 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import Engine
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.api import audit, auth, brands, health
+from app.api import audit, auth, brands, health, sources
+from app.collectors.selection import CollectorRuntime
 from app.core.config import Settings, get_settings
 from app.core.errors import install_error_handlers
 from app.core.logging import configure_logging
@@ -15,7 +16,13 @@ from app.services.seed import seed_admin
 from app.services.url_safety import UrlChecker
 
 
-def create_app(settings: Settings | None = None, *, engine: Engine | None = None, url_checker: UrlChecker | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    *,
+    engine: Engine | None = None,
+    url_checker: UrlChecker | None = None,
+    collector_runtime: CollectorRuntime | None = None,
+) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings.log_level, settings.secret_values)
     engine = engine or make_engine(settings.database_url)
@@ -43,6 +50,7 @@ def create_app(settings: Settings | None = None, *, engine: Engine | None = None
         max_redirects=settings.url_check_max_redirects,
         max_bytes=settings.url_check_max_bytes,
     )
+    app.state.collector_runtime = collector_runtime or CollectorRuntime(settings, app.state.session_factory)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
@@ -56,6 +64,7 @@ def create_app(settings: Settings | None = None, *, engine: Engine | None = None
     api.include_router(auth.router)
     api.include_router(brands.router)
     api.include_router(audit.router)
+    api.include_router(sources.router)
     app.include_router(health.router)
     app.include_router(api)
     return app

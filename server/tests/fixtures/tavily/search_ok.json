@@ -1,0 +1,23 @@
+{
+  "query": "\"Acme Bank\" support",
+  "follow_up_questions": null,
+  "answer": null,
+  "images": [],
+  "results": [
+    {"url": "https://www.instagram.com/acrne_bank_support/", "title": "Acme Bank Support Care (@acrne_bank_support) • Instagram photos and videos", "content": "Official helpline. DM us to verify your KYC and claim cashback.", "score": 0.91, "raw_content": null},
+    {"url": "https://www.instagram.com/acmebank/", "title": "Acme Bank (@acmebank) • Instagram photos and videos", "content": "The official Acme Bank account.", "score": 0.88, "raw_content": null},
+    {"url": "https://www.facebook.com/acmebanksupport.help", "title": "Acme Bank Support Help - Home | Facebook", "content": "Customer care for Acme Bank accounts.", "score": 0.77},
+    {"url": "https://x.com/acme_rewards24", "title": "Acme Rewards (@acme_rewards24) / X", "content": "Claim your Acme rewards now.", "score": 0.7},
+    {"url": "https://t.me/acmebank_helpline", "title": "Acme Bank Helpline – Telegram", "content": "Join for instant refunds.", "score": 0.66},
+    {"url": "https://www.linkedin.com/company/acme-bank-care", "title": "Acme Bank Care: Overview | LinkedIn", "content": "Acme Bank Care is a company.", "score": 0.5},
+    {"url": "https://play.google.com/store/apps/details?id=com.acmebnak.support", "title": "Acme Bnak Mobile - Apps on Google Play", "content": "Bank on the go.", "score": 0.61},
+    {"url": "https://apps.apple.com/in/app/acme-bank-rewards/id1234567890", "title": "Acme Bank Rewards on the App Store", "content": "Rewards.", "score": 0.4},
+    {"url": "https://apkpure.com/acme-bank-mod/com.acme.bank.mod", "title": "Acme Bank MOD APK 9.9 Download - APKPure.com", "content": "Download free.", "score": 0.3},
+    {"url": "https://www.instagram.com/p/Cxyz123/", "title": "A post | Instagram", "content": "a post, not a profile", "score": 0.2},
+    {"url": "https://www.instagram.com/acrne_bank_support/", "title": "Acme Bank Support Care | Instagram", "content": "duplicate of the first result", "score": 0.1},
+    {"url": "https://www.youtube.com/watch?v=abc123", "title": "Video", "content": "not a channel", "score": 0.1}
+  ],
+  "response_time": 1.42,
+  "usage": {"credits": 1},
+  "request_id": "fixture-0001"
+}

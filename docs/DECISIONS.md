@@ -35,3 +35,21 @@
 - Score model: reasons sum to `raw_total`; per-category caps are applied inside the reasons; the 100 cap is applied last (`capped` flag). Publisher-difference counts only with another brand signal; 22 when the publisher name resembles the brand, else 20.
 - LLM scam-intent check: setting `scam_llm_enabled` (default false) and `scam_llm_model` (default `claude-haiku-4-5`, please confirm the model id you want). Not wired into any endpoint yet.
 - Ruff: `E501` is ignored in `app/engine/*` and `scripts/*` (regex and word tables).
+
+
+## Phase 3 choices (collectors, flagged for review)
+
+- **Collectors are providers; `sources` rows are platforms.** A collector (tavily, searxng, itunes, google_play, sample) declares the platforms it covers. A platform is `online` if any covering collector works, `slow` if only slow/partial ones do, else `unavailable`. Per-collector health, back-off and the last good result live in a new table `collector_state` (migration 0002).
+- **Auto mode ignores iTunes.** iTunes needs no key, so on its own it does not turn `auto` into `live`; a fresh install must not query real stores for a demo brand. `auto` = live when a Tavily key, a SearXNG base URL or the google-play package is present. Explicit `live` still runs iTunes.
+- **Live mode without a key shows honest gaps.** Tavily stays in the live chain and reports `unavailable (no_key)`; sources are never filled with sample data in live mode.
+- **Back-off** 1 m, 5 m, 15 m, 1 h, 6 h (capped), reset on success; a provider `Retry-After` (capped at 24 h) wins. Local-config problems (`no_key`, `not_installed`, `not_configured`, `unsafe_base_url`) are re-checked on every scan, not backed off. `invalid_key` is backed off like other failures; a manual retry (the retry button) ignores back-off.
+- **Tavily credits:** budget guard is atomic (`UPDATE ... WHERE credits + cost <= budget`), basic = 1, advanced = 2. 4xx answers (401/429/432/433) are refunded because they are not billed; 5xx and timeouts keep the reservation (they may have been billed). The guard uses the larger of our counter and Tavily's reported `usage.credits`. Default budget 900 of the 1000 free credits. Default per-scan cap 12 queries.
+- **Partial results are kept:** if a later query of a scan is rate limited, out of budget or fails, earlier results are returned and the source shows `slow` with a note.
+- **Tavily uses `include_domains` for the platforms still monitored**, quoted queries with `exact_match`, brand x (support, official, helpline, rewards), aliases/keywords, then look-alike variants (same techniques as the Phase 2 synthetic generator).
+- **SearXNG SSRF:** the operator-set base URL must resolve to public addresses (reusing `url_safety.validate_public_url`) unless `SEARXNG_ALLOW_PRIVATE_HOSTS=true`. No DNS pinning is applied to it (operator configuration, not user input).
+- **Result URLs are never fetched by default.** Collectors only read provider responses. Optional reachability checks (`REACHABILITY_CHECKS_PER_SCAN`, default 0) go through the SSRF-safe `UrlChecker`.
+- **Google Play** goes through an optional, lazily imported package (`google-play-scraper`), not installed, not in requirements. It scrapes Play pages (unofficial; terms-of-use risk and license are unverified). Without it the source reports `not_installed`.
+- **Sample collector** carries `source="sample"` on every candidate and `extras.sample_role` (`official_echo`, `lookalike`, `hard_negative`) so tests and the evaluation can check the engine; the role is ground truth, not a score.
+- **Retry endpoint is synchronous** in Phase 3 (returns 202 with the result); Phase 4 makes it a job.
+- **Settings:** `env_ignore_empty=True`, so `NAME=` left blank in `.env` (as in `.env.example`) means "not set" instead of a parse error. Tests ignore `server/.env` and block real network/DNS access.
+- Audit actions added: `source.monitor_toggled`, `source.retry`, `settings.data_mode_changed`.

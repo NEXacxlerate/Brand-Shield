@@ -1,0 +1,13 @@
+{
+  "query": "\"Acme Bank\" support",
+  "number_of_results": 0,
+  "results": [
+    {"url": "https://www.instagram.com/acrne_bank_support/", "title": "Acme Bank Support Care (@acrne_bank_support) • Instagram photos and videos", "content": "Official helpline. DM to verify KYC.", "engine": "duckduckgo", "parsed_url": ["https", "www.instagram.com", "/acrne_bank_support/", "", "", ""], "category": "general", "score": 1.0},
+    {"url": "https://www.facebook.com/acmebanksupport.help", "title": "Acme Bank Support Help - Home | Facebook", "content": "Customer care.", "engine": "google"},
+    {"url": "https://t.me/acmebank_helpline", "title": "Acme Bank Helpline – Telegram", "content": "Refunds.", "engine": "bing"},
+    {"url": "https://example.com/blog/acme-bank-support", "title": "Acme Bank support guide", "content": "blog", "engine": "google"},
+    {"url": "https://x.com/acme_rewards24", "title": "Acme Rewards (@acme_rewards24) / X", "engine": "brave"}
+  ],
+  "answers": [], "corrections": [], "infoboxes": [], "suggestions": [],
+  "unresponsive_engines": [["startpage", "timeout"]]
+}

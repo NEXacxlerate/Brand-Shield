@@ -2,7 +2,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 SERVER_DIR = Path(__file__).resolve().parents[2]
@@ -14,6 +14,7 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
         case_sensitive=False,
+        env_ignore_empty=True,  # `NAME=` left blank (as in .env.example) means "not set"
     )
 
     app_env: str = "local"  # local | test | production
@@ -43,13 +44,33 @@ class Settings(BaseSettings):
     scam_llm_enabled: bool = False
     scam_llm_model: str = "claude-haiku-4-5"
 
+    # Collectors (Phase 3). The Tavily key comes ONLY from the environment (TAVILY_API_KEY); never log it.
+    tavily_api_key: SecretStr | None = None
+    tavily_monthly_budget: int = 900  # credits per calendar month (UTC); the free plan is 1000
+    tavily_max_queries_per_scan: int = 12
+    tavily_search_depth: str = "basic"  # basic = 1 credit per call, advanced = 2
+    tavily_max_results: int = 10
+    searxng_base_url: str | None = None
+    searxng_allow_private_hosts: bool = False  # operator opt-in: the instance is usually on a private network
+    searxng_max_queries_per_scan: int = 12
+    itunes_country: str = "in"
+    itunes_calls_per_minute: int = 20
+    itunes_cache_ttl_seconds: int = 3600
+    itunes_max_queries_per_scan: int = 8
+    google_play_country: str = "in"
+    google_play_max_queries_per_scan: int = 6
+    source_slow_threshold_ms: int = 4000
+    collector_timeout_seconds: float = 15.0
+    reachability_checks_per_scan: int = 0  # >0: SSRF-safe reachability check of this many result URLs (off by default)
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
     @property
     def secret_values(self) -> list[str]:
-        return [v for v in (self.jwt_secret, self.admin_password) if v]
+        key = self.tavily_api_key.get_secret_value() if self.tavily_api_key else None
+        return [v for v in (self.jwt_secret, self.admin_password, key) if v]
 
 
 @lru_cache
