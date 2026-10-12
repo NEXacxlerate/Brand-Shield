@@ -48,3 +48,20 @@ frontend/playwright-report/
 frontend/e2e/.artifacts/
 frontend/e2e/screenshots/
 frontend/coverage/
+
+# deployment (Phase 6)
+.env.*
+!.env.example
+!server/.env.example
+*.env
+pgdata/
+redisdata/
+docker-compose.override.yml
+playwright-report/
+test-results/
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+.mypy_cache/
+.coverage
+htmlcov/

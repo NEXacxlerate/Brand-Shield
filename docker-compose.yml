@@ -1,34 +1,152 @@
-# docker compose up --build
-#   API      http://localhost:8000   (docs at /docs)
-#   Frontend http://localhost:5173   (sign in as admin@company.com with ADMIN_PASSWORD)
+# ScamMind AI: api + worker + postgres + redis + frontend.
+#
+#   cp .env.example .env     # then fill in the REQUIRED values (names only are committed; real values never are)
+#   docker compose up --build
+#   API       http://localhost:8000   (docs at /docs, readiness at /health)
+#   Frontend  http://localhost:5173
+#
+# Required variables use ${VAR:?message}: compose refuses to start when one is missing (fail fast, no default secrets).
+# Local development extras (published db/redis ports, debug logging):
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+# The folder backend/ and its old compose file belong to an older product and are not used here (docs/DECISIONS.md).
+
+name: scammind
+
+x-server-env: &server-env
+  APP_ENV: ${APP_ENV:-production}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  DATA_DIR: /data
+  # Special characters in POSTGRES_PASSWORD / REDIS_PASSWORD must be URL-encoded; hex from `openssl rand -hex 24` is safe.
+  DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-scammind}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-scammind}
+  REDIS_URL: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}@redis:6379/0
+  SCAN_EXECUTOR: rq
+  JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env, see README for how to generate one}
+  CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+  ACCESS_TOKEN_MINUTES: ${ACCESS_TOKEN_MINUTES:-15}
+  REFRESH_TOKEN_DAYS: ${REFRESH_TOKEN_DAYS:-7}
+  # Optional collectors and extras: empty means "not set".
+  TAVILY_API_KEY: ${TAVILY_API_KEY:-}
+  TAVILY_MONTHLY_BUDGET: ${TAVILY_MONTHLY_BUDGET:-900}
+  SEARXNG_BASE_URL: ${SEARXNG_BASE_URL:-}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  SCAM_LLM_ENABLED: ${SCAM_LLM_ENABLED:-false}
+  SENTRY_DSN: ${SENTRY_DSN:-}
+  SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-}
+  SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0.0}
+
 services:
-  api:
-    build: ./backend
-    env_file:
-      - path: ./backend/.env
-        required: false
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
     environment:
-      DATA_DIR: /data
-      FRONTEND_ORIGIN: http://localhost:5173
-      SECRET_KEY: ${SECRET_KEY:-dev-only-change-me-dev-only-change-me}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-ChangeMe!123}
+      POSTGRES_USER: ${POSTGRES_USER:-scammind}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-scammind}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
+  redis:
+    image: redis:7.2-alpine
+    restart: unless-stopped
+    # The password is passed through the environment, not on the command line, so it does not show up in `ps`.
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
+    command: ["sh", "-c", "exec redis-server --appendonly yes --requirepass \"$$REDISCLI_AUTH\""]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+
+  api:
+    build:
+      context: ./server
+      args:
+        INSTALL_EXTRAS: ${INSTALL_EXTRAS:-false}  # true adds sentry-sdk (requirements-extra.txt)
+    image: scammind-server:local
+    restart: unless-stopped
+    command: ["api"]
+    environment:
+      <<: *server-env
+      ADMIN_EMAIL: ${ADMIN_EMAIL:?Set ADMIN_EMAIL in .env}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
+      ADMIN_NAME: ${ADMIN_NAME:-Administrator}
+      RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}   # false on all replicas but one, or run `docker compose run --rm api migrate` as a release step
+      SCHEDULER_ENABLED: ${SCHEDULER_ENABLED:-true}  # exactly ONE process should run the scheduler: set false on extra api replicas
+      SCAN_INTERVAL_MINUTES: ${SCAN_INTERVAL_MINUTES:-}
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:8000"
     volumes:
       - scammind-data:/data
-    ports:
-      - "8000:8000"
-    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:   # liveness only; readiness (database, redis, worker, collectors) is GET /health
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=4).status == 200 else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
-  web:
+  worker:
+    image: scammind-server:local
+    restart: unless-stopped
+    command: ["worker"]
+    environment:
+      <<: *server-env
+      SCHEDULER_ENABLED: "false"
+    volumes:
+      - scammind-data:/data   # same volume as the api: evidence, logos and report files
+    depends_on:
+      api:
+        condition: service_healthy   # the api applies migrations before it reports healthy
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:   # the worker is healthy when it is registered in Redis (the same check /health uses)
+      test: ["CMD", "python", "-c", "import sys; from app.core.config import get_settings; from app.services.health import check_worker; sys.exit(0 if check_worker(get_settings())['status'] == 'ok' else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  frontend:
     build:
       context: ./frontend
       args:
-        VITE_API_URL: http://localhost:8000
+        VITE_API_URL: ${PUBLIC_API_URL:-http://localhost:8000}   # build-time fallback only
+    image: scammind-frontend:local
+    restart: unless-stopped
+    environment:
+      API_URL: ${PUBLIC_API_URL:-http://localhost:8000}   # runtime: written to /config.js, also used in the CSP header
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-5173}:8080"
     depends_on:
       api:
         condition: service_healthy
-    ports:
-      - "5173:80"
-    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
 
 volumes:
+  pgdata:
+  redisdata:
   scammind-data:

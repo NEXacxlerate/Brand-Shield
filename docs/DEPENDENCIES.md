@@ -144,3 +144,13 @@ Licenses across the whole installed tree: MIT 97, ISC 6, Apache-2.0 8, BSD-3-Cla
 | mdn-data 2.27.1 | CC0-1.0 | Data package (transitive, via jsdom); public-domain dedication. |
 
 No GPL or AGPL package was found in the frontend tree.
+
+
+## Phase 6 (deployment readiness)
+
+- **psycopg / psycopg-binary 3.x (LGPL-3.0-only):** already in `server/requirements.txt` since Phase 1 and already flagged above. Phase 6 makes it load-bearing (PostgreSQL is the production database and was exercised against a real PostgreSQL 18.1). Same review note applies: unmodified normal import, container image distributes it, legal should confirm.
+- **sentry-sdk 2.72.0 (MIT):** license read from the wheel metadata of the downloaded file (`License-Expression: MIT`, `License-File: LICENSE`) on 2026-10-13. It is in the new `server/requirements-extra.txt` (optional; NOT in `requirements.txt`, not installed in `.venv`, not needed by the tests, which use a fake module). Install with `pip install -r requirements-extra.txt` or build the image with `--build-arg INSTALL_EXTRAS=true`. Its transitive dependencies (certifi MPL-2.0 already listed, urllib3 MIT) were not separately audited.
+- **pgvector:** NOT added. Documented optional for future embedding similarity.
+- **Container base images (not Python/npm packages, licenses not audited):** `python:3.12-slim` (Debian + PSF), `node:22-alpine`, `nginxinc/nginx-unprivileged:1.27-alpine` (BSD-2-Clause nginx), `postgres:17-alpine` (PostgreSQL License), `redis:7.2-alpine` (BSD-3-Clause; pinned to 7.2 because, to my recollection (unverified), Redis 7.4+ switched to RSALv2/SSPL, and 8.x added AGPLv3: **check which Redis tag you pull and consider `valkey/valkey` (BSD-3-Clause) if that matters to legal**).
+- **CI actions** (checkout, setup-python, setup-node, upload-artifact, docker/*) are pinned by major version; they are GitHub-owned or Docker-owned actions.
+- **Frontend:** no new npm packages in Phase 6.

@@ -82,6 +82,11 @@ class Settings(BaseSettings):
     scheduler_max_queries_per_scan: int | None = None  # credit estimate; default = tavily_max_queries_per_scan
     anthropic_api_key: SecretStr | None = None  # only used when SCAM_LLM_ENABLED=true; never logged
 
+    # Optional Sentry error reporting (Phase 6). No DSN = off. The DSN is a secret.
+    sentry_dsn: SecretStr | None = None
+    sentry_environment: str | None = None  # default: APP_ENV
+    sentry_traces_sample_rate: float = 0.0
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
@@ -89,7 +94,7 @@ class Settings(BaseSettings):
     @property
     def secret_values(self) -> list[str]:
         key = self.tavily_api_key.get_secret_value() if self.tavily_api_key else None
-        extra = [x.get_secret_value() for x in (self.redis_url, self.anthropic_api_key) if x]
+        extra = [x.get_secret_value() for x in (self.redis_url, self.anthropic_api_key, self.sentry_dsn) if x]
         return [v for v in (self.jwt_secret, self.admin_password, key, *extra) if v]
 
 

@@ -1,0 +1,46 @@
+# Rendered at container start by the nginx image (envsubst replaces only ${API_URL}; nginx's own $variables are left alone).
+server {
+  listen 8080;
+  server_name _;
+  server_tokens off;
+  root /usr/share/nginx/html;
+  index index.html;
+
+  gzip on;
+  gzip_types text/css application/javascript application/json image/svg+xml;
+  gzip_min_length 1024;
+
+  # Security headers (set at server level; do not add add_header inside locations, that would drop these).
+  add_header X-Content-Type-Options "nosniff" always;
+  add_header X-Frame-Options "DENY" always;
+  add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+  add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()" always;
+  add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+  # The page talks to the API origin (API_URL) and loads Manrope from Google Fonts. Everything else is same-origin.
+  add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: ${API_URL}; connect-src 'self' ${API_URL}; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;
+
+  # Runtime configuration written by /docker-entrypoint.d/40-runtime-config.sh (API address without rebuilding the image).
+  location = /config.js {
+    alias /tmp/runtime-config/config.js;
+    default_type application/javascript;
+    expires -1;
+  }
+
+  location = /healthz {
+    access_log off;
+    default_type text/plain;
+    return 200 "ok\n";
+  }
+
+  # Hashed build assets can be cached for a year.
+  location /assets/ {
+    expires 1y;
+    try_files $uri =404;
+  }
+
+  # Single-page app: unknown paths fall back to index.html (never cached, so a new deploy is picked up).
+  location / {
+    expires -1;
+    try_files $uri /index.html;
+  }
+}

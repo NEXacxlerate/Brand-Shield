@@ -1,0 +1,227 @@
+# Continuous integration. No secrets are needed: tests never call third-party services, and the Postgres
+# service container uses a throwaway password that exists only inside the job.
+# (Written locally and YAML-checked, but NOT run: GitHub Actions cannot be executed offline.)
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: server/requirements-dev.txt
+      - name: Install ruff
+        run: pip install "ruff>=0.5"
+      - name: Ruff (server)
+        working-directory: server
+        run: ruff check .
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Lint (oxlint)
+        working-directory: frontend
+        run: npm run lint
+      - name: Type-check
+        working-directory: frontend
+        run: npm run typecheck
+
+  test-server:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: server/requirements-dev.txt
+      - name: Install
+        working-directory: server
+        run: pip install -r requirements-dev.txt
+      - name: Pytest (SQLite)
+        working-directory: server
+        run: python -m pytest -q
+      - name: Canary self-check
+        working-directory: server
+        run: python -m scripts.canary
+
+  test-server-postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci-throwaway-password
+          POSTGRES_DB: scammind_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d scammind_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Throwaway database inside this job. TEST_DATABASE_URL makes every test engine a random schema in it (tests/pg_support.py).
+      TEST_DATABASE_URL: postgresql+psycopg://ci:ci-throwaway-password@localhost:5432/scammind_ci
+      DATABASE_URL: postgresql+psycopg://ci:ci-throwaway-password@localhost:5432/scammind_ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: server/requirements-dev.txt
+      - name: Install
+        working-directory: server
+        run: pip install -r requirements-dev.txt
+      - name: Run migrations on PostgreSQL (the same step the container entrypoint runs)
+        working-directory: server
+        run: python -m scripts.migrate
+      - name: Run migrations again (must be a no-op)
+        working-directory: server
+        run: python -m scripts.migrate
+      - name: Pytest on PostgreSQL
+        working-directory: server
+        run: python -m pytest -q
+
+  test-frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install
+        working-directory: frontend
+        run: npm ci
+      - name: Vitest
+        working-directory: frontend
+        run: npm test
+      - name: Build (type-check + production bundle)
+        working-directory: frontend
+        run: npm run build
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [test-server, test-frontend]
+    env:
+      E2E_PYTHON: python
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: server/requirements-dev.txt
+      - name: Install server
+        working-directory: server
+        run: pip install -r requirements-dev.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend
+        working-directory: frontend
+        run: npm ci
+      - name: Install Chromium for Playwright
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      - name: Playwright (real API on SQLite + sample collector, no network)
+        working-directory: frontend
+        run: npm run test:e2e
+      - name: Upload traces and report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: |
+            frontend/test-results/
+            frontend/playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [lint, test-server, test-frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build server image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./server
+          push: false
+          tags: scammind-server:ci
+          cache-from: type=gha,scope=server
+          cache-to: type=gha,scope=server,mode=max
+      - name: Build frontend image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: false
+          tags: scammind-frontend:ci
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,scope=frontend,mode=max
+
+# ----------------------------------------------------------------------------------------------------------------------
+# OPTIONAL publish job (disabled). To enable: uncomment, give the workflow `packages: write` for this job only, and decide on
+# the registry. Uses the built-in GITHUB_TOKEN for ghcr.io (no extra secret). Keep it off pull requests.
+#
+#   publish:
+#     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+#     needs: [build, e2e, test-server-postgres]
+#     runs-on: ubuntu-latest
+#     permissions:
+#       contents: read
+#       packages: write
+#     steps:
+#       - uses: actions/checkout@v4
+#       - uses: docker/setup-buildx-action@v3
+#       - uses: docker/login-action@v3
+#         with:
+#           registry: ghcr.io
+#           username: ${{ github.actor }}
+#           password: ${{ secrets.GITHUB_TOKEN }}
+#       - uses: docker/build-push-action@v6
+#         with:
+#           context: ./server
+#           push: true
+#           tags: ghcr.io/${{ github.repository }}/server:${{ github.sha }}
+#       - uses: docker/build-push-action@v6
+#         with:
+#           context: ./frontend
+#           push: true
+#           tags: ghcr.io/${{ github.repository }}/frontend:${{ github.sha }}

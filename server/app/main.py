@@ -11,6 +11,7 @@ from app.collectors.selection import CollectorRuntime
 from app.core.config import Settings, get_settings
 from app.core.errors import install_error_handlers
 from app.core.logging import configure_logging
+from app.core.observability import init_sentry
 from app.core.ratelimit import FailureLimiter
 from app.db.session import make_engine, make_session_factory
 from app.services.context import build_context
@@ -32,11 +33,17 @@ def create_app(
 ) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings.log_level, settings.secret_values)
+    init_sentry(settings)  # no-op unless SENTRY_DSN is set and sentry-sdk is installed
     engine = engine or make_engine(settings.database_url)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        settings.data_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            settings.data_dir.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            import logging
+
+            logging.getLogger("app").error("DATA_DIR cannot be created or is not writable: /health reports data_dir=down")
         try:
             with app.state.session_factory() as db:
                 seed_admin(db, settings)

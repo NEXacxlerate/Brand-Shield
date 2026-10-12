@@ -11,7 +11,16 @@
 //   422 item joined by "; "). Network failures have status 0 and `network === true`; cancelled calls rethrow the AbortError.
 // - There is no offline/sample session: nothing is ever shown unless the server answered.
 
-export const BASE_URL: string = ((import.meta.env.VITE_API_URL as string | undefined) || 'http://127.0.0.1:8000').replace(/\/+$/, '');
+declare global {
+  interface Window {
+    /** Written at container start from API_URL (see frontend/nginx/40-runtime-config.sh); empty in development. */
+    __SCAMMIND_CONFIG__?: { API_URL?: string };
+  }
+}
+
+// Precedence: runtime config (/config.js, no rebuild needed) > VITE_API_URL (build time) > local default.
+const runtimeApiUrl = typeof window !== 'undefined' ? window.__SCAMMIND_CONFIG__?.API_URL : undefined;
+export const BASE_URL: string = (runtimeApiUrl || (import.meta.env.VITE_API_URL as string | undefined) || 'http://127.0.0.1:8000').replace(/\/+$/, '');
 
 export const NETWORK_ERROR_MESSAGE = 'Cannot reach the server. Check your connection and try again.';
 

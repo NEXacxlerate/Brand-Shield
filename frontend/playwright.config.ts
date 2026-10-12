@@ -34,12 +34,13 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   retries: 0,
-  reporter: [['list']],
+  reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : [['list']],
   outputDir: 'test-results',
   use: {
     baseURL: `http://localhost:${WEB_PORT}`,
     viewport: { width: 1440, height: 900 },
-    trace: 'off',
+    // In CI keep a trace of every failing test (uploaded as an artifact); locally traces stay off.
+    trace: process.env.CI ? 'retain-on-failure' : 'off',
   },
   webServer: [
     {

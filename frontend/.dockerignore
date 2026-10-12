@@ -1,5 +1,14 @@
 node_modules
 dist
-backend
+dist-ssr
+test-results
+playwright-report
+e2e
+coverage
 .git
 .env
+.env.*
+*.log
+Dockerfile
+.dockerignore
+README.md

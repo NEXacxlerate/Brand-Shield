@@ -10,6 +10,7 @@ from __future__ import annotations
 import threading
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.time import iso_z, utcnow
@@ -46,7 +47,7 @@ def ensure_default_cases(db: Session) -> None:
 
     Two requests can arrive together (a page that loads the list twice, React StrictMode in development). Without a lock
     both would see an empty table and insert 12 rows each (24 cases). The lock serialises the check-then-insert inside this
-    process; with several API processes a unique index would be needed (not built: one process today).
+    process; across several API processes the partial unique index from migration 0004 makes the loser's insert fail and be ignored.
     """
     if db.scalar(select(LookalikeCase.id).limit(1)) is not None:
         return
@@ -55,7 +56,11 @@ def ensure_default_cases(db: Session) -> None:
             return
         for name, expected in DEFAULT_CASES:
             db.add(LookalikeCase(name=name, expected=expected, builtin=True, source="sample"))
-        db.commit()
+        try:
+            db.commit()
+        except IntegrityError:
+            # Another process seeded first (partial unique index uq_lookalike_cases_builtin_name, migration 0004).
+            db.rollback()
 
 
 def _normalization(name: str, brand: Brand, added: list[str]) -> list[dict]:

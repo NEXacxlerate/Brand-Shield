@@ -18,7 +18,7 @@ def test_health_reports_db_down(app, client):
     r = client.get("/health")
     assert r.status_code == 503
     assert r.json()["database"]["status"] == "down"
-    assert r.json()["status"] == "degraded"
+    assert r.json()["status"] == "down"
 
 
 def test_error_format_string_detail(client):

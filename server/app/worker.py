@@ -16,6 +16,7 @@ import sys
 from app.collectors.selection import CollectorRuntime
 from app.core.config import get_settings
 from app.core.logging import configure_logging
+from app.core.observability import init_sentry
 from app.db.session import make_engine, make_session_factory
 from app.services.context import build_context
 from app.services.scan_pipeline import ScanContext, run_scan
@@ -44,6 +45,7 @@ def run_scan_job(scan_id: int) -> None:
 def main() -> int:
     settings = get_settings()
     configure_logging(settings.log_level, settings.secret_values)
+    init_sentry(settings)
     if not settings.redis_url:
         log.error("REDIS_URL is not set: nothing to work on (the API runs scans in-process without Redis).")
         return 2

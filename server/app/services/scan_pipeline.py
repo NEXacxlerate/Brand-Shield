@@ -25,6 +25,7 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.collectors.base import Candidate
@@ -158,7 +159,16 @@ def request_scan(ctx: ScanContext, db: Session, *, brand_id: int | None, scope: 
         created_at=now,
     )
     db.add(scan)
-    db.flush()
+    try:
+        db.flush()
+    except IntegrityError as exc:
+        # Another API process queued a scan for this brand between our check and our insert
+        # (partial unique index uq_scans_one_active_per_brand, migration 0004).
+        db.rollback()
+        active = running_scan(db, brand.id)
+        if active is None:
+            raise
+        raise ScanAlreadyRunning(active) from exc
     audit.record(db, user, "scan.started", f"{brand.name} ({scope})", f"job {scan.job_id}, data mode {selection.effective_mode}",
                  actor_label="scheduler", source="sample" if selection.effective_mode == "sample" else "live")
     db.commit()

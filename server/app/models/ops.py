@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import JSON, BigInteger, Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, BigInteger, Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.time import utcnow
@@ -46,8 +46,16 @@ class CollectorState(Base):
     source: Mapped[str] = mapped_column(String(10), default="live")  # live | sample
 
 
+_ACTIVE_SCAN = text("state IN ('queued', 'running')")
+_BUILTIN_CASE = text("builtin")
+
+
 class Scan(Base):
     __tablename__ = "scans"
+    # One queued/running scan per brand, enforced by the database (partial unique index; SQLite and PostgreSQL both support it).
+    __table_args__ = (
+        Index("uq_scans_one_active_per_brand", "brand_id", unique=True, sqlite_where=_ACTIVE_SCAN, postgresql_where=_ACTIVE_SCAN),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     job_id: Mapped[str] = mapped_column(String(40), unique=True)
@@ -137,6 +145,10 @@ class LookalikeCase(Base):
     """A labelled look-alike test case (default 12 plus any an admin adds)."""
 
     __tablename__ = "lookalike_cases"
+    # The built-in cases are seeded once: a second concurrent seeder hits this index instead of inserting 12 more rows.
+    __table_args__ = (
+        Index("uq_lookalike_cases_builtin_name", "name", unique=True, sqlite_where=_BUILTIN_CASE, postgresql_where=_BUILTIN_CASE),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(200))

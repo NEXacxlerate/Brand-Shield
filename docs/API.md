@@ -924,3 +924,22 @@ Created as **DRAFT**; a person approves; nothing is sent anywhere. Formats `csv`
 - `GET /api/lookalike/test-cases` seeding race fixed: the 12 default cases are seeded under a process lock (two requests arriving together, such as React StrictMode in development, used to create 24 cases). Single API process only; with several processes a unique index is still needed.
 - There is still no `GET /api/sources/events`. The UI builds "Recent source events" from `GET /api/scans` (`source_report`).
 - `server/scripts/e2e_server.py` starts the API for the browser tests: temp SQLite, `Settings(_env_file=None)`, sample collector, stubbed URL checker (no network). Not for production.
+
+
+## 19. Phase 6: health, readiness and canary (authoritative for these endpoints)
+
+| Method and path | Auth | Purpose |
+|---|---|---|
+| GET `/health`, `/api/health` | none | Readiness. 200 when `ok` or `degraded`, 503 when the database is down. |
+| GET `/health/live` | none | Liveness only: `{"status":"ok","version":...}`, no dependency touched. |
+| GET `/api/health/details` | admin | Same checks with details (reasons, ages, revisions, worker count, free disk). |
+| POST `/api/health/canary` | admin | Runs the in-memory canary; always 200 with `{passed, checks[], failures[], duration_ms, scope}`; audited as `health.canary`. |
+
+`GET /health` body: `{"status":"ok|degraded|down","version":"0.1.0","database":{"status":"ok|down"},"components":{"database","migration","collectors","redis","worker","data_dir": "<state>"}}`.
+Component states: `ok`, `degraded`, `down`, `not_configured` (optional piece switched off: no `REDIS_URL`, SearXNG without a base URL), `unknown` (migration state not determinable, e.g. a database created without Alembic outside production).
+Overall: `down` only if the database is down; `degraded` if any component is `degraded` or `down` (Redis unreachable, no worker registered while Redis is configured, data dir not writable or under 100 MB free, migration revision behind head, a live collector unconfigured or failing in its last stored state); otherwise `ok`.
+No component makes a live third-party call. Collector state comes from configuration (key present, package installed, base URL set) and the last stored status/age. Neither endpoint returns keys, URLs with credentials or exception text.
+
+`GET /api/health/details` adds, per component: `migration {current, expected, note}`, `collectors {data_mode, effective_mode, sources: {name: {configured, active, status, reason, last_status, last_reason, last_attempt_age_seconds, last_success_age_seconds, consecutive_failures}}}`, `redis {error}`, `worker {workers, queued, last_heartbeat_age_seconds}`, `data_dir {writable, free_mb}`.
+
+Canary `checks[].name`: `scan_completed`, `lookalike_profile_detected`, `lookalike_app_detected`, `official_assets_excluded`, `unrelated_business_not_flagged`, `score_is_explained`, `results_labelled_sample`. The canary never reads or writes the real database and makes no network call.

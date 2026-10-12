@@ -15,8 +15,16 @@ os.environ.update(
 )
 
 # A real key in the shell must never reach a test run.
-for _name in ("TAVILY_API_KEY", "SEARXNG_BASE_URL", "ANTHROPIC_API_KEY", "REDIS_URL", "SCAN_INTERVAL_MINUTES"):
+for _name in ("TAVILY_API_KEY", "SEARXNG_BASE_URL", "ANTHROPIC_API_KEY", "REDIS_URL", "SCAN_INTERVAL_MINUTES", "SENTRY_DSN"):
     os.environ.pop(_name, None)
+
+# Optional: run the whole suite against PostgreSQL. Set TEST_DATABASE_URL (a throwaway database, never a real one) and every test engine
+# that would be in-memory SQLite becomes its own random schema in that database, dropped when the run ends. File-based SQLite engines
+# (migration tests, the seed race test) stay SQLite on purpose. See tests/pg_support.py.
+import app.db.session as _session  # noqa: E402
+from tests import pg_support  # noqa: E402
+
+pg_support.install(_session)
 
 import httpx  # noqa: E402
 import pytest  # noqa: E402

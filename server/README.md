@@ -58,3 +58,12 @@ Everything the 10 screens need is documented in `../docs/API.md` section 18. Key
 - The scheduler loop starts with the API unless `SCHEDULER_ENABLED=false` (never under `APP_ENV=test`). `SCAN_INTERVAL_MINUTES` (0 = off) overrides the Settings page.
 - New migration: `alembic upgrade head` (0003).
 - Nothing is sent or reported automatically; humans approve detections and reports.
+
+## Phase 6: deployment readiness
+
+- Container image: `Dockerfile` (API and RQ worker share it; entrypoint `docker-entrypoint.sh api|worker|migrate`). Migrations: `python -m scripts.migrate` (advisory-locked on PostgreSQL, safe with several replicas).
+- `/health` is a readiness check (database, migration, redis, worker, data dir, collectors); `/health/live`; admin `/api/health/details`; admin `POST /api/health/canary`. See `../docs/API.md` section 19.
+- Canary self-check: `python -m scripts.canary` (exit 0 = pass). Pipeline logic only; no network.
+- Optional Sentry: `pip install -r requirements-extra.txt`, set `SENTRY_DSN` (scrubbed before send).
+- Tests on PostgreSQL: set `TEST_DATABASE_URL` to a throwaway database (each test gets its own schema).
+- Whole-system README (env table, deploy steps, pre-demo checklist): `../README.md`.
