@@ -65,3 +65,14 @@ No GPL or AGPL packages were found.
 | uvicorn | 0.54.0 | BSD-3-Clause | yes |
 | watchfiles | 1.3.0 | MIT | no |
 | websockets | 17.2 | BSD-3-Clause | no |
+
+## Phase 2 (detection engine)
+
+No package was added to `requirements.txt`. The engine uses only the standard library, Pillow and pydantic (already present). pHash/dHash, the DCT, Damerau-Levenshtein and DP word segmentation are implemented in `server/app/engine/`; `imagehash` and `numpy` were not needed.
+
+Optional packages, lazily imported, NOT installed and NOT in requirements (the engine works without them):
+
+| Package | License (from package metadata) | Used by | Notes |
+|---|---|---|---|
+| anthropic | MIT (wheel METADATA: `License: MIT`, classifier MIT) | `engine/llm.py` `AnthropicScamIntentLLM`, only when `SCAM_LLM_ENABLED=true` and `ANTHROPIC_API_KEY` is set | Metadata of the wheel downloaded 2026-10-13 (version string 1.13.0 as shown by pip). Sends bio text to a third party when enabled; off by default. Pin a version when it is first installed. |
+| open_clip_torch + torch | MIT (open_clip) / BSD-3-Clause (torch), from upstream project pages, NOT verified from metadata because not downloaded | `engine/logo_similarity.py` `ClipSimilarity` (optional CLIP embedder) | Heavy (hundreds of MB). Each pretrained model weight set has its own license; check before use. Unverified, do not install without a metadata check. |

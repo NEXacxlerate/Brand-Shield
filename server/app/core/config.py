@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     url_check_max_redirects: int = 3
     url_check_max_bytes: int = 65536
 
+    # Detection engine: optional LLM scam-intent check. OFF by default; key comes from ANTHROPIC_API_KEY.
+    scam_llm_enabled: bool = False
+    scam_llm_model: str = "claude-haiku-4-5"
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
