@@ -142,6 +142,6 @@ class DatabaseSettings(BaseSettings):
     """Only the DB URL: lets Alembic run without needing JWT_SECRET etc."""
 
     model_config = SettingsConfigDict(
-        env_file=(SERVER_DIR / ".env", SERVER_DIR.parent / ".env"), extra="ignore", case_sensitive=False
+        env_file=(SERVER_DIR / ".env", SERVER_DIR.parent / ".env"), extra="ignore", case_sensitive=False, env_ignore_empty=True
     )
     database_url: str = f"sqlite:///{(SERVER_DIR / 'data' / 'scammind.db').as_posix()}"
