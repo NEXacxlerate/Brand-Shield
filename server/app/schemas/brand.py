@@ -10,6 +10,7 @@ class BrandIdentity(BaseModel):
     aliases: list[str] = Field(default_factory=list, max_length=200)
     keywords: list[str] = Field(default_factory=list, max_length=200)
     domains: list[str] = Field(default_factory=list, max_length=200)
+    description: str | None = Field(default=None, max_length=2000)  # the brand's own public description
 
     @field_validator("name", "industry")
     @classmethod
@@ -32,6 +33,8 @@ class BrandIdentity(BaseModel):
         if len(domains) > 50:
             raise ValueError("At most 50 domains allowed")
         self.domains = domains
+        if self.description is not None:
+            self.description = " ".join(self.description.split()) or None
         return self
 
 
@@ -173,9 +176,85 @@ class AllowlistOut(BaseModel):
     domains: int
 
 
+class ExtraLogoOut(BaseModel):
+    id: int
+    label: str
+    url: str
+    format: str
+    width: int
+    height: int
+    size_bytes: int
+    sha256: str
+
+
+class PublisherOut(BaseModel):
+    id: int
+    store: str
+    name: str
+    publisher_id: str | None
+
+
+class VerificationOut(BaseModel):
+    asset_type: str
+    asset_key: str
+    status: str
+    method: str | None
+    note: str
+    verified_at: UtcDatetime | None
+    verified_by: str | None
+
+
+class PublisherCreate(BaseModel):
+    store: str = "any"
+    name: str = Field(default="", max_length=120)
+    publisher_id: str | None = Field(default=None, max_length=120)
+
+    @field_validator("store")
+    @classmethod
+    def _store(cls, s: str) -> str:
+        s = s.strip().lower()
+        if s not in ("google_play", "app_store", "any"):
+            raise ValueError("store must be google_play, app_store or any")
+        return s
+
+    @model_validator(mode="after")
+    def _need(self) -> "PublisherCreate":
+        self.name = " ".join(self.name.split())
+        self.publisher_id = (self.publisher_id or "").strip() or None
+        if not self.name and not self.publisher_id:
+            raise ValueError("Give a publisher name or a publisher id")
+        return self
+
+
+VERIFY_METHODS = ("dns_txt", "website_link", "store_listing", "platform_badge", "manual_review", "other")
+
+
+class VerificationIn(BaseModel):
+    asset_type: str
+    asset_key: str = Field(min_length=1, max_length=300)
+    status: str
+    method: str | None = None
+    note: str = Field(default="", max_length=300)
+
+    @model_validator(mode="after")
+    def _ok(self) -> "VerificationIn":
+        if self.asset_type not in ("domain", "account", "app", "publisher", "logo"):
+            raise ValueError("asset_type must be domain, account, app, publisher or logo")
+        if self.status not in ("unverified", "verified"):
+            raise ValueError("status must be unverified or verified")
+        if self.status == "verified" and self.method not in VERIFY_METHODS:
+            raise ValueError("A verified asset needs a method: " + ", ".join(VERIFY_METHODS))
+        return self
+
+
 class BrandOut(BaseModel):
     id: int
     name: str
+    description: str | None = None
+    archived: bool = False
+    extra_logos: list[ExtraLogoOut] = []
+    publishers: list[PublisherOut] = []
+    verifications: list[VerificationOut] = []
     industry: str
     aliases: list[str]
     keywords: list[str]

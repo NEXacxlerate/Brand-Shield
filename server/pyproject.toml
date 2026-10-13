@@ -17,6 +17,11 @@ ignore = ["B008"]  # FastAPI Depends() in defaults is idiomatic
 "app/engine/*" = ["E501"]
 "app/collectors/*" = ["E501"]  # provider message strings  # regex/word tables and long explanatory notes
 "scripts/*" = ["E501"]
+"app/providers/*" = ["E501"]
+"app/services/candidate_*.py" = ["E501"]
+"app/services/text_analysis.py" = ["E501"]
+"app/models/*" = ["E501"]
+"app/core/config.py" = ["E501"]
 # Phase 4 modules carry long explanatory strings and dict literals
 "app/services/scan_pipeline.py" = ["E501"]
 "app/services/detections.py" = ["E501"]

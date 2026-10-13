@@ -144,3 +144,15 @@ Decisions D1 to D13 of `docs/EXTENSION_PLAN.md` as answered by the owner, and wh
 - **D6 (defect).** Retrying a Tavily-backed source needs `?confirm=true`; the UI shows a dialog with the credit estimate first (Source Health and the App Store sources bar). Otherwise 409 `confirmation_required`; nothing is spent.
 - **Not built in E1-E4 (later packages):** `resolution` field, Investigations page, sidebar relabel, Web list in the UI, manual and CSV candidate entry, Gemini / Hugging Face text providers, ImageHash similarity (the package is only listed as optional), brand registry v2, evaluation extensions.
 - **Dependencies.** tldextract, rapidfuzz and idna added to `requirements.txt`; ImageHash in `requirements-extra.txt` (unused until E6). Licenses are in `docs/DEPENDENCIES.md`. tldextract brings `requests`, `requests-file` and `filelock` (not used at runtime here).
+
+
+## Extension E5-E7 decisions (2026-10-14; flagged for review)
+
+- **Anthropic removed** (the owner does not use it). Providers: local baseline (always on), Gemini (default AI provider, `GEMINI_API_KEY`, `GEMINI_MODEL` default `gemini-3.5-flash-lite` from the plan: please verify the id with your key), Hugging Face (optional, no default model).
+- **Hosted text analysis stays opt-in:** `SCAM_LLM_ENABLED` (default false) is the master switch, so no text leaves the server until you turn it on AND a key exists. `SCAM_LLM_PROVIDER` / the admin setting picks the provider. Only the candidate text (emails, phone numbers and UPI ids replaced by placeholders) and the brand description are sent; never the brand name, handles or URLs. The free Gemini tier may train on inputs (plan section 3).
+- **Answers cannot lower scores:** an API likelihood >= 0.6 reuses the existing capped bio input (bio max 28); for app descriptions it is informational. The cache key adds the brand-context hash and kind to model + prompt version + text.
+- **Image backend:** default stays `hash` (image-1) so no score moves; `multihash` (image-2) and `imagehash` are opt-in via `IMAGE_SIMILARITY_BACKEND`. ImageHash pulls ~200 MB (numpy, scipy, PyWavelets), so the hashes are also implemented locally; the local wHash is a simplified Haar low-pass hash, not bit-identical to ImageHash.
+- **Registry:** still ONE active brand (D10 not lifted); DELETE is a soft archive needing the exact name; verification is a human attestation (method, when, by whom). Domains, accounts and apps stay allowlisted as before; a publisher id is allowlisted only when verified.
+- **Provenance:** new `detections.origin` (`scan|manual|import|synthetic`) beside `source` (`live|sample`), so manual rows still show in the live data mode.
+- **Intake:** rows that resemble nothing (verdict ignored) are reported `not_flagged` and not saved; the prefilter is off for manual/import rows; their URLs are never fetched, and Safe Browsing is still asked about web rows (looked up, not opened).
+- **Not built:** frontend for E7 (Brand Profile fields, Import dialog), embeddings in scans, any live provider call.

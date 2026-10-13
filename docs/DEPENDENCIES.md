@@ -170,3 +170,16 @@ No GPL or AGPL package was found in the frontend tree.
 - **Container base images (not Python/npm packages, licenses not audited):** `python:3.12-slim` (Debian + PSF), `node:22-alpine`, `nginxinc/nginx-unprivileged:1.27-alpine` (BSD-2-Clause nginx), `postgres:17-alpine` (PostgreSQL License), `redis:7.2-alpine` (BSD-3-Clause; pinned to 7.2 because, to my recollection (unverified), Redis 7.4+ switched to RSALv2/SSPL, and 8.x added AGPLv3: **check which Redis tag you pull and consider `valkey/valkey` (BSD-3-Clause) if that matters to legal**).
 - **CI actions** (checkout, setup-python, setup-node, upload-artifact, docker/*) are pinned by major version; they are GitHub-owned or Docker-owned actions.
 - **Frontend:** no new npm packages in Phase 6.
+
+
+## E5-E7 (text providers, images, registry)
+
+Licenses read from the installed metadata (`importlib.metadata`) on 2026-10-14:
+
+| Package | Version | License | Where | Notes |
+|---|---|---|---|---|
+| google-genai | 2.30.0 | Apache-2.0 | `app/providers/text/gemini.py`, lazy import, `requirements-extra.txt` | ~11 MB; brings google-auth, tenacity, websockets, requests, distro, sniffio |
+| huggingface_hub | 2.2.0 | Apache-2.0 | `app/providers/text/huggingface.py`, lazy import, `requirements-extra.txt` | ~7 MB; brings httpx2, hf-xet, fsspec, tqdm, pyyaml, click |
+| ImageHash | 4.3.2 | BSD-2-Clause | `engine/image_hashes.py::ImageHashSimilarity`, optional | **Heavy:** needs numpy 2.5.4 (BSD-3-Clause and others, ~54 MB), scipy 1.18.1 (BSD, ~135 MB), PyWavelets 1.10.0 (MIT / BSD-3-Clause, ~9 MB): about 200 MB installed. So the default image code implements pHash, dHash, a Haar low-pass wHash and a colour hash locally over Pillow; ImageHash stays optional |
+
+The Anthropic option and its optional `anthropic` package were removed in E5 (the owner does not use that API). No GPL/AGPL package was added.

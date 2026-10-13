@@ -318,11 +318,11 @@ def _image_impl(settings: Settings):
     return HashSimilarity(), "image-1"
 
 
-def _compare(env: "_Env", img) -> tuple[float, str | None]:
+def _compare(env: _Env, img) -> tuple[float, str | None]:
     return best_match(img, env.official_logos, env.image_impl)
 
 
-def _intake_image(env: "_Env", c: Candidate):
+def _intake_image(env: _Env, c: Candidate):
     """The uploaded image of a manual / imported candidate (by id), or None."""
     image_id = c.extras.get("image_id")
     row = env.db.get(CandidateImage, image_id) if isinstance(image_id, int) else None
@@ -687,7 +687,7 @@ def upsert_detection(ctx: ScanContext, db: Session, scan: Scan | None, brand: Br
             counts["detections_new"] += 1
 
 
-def _record_official(db: Session, scan: Scan, brand: Brand, c: Candidate, hit: OfficialHit, now: datetime, seen: dict[str, OfficialMatch]) -> None:
+def _record_official(db: Session, scan: Scan | None, brand: Brand, c: Candidate, hit: OfficialHit, now: datetime, seen: dict[str, OfficialMatch]) -> None:
     key = f"{hit.kind}:{c.platform}:{hit.value.lower()}"[:400]
     row = seen.get(key) or db.scalar(select(OfficialMatch).where(OfficialMatch.brand_id == brand.id, OfficialMatch.match_key == key))
     if c.kind == "social":
@@ -698,13 +698,13 @@ def _record_official(db: Session, scan: Scan, brand: Brand, c: Candidate, hit: O
         label = f"{c.display_name or hit.value} · {c.handle or hit.value}"
     if row is None:
         row = OfficialMatch(
-            brand_id=brand.id, scan_id=scan.id, kind=hit.kind, platform=c.platform, label=label[:300], reason=hit.reason,
+            brand_id=brand.id, scan_id=scan.id if scan else None, kind=hit.kind, platform=c.platform, label=label[:300], reason=hit.reason,
             matched_rule=hit.rule[:300], match_key=key, url=(c.profile_url or None), last_seen_at=now, times_seen=1,
             official_account_id=hit.account_id, official_app_id=hit.app_id, source=c.data_source,
         )
         db.add(row)
     else:
-        row.scan_id, row.last_seen_at, row.times_seen = scan.id, now, (row.times_seen or 0) + 1
+        row.scan_id, row.last_seen_at, row.times_seen = (scan.id if scan else row.scan_id), now, (row.times_seen or 0) + 1
         row.url = c.profile_url or row.url
         row.official_account_id = hit.account_id or row.official_account_id
         row.official_app_id = hit.app_id or row.official_app_id

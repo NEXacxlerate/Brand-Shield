@@ -5,7 +5,21 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import Engine
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.api import audit, auth, brands, dashboard, detections, evaluation, health, lookalike, reports, scans, sources
+from app.api import (
+    audit,
+    auth,
+    brands,
+    candidates,
+    dashboard,
+    detections,
+    evaluation,
+    health,
+    lookalike,
+    providers,
+    reports,
+    scans,
+    sources,
+)
 from app.api import settings as settings_api
 from app.collectors.selection import CollectorRuntime
 from app.core.config import Settings, get_settings
@@ -91,8 +105,9 @@ def create_app(
     api.include_router(brands.router)
     api.include_router(audit.router)
     api.include_router(sources.router)
-    for r in (scans, detections, dashboard, lookalike, settings_api, reports, evaluation):
+    for r in (scans, detections, dashboard, lookalike, settings_api, reports, evaluation, candidates, providers):
         api.include_router(r.router)
+    api.include_router(candidates.images)
     app.include_router(health.router)
     app.include_router(api)
     return app

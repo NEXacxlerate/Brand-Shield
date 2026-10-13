@@ -176,6 +176,7 @@ def summary_row(d: Detection) -> dict:
         "last_seen_at": _iso(d.last_seen_at),
         "stale": d.stale,
         "source": d.source,
+        "origin": d.origin,
     }
 
 
@@ -237,6 +238,7 @@ def detail(db: Session, d: Detection, brand: Brand) -> dict:
             {"at": _iso(e.at), "actor": e.actor, "kind": e.kind, "from": e.from_status, "to": e.to_status, "note": e.note} for e in events
         ],
         "extras": det.get("extras") or {},
+        "text_analysis": det.get("text_analysis"),
     })
     if d.category == "apps":
         pubs = out["official"].get("official_publishers") or []

@@ -8,10 +8,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
-from app.core.deps import get_current_user, get_settings_dep, get_url_checker, require_writer
+from app.core.deps import get_current_user, get_settings_dep, get_url_checker, require_admin, require_writer
 from app.core.time import utcnow
 from app.db.session import get_db
-from app.models import Brand, OfficialAccount, OfficialApp, User
+from app.models import AssetVerification, Brand, BrandLogo, BrandPublisher, OfficialAccount, OfficialApp, User
 from app.schemas.auth import OkResponse
 from app.schemas.brand import (
     AccountCreate,
@@ -25,8 +25,13 @@ from app.schemas.brand import (
     BrandIdentity,
     BrandOut,
     BrandSummary,
+    ExtraLogoOut,
     LogoOut,
     ProfileHealthOut,
+    PublisherCreate,
+    PublisherOut,
+    VerificationIn,
+    VerificationOut,
 )
 from app.services import audit
 from app.services import validators as v
@@ -39,9 +44,9 @@ router = APIRouter(prefix="/brands")
 log = logging.getLogger("app.brands")
 
 
-def get_brand_or_404(db: Session, brand_id: int) -> Brand:
+def get_brand_or_404(db: Session, brand_id: int, include_archived: bool = False) -> Brand:
     brand = db.get(Brand, brand_id)
-    if brand is None:
+    if brand is None or (brand.archived_at is not None and not include_archived):
         raise HTTPException(404, "Brand not found")
     return brand
 
@@ -89,6 +94,13 @@ def brand_out(b: Brand) -> BrandOut:
     return BrandOut(
         id=b.id,
         name=b.name,
+        description=b.description,
+        archived=b.archived_at is not None,
+        extra_logos=[ExtraLogoOut(id=lg.id, label=lg.label, url=f"/api/brands/{b.id}/logos/{lg.id}/file", format=lg.format, width=lg.width,
+                                  height=lg.height, size_bytes=lg.size_bytes, sha256=lg.sha256) for lg in b.logos],
+        publishers=[PublisherOut(id=p.id, store=p.store, name=p.name, publisher_id=p.publisher_id) for p in b.publishers],
+        verifications=[VerificationOut(asset_type=x.asset_type, asset_key=x.asset_key, status=x.status, method=x.method, note=x.note,
+                                       verified_at=x.verified_at, verified_by=x.verified_by) for x in b.verifications],
         industry=b.industry,
         aliases=b.aliases,
         keywords=b.keywords,
@@ -113,13 +125,13 @@ def _touch(b: Brand) -> None:
 
 @router.get("", response_model=list[BrandSummary])
 def list_brands(_: User = Depends(get_current_user), db: Session = Depends(get_db)) -> list[Brand]:
-    return list(db.scalars(select(Brand).order_by(Brand.id)))
+    return list(db.scalars(select(Brand).where(Brand.archived_at.is_(None)).order_by(Brand.id)))
 
 
 @router.post("", response_model=BrandOut, status_code=201)
 def create_brand(body: BrandIdentity, user: User = Depends(require_writer), db: Session = Depends(get_db)) -> BrandOut:
-    # Single brand per organisation for now; the table keeps brands separate for later.
-    if db.scalar(select(func.count()).select_from(Brand)):
+    # One ACTIVE brand per organisation for now (an archived brand does not count); the table keeps brands separate for later.
+    if db.scalar(select(func.count()).select_from(Brand).where(Brand.archived_at.is_(None))):
         raise HTTPException(409, "A brand already exists. Edit it instead.")
     brand = Brand(**body.model_dump())
     db.add(brand)
@@ -139,8 +151,11 @@ def update_brand(
     brand_id: int, body: BrandIdentity, user: User = Depends(require_writer), db: Session = Depends(get_db)
 ) -> BrandOut:
     brand = get_brand_or_404(db, brand_id)
-    changed = [k for k, val in body.model_dump().items() if getattr(brand, k) != val]
-    for k, val in body.model_dump().items():
+    data = body.model_dump()
+    if "description" not in body.model_fields_set:
+        data.pop("description")  # an older client that does not send it must not wipe it
+    changed = [k for k, val in data.items() if getattr(brand, k) != val]
+    for k, val in data.items():
         setattr(brand, k, val)
     _touch(brand)
     audit.record(db, user, "brand.updated", brand.name, "changed: " + (", ".join(changed) or "nothing"))
@@ -355,3 +370,162 @@ def remove_app(
     _touch(brand)
     db.commit()
     return OkResponse()
+
+
+# ---------------------------------------------------------------- archive (soft delete)
+
+
+@router.delete("/{brand_id}", response_model=OkResponse)
+def archive_brand(
+    brand_id: int, confirm: str = "", user: User = Depends(require_admin), db: Session = Depends(get_db)
+) -> OkResponse:
+    """Soft delete (admin): the brand disappears from lists and scans; nothing is erased and it can be restored. `confirm` must be the exact name."""
+    brand = get_brand_or_404(db, brand_id)
+    if confirm != brand.name:
+        raise HTTPException(409, "Type the exact brand name in `confirm` to archive it")
+    brand.archived_at = utcnow()
+    audit.record(db, user, "brand.archived", brand.name)
+    db.commit()
+    return OkResponse()
+
+
+@router.post("/{brand_id}/restore", response_model=BrandOut)
+def restore_brand(brand_id: int, user: User = Depends(require_admin), db: Session = Depends(get_db)) -> BrandOut:
+    brand = get_brand_or_404(db, brand_id, include_archived=True)
+    if brand.archived_at is None:
+        return brand_out(brand)
+    if db.scalar(select(func.count()).select_from(Brand).where(Brand.archived_at.is_(None))):
+        raise HTTPException(409, "Another brand is active; archive it first")
+    brand.archived_at = None
+    audit.record(db, user, "brand.restored", brand.name)
+    db.commit()
+    return brand_out(brand)
+
+
+# ---------------------------------------------------------------- extra official logos
+
+
+@router.post("/{brand_id}/logos", response_model=ExtraLogoOut, status_code=201)
+def add_logo(
+    brand_id: int, label: str = "", file: UploadFile = File(...), user: User = Depends(require_writer), db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings_dep),
+) -> ExtraLogoOut:
+    brand = get_brand_or_404(db, brand_id)
+    data = file.file.read(settings.logo_max_bytes + 1)
+    try:
+        logo = process_logo(data, settings.logo_max_bytes)
+    except LogoError as exc:
+        raise HTTPException(exc.status_code, exc.message) from exc
+    if logo.sha256 == brand.logo_sha256 or any(lg.sha256 == logo.sha256 for lg in brand.logos):
+        raise HTTPException(409, "This logo is already registered")
+    if len(brand.logos) >= 10:
+        raise HTTPException(422, "At most 10 extra logos")
+    rel = save_logo(settings.data_dir, brand.id, logo)
+    row = BrandLogo(brand_id=brand.id, label=" ".join(label.split())[:120], path=rel, format=logo.format, width=logo.width, height=logo.height,
+                    size_bytes=len(logo.data), sha256=logo.sha256)
+    db.add(row)
+    _touch(brand)
+    audit.record(db, user, "logo.added", brand.name, f"{logo.format} {logo.width}x{logo.height} sha256={logo.sha256[:12]}")
+    db.commit()
+    return ExtraLogoOut(id=row.id, label=row.label, url=f"/api/brands/{brand.id}/logos/{row.id}/file", format=row.format, width=row.width,
+                        height=row.height, size_bytes=row.size_bytes, sha256=row.sha256)
+
+
+@router.get("/{brand_id}/logos/{logo_id}/file")
+def get_extra_logo(brand_id: int, logo_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db),
+                   settings: Settings = Depends(get_settings_dep)) -> FileResponse:
+    brand = get_brand_or_404(db, brand_id)
+    row = db.get(BrandLogo, logo_id)
+    root = Path(settings.data_dir).resolve()
+    path = (root / row.path).resolve() if row and row.brand_id == brand.id else None
+    if path is None or root not in path.parents or not path.is_file():
+        raise HTTPException(404, "Logo not found")
+    return FileResponse(path, media_type={"png": "image/png", "jpg": "image/jpeg", "webp": "image/webp"}[row.format], headers={"X-Content-Type-Options": "nosniff"})
+
+
+@router.delete("/{brand_id}/logos/{logo_id}", response_model=OkResponse)
+def remove_logo(brand_id: int, logo_id: int, user: User = Depends(require_writer), db: Session = Depends(get_db)) -> OkResponse:
+    brand = get_brand_or_404(db, brand_id)
+    row = db.get(BrandLogo, logo_id)
+    if row is None or row.brand_id != brand.id:
+        raise HTTPException(404, "Logo not found")
+    audit.record(db, user, "logo.removed", brand.name, f"sha256={row.sha256[:12]}")
+    db.delete(row)
+    _touch(brand)
+    db.commit()
+    return OkResponse()
+
+
+# ---------------------------------------------------------------- official publisher / developer identifiers
+
+
+@router.post("/{brand_id}/publishers", response_model=PublisherOut, status_code=201)
+def add_publisher(brand_id: int, body: PublisherCreate, user: User = Depends(require_writer), db: Session = Depends(get_db)) -> PublisherOut:
+    brand = get_brand_or_404(db, brand_id)
+    key = (body.publisher_id or body.name).lower()
+    if any(p.store == body.store and p.publisher_key == key for p in brand.publishers):
+        raise HTTPException(409, "This publisher is already registered")
+    row = BrandPublisher(brand_id=brand.id, store=body.store, name=body.name, publisher_id=body.publisher_id, publisher_key=key)
+    db.add(row)
+    _touch(brand)
+    audit.record(db, user, "publisher.added", brand.name, f"{body.store}: {body.publisher_id or body.name} (unverified)")
+    db.commit()
+    return PublisherOut(id=row.id, store=row.store, name=row.name, publisher_id=row.publisher_id)
+
+
+@router.delete("/{brand_id}/publishers/{publisher_id}", response_model=OkResponse)
+def remove_publisher(brand_id: int, publisher_id: int, user: User = Depends(require_writer), db: Session = Depends(get_db)) -> OkResponse:
+    brand = get_brand_or_404(db, brand_id)
+    row = db.get(BrandPublisher, publisher_id)
+    if row is None or row.brand_id != brand.id:
+        raise HTTPException(404, "Publisher not found")
+    for x in list(brand.verifications):
+        if x.asset_type == "publisher" and x.asset_key == row.publisher_key:
+            db.delete(x)
+    audit.record(db, user, "publisher.removed", brand.name, row.publisher_id or row.name)
+    db.delete(row)
+    _touch(brand)
+    db.commit()
+    return OkResponse()
+
+
+# ---------------------------------------------------------------- verification status of official identifiers
+
+
+def _asset_exists(brand: Brand, asset_type: str, key: str) -> bool:
+    if asset_type == "domain":
+        return key in (brand.domains or [])
+    if asset_type == "account":
+        return any(f"{a.platform}:{a.handle_key}" == key for a in brand.accounts)
+    if asset_type == "app":
+        return any(a.package_key == key for a in brand.apps)
+    if asset_type == "publisher":
+        return any(p.publisher_key == key for p in brand.publishers)
+    return key == brand.logo_sha256 or any(lg.sha256 == key for lg in brand.logos)
+
+
+@router.put("/{brand_id}/verification", response_model=VerificationOut)
+def set_verification(brand_id: int, body: VerificationIn, user: User = Depends(require_writer), db: Session = Depends(get_db)) -> VerificationOut:
+    """Record that a person checked an official identifier (how, when, by whom). The app does not verify DNS or stores itself.
+    Domains stay on the allowlist either way; a PUBLISHER id is only allowlisted once it is verified."""
+    brand = get_brand_or_404(db, brand_id)
+    key = body.asset_key.strip().lower()
+    if not _asset_exists(brand, body.asset_type, key):
+        raise HTTPException(404, f"No such {body.asset_type} is registered for this brand")
+    row = next((x for x in brand.verifications if x.asset_type == body.asset_type and x.asset_key == key), None)
+    if row is None:
+        row = AssetVerification(brand_id=brand.id, asset_type=body.asset_type, asset_key=key)
+        db.add(row)
+    row.status, row.note = body.status, " ".join(body.note.split())
+    if body.status == "verified":
+        row.method, row.verified_at, row.verified_by_id, row.verified_by = body.method, utcnow(), user.id, user.name
+    else:
+        row.method = row.verified_at = row.verified_by_id = row.verified_by = None
+    _touch(brand)
+    audit.record(db, user, "asset.verification_changed", f"{body.asset_type} {key}", f"{body.status}" + (f" via {body.method}" if body.method else ""))
+    db.flush()
+    db.expire(brand, ["verifications"])
+    sync_with_allowlist(db, brand, user)  # a newly verified publisher id may close existing detections
+    db.commit()
+    return VerificationOut(asset_type=row.asset_type, asset_key=row.asset_key, status=row.status, method=row.method, note=row.note,
+                           verified_at=row.verified_at, verified_by=row.verified_by)

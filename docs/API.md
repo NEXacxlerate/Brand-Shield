@@ -999,3 +999,33 @@ Each `GET /api/sources` item has `retry_estimate: {credits, provider, remaining,
 
 ### 20.7 Migration 0005
 `detections.severity`, `algorithm_version`, `scored_at` (existing rows back-filled with the default cutoffs and version `1.0`), `official_apps.store_id`. Downgrade drops them.
+
+## 21. Extension work packages E5-E7 (authoritative for the items below)
+
+Writers = analyst or admin. Viewers get 403 on every write.
+
+### 21.1 Text analysis providers (E5)
+- `GET /api/providers` (any user): `{active_text_provider, hosted_text_analysis_enabled, text_providers: [{name: local|gemini|huggingface, label, configured, model, needs_key, reason, active}], embeddings: {enabled: false, ...}, image_similarity_backend}`. Keys are never returned.
+- `PUT /api/providers/active` (admin, audited `settings.provider_changed`): `{provider: off|local|gemini|huggingface}`. Stored in the `settings` table; the default comes from `SCAM_LLM_PROVIDER` (`gemini`).
+- Hosted calls happen only when `SCAM_LLM_ENABLED=true` AND the active provider is configured AND the candidate is not sample data. Otherwise the local baseline still runs and the signal `ai_text_assessment` is `unavailable` (never `clean`).
+- Detection detail gets `text_analysis: {local, api}` and two signals (in `signals`, never in `evidence`): `text_similarity` (provenance `local_algorithm`, label "Deterministic similarity") and `ai_text_assessment` (provenance `real_api`, label "API-generated assessment (an opinion, not evidence)"). Findings carry `provenance`: `api_generated_assessment` or `deterministic_similarity`. For social bios an API likelihood >= 0.6 feeds the unchanged scorer (+round(10 x likelihood), inside the bio cap of 28); for app descriptions it is informational (0 points). Scores can only rise from it.
+
+### 21.2 Images (E6)
+- `POST /api/candidate-images?purpose=candidate_image|app_icon` (writer, multipart `file`): PNG/JPEG/WebP by magic bytes, 32..6000 px, <= 25 MP, <= `CANDIDATE_IMAGE_MAX_BYTES` (2 MB), re-encoded, stored under a hash name; 413/415/422 on refusal. Returns `{id, format, width, height, size_bytes, sha256, url, note}`; `GET /api/candidate-images/{id}/file` serves it with a fixed image type and `nosniff`. The original filename is never stored or used.
+- `POST /api/brands/{id}/logos?label=` (extra official logo, same rules as the primary logo), `GET /api/brands/{id}/logos/{logo_id}/file`, `DELETE /api/brands/{id}/logos/{logo_id}`. `BrandOut.extra_logos` lists them. A candidate is compared with every logo; `details.logo.matched_logo` names the best one.
+- `IMAGE_SIMILARITY_BACKEND` = `hash` (default, original pHash+dHash, algorithm `image-1`, scores unchanged) | `multihash` (`image-2`: 0.4 pHash + 0.3 dHash + 0.3 wHash, computed locally) | `imagehash` (same weights with the optional ImageHash package). Hash similarity is a hint, not proof of reuse.
+
+### 21.3 Registry v2 (E7)
+- `BrandIdentity.description` (<= 2000 chars; a PUT without the key keeps the stored value). `BrandOut` adds `description`, `archived`, `extra_logos`, `publishers`, `verifications`.
+- `DELETE /api/brands/{id}?confirm=<exact name>` (admin): soft archive (`archived_at`), audited `brand.archived`; archived brands vanish from lists, scans and the scheduler and do not block creating a new one (still one ACTIVE brand). `POST /api/brands/{id}/restore` (admin; 409 while another brand is active).
+- `POST/DELETE /api/brands/{id}/publishers` `{store: google_play|app_store|any, name, publisher_id}`.
+- `PUT /api/brands/{id}/verification` `{asset_type: domain|account|app|publisher|logo, asset_key, status: unverified|verified, method, note}`; `verified` needs a method (`dns_txt, website_link, store_listing, platform_badge, manual_review, other`) and records when and by whom. This is an attestation by a person; the app does not check DNS or stores. Domains, accounts and apps stay allowlisted as before; a PUBLISHER id is allowlisted only once verified (a candidate app whose `publisher_id` matches).
+
+### 21.4 Manual entry and import (E7)
+- `POST /api/candidates/social|app|web` (JSON, strict schema) and `POST /api/candidates/import?kind=social|app|web&format=csv|json&dry_run=false` (multipart `file`). Columns: social `platform,handle,display_name,url,bio,followers,following,posts,created_at,verified,image_id`; app `store,package_id,name,publisher,publisher_id,url,description,installs,rating_count,image_id`; web `url,title,note`. Unknown columns/fields are refused. Limits: `IMPORT_MAX_BYTES` (1 MB, 413), `IMPORT_MAX_ROWS` (500, 413), UTF-8 (BOM allowed) or UTF-16 with BOM, else 422.
+- Response: `{dry_run, total, accepted, rejected, duplicates, created, updated, official, results: [{row, status: created|updated|cleared|official|not_flagged|duplicate|error|valid, detection_id, score, severity, message}]}`. Valid rows are saved even when others fail. A dry run validates only.
+- Rows use the same pipeline as a scan (allowlist first, then scoring, then the de-duplicating upsert on `canonical_key`). Detections carry `origin`: `scan | manual | import | synthetic` (`source` stays `live | sample`). URLs in rows are never opened; logo comparison uses only an uploaded `image_id`. Free text is cleaned (control characters removed, a leading `= + - @` gets a `'` prefix) and stored as inert text.
+- Authorized provider interface (stub only, no access claimed): `app/providers/authorized.py`.
+
+### 21.5 Migration 0006
+`brands.description/archived_at`, `detections.origin` (back-filled: sample rows `synthetic`), tables `brand_logos`, `brand_publishers`, `asset_verifications`, `candidate_images`, `text_analysis_cache`.

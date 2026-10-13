@@ -1,6 +1,6 @@
 # Extension plan: DigitalTrust AI brief on top of ScamMind AI
 
-Status: E1-E4 IMPLEMENTED 2026-10-14 (see the progress table below); E5-E10 not started. Originally written as a plan only. Written 2026-10-13 from a read of `server/app`, `frontend/src`, `docs/`.
+Status: E1-E7 IMPLEMENTED 2026-10-14 (see the progress table below); E8-E10 not started. Originally written as a plan only. Written 2026-10-13 from a read of `server/app`, `frontend/src`, `docs/`.
 Provider facts in section 3 were read from official docs/PyPI on this date; anything not confirmed is marked UNVERIFIED.
 
 ## 1. Gap analysis (requirement by requirement)
@@ -113,7 +113,10 @@ Rules for every package: all existing tests stay green; `pytest -q` and `npm tes
 | E3 Domain lookalike | DONE | `engine/domain_match.py`: URL normalization, IDN/punycode, registrable domain, deceptive subdomain, userinfo trick, TLD swap, homoglyph, RapidFuzz (additional signal). Handle (social) lookalike with RapidFuzz not done. |
 | E4 Safe Browsing | DONE (mocked HTTP only) | `providers/safe_browsing.py`, wired into the scan for web candidates, budget and 429 handling, `GET /api/sources` > `reputation`. Not run against the live API (needs a key). Source Health row not added (reported as a block on `/api/sources`). Web candidate category added end to end (D8) in the API; no UI list yet. |
 | Defects D3, D4, D5, D6 | FIXED | See FEATURE_STATUS.md. |
-| E5-E10 | NOT STARTED | |
+| E5 Text providers | DONE (mocked only) | `app/providers/text/`: local baseline, Gemini (google-genai), Hugging Face (optional), cache, retries, injection-safe prompt, `/api/providers`. Anthropic removed. Embeddings: class exists, OFF, not wired into scans. Not run live (needs keys). |
+| E6 Images | DONE | `engine/image_hashes.py` (local hashes, optional ImageHash), multi-logo, safe upload. Default scoring backend unchanged. |
+| E7 Registry v2 + intake | DONE (API only) | Migration 0006, description, archive, publishers, verification, manual entry, CSV/JSON import. UI for these NOT built. |
+| E8-E10 | NOT STARTED | Manual entry and import (planned in E8) were delivered with E7. |
 
 ## 5. What the user must provide, and when
 

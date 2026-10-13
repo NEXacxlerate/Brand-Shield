@@ -148,6 +148,8 @@ class BrandAllowlist:
         self._apple_numeric = {a.store_id: a.id for a in brand.apps if a.store_id}
         self._apple_numeric.update({a.package_id: a.id for a in brand.apps if "app_store" in (a.stores or []) and a.package_id.isdigit()})
         self._domains = official_registrables(list(brand.domains or []))
+        verified = {x.asset_key for x in brand.verifications if x.asset_type == "publisher" and x.status == "verified"}
+        self._publishers = {(p.store, p.publisher_key) for p in brand.publishers if p.publisher_key in verified and p.publisher_id}
 
     def learn_apple_ids(self, candidates: list[Candidate]) -> int:
         """An App Store listing found with an official BUNDLE id (iTunes) also tells us its numeric id. The same app arriving from a
@@ -180,6 +182,9 @@ class BrandAllowlist:
             app_id = self._play_ids.get(m.value.lower()) if m.asset == "package_id" else self._apple_numeric.get(m.value)
             reason = {"package_id": "package_id", "apple_id": "apple_id"}.get(m.asset, "package_id")
             return OfficialHit(reason, m.reason, m.value, "app", app_id=app_id)
+        pid = str(c.extras.get("publisher_id") or "").strip().lower()
+        if pid and ((c.platform, pid) in self._publishers or ("any", pid) in self._publishers):
+            return OfficialHit("publisher_id", f"Publisher id {pid} is a VERIFIED official publisher of the brand.", pid, "app")
         # App Store listings expose the bundle id; an exact bundle id of an official app is official.
         if c.platform == "app_store" and c.handle and c.handle.lower() in self._apple_bundles:
             return OfficialHit("bundle_id", "Exact official App Store bundle id.", c.handle, "app", app_id=self._apple_bundles[c.handle.lower()])

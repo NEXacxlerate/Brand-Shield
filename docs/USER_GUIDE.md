@@ -634,3 +634,31 @@ Server logs are printed in the API window (JSON lines, secrets removed). The fir
 | **iTunes Search** | Apple's free app search, used for App Store apps. |
 | **Unavailable / Slow / Online** | Source states. |
 | **Viewer / analyst / admin** | The three user roles. |
+
+
+## 15. AI text providers, images and importing candidates (new)
+
+These features are API-level in this release (no new screens yet). Use the interactive docs at `http://127.0.0.1:8000/docs` or `curl` with your login token.
+
+### AI text provider setup (optional)
+1. Gemini: create a key at https://aistudio.google.com/apikey, then put `GEMINI_API_KEY=...` and `SCAM_LLM_ENABLED=true` in `server\.env` (never share or commit the file). Optional: `GEMINI_MODEL` (default `gemini-3.5-flash-lite`; check that the id is available to your key). Install the package: `pip install -r requirements-extra.txt`. Restart the API.
+2. Hugging Face (optional): create a fine-grained token with the "Make calls to Inference Providers" permission, set `HUGGINGFACE_API_TOKEN` and `HUGGINGFACE_MODEL` (a model a provider currently serves; there is no default), then choose it: `PUT /api/providers/active` with `{"provider": "huggingface"}` (admin).
+3. Check: `GET /api/providers` shows `configured: true/false` per provider (never the key). Quick test without a scan, run in `server` with the variable set in that shell: `python -c "import os; from app.providers.text import TextRequest; from app.providers.text.gemini import GeminiTextProvider as G; print(G(api_key=os.environ['GEMINI_API_KEY'], model='gemini-3.5-flash-lite').analyze(TextRequest('bio','Official Acme Bank support: complete your KYC now or your account is blocked')).to_dict())"`
+4. The assessment is an opinion labelled "API-generated"; it can only add capped points and never overrides the official list. Without a key the local text check still runs and the AI signal shows "unavailable". (Not run against the live services in this release: only mocked tests.)
+
+### Manual entry and import
+Add one candidate: `POST /api/candidates/social` (or `/app`, `/web`) with JSON. Import many: `POST /api/candidates/import?kind=social&format=csv` with a file; add `&dry_run=true` to only check it. Limits: 1 MB, 500 rows, UTF-8. The reply lists every row with its result, so one bad row never blocks the rest. Imported rows are labelled `import`, typed-in rows `manual`; web addresses are never opened.
+
+Sample CSV (fictional Acme Bank), `social.csv`:
+```
+platform,handle,display_name,bio,followers
+instagram,acme_bank_support,Acme Bank Support,Update your KYC now,120
+```
+Sample JSON `apps.json`:
+```
+[{"store": "google_play", "package_id": "com.acmebank.cards", "name": "Acme Bank Cards", "publisher": "Quick Tools", "publisher_id": "PUB123"}]
+```
+Web CSV columns are `url,title,note`. To compare a picture, first `POST /api/candidate-images` (multipart `file`) and put the returned `id` in the row's `image_id`.
+
+### Registry additions
+Brand description (`PUT /api/brands/{id}` with `description`), extra official logos (`POST /api/brands/{id}/logos`), publisher ids (`POST /api/brands/{id}/publishers`), verification status (`PUT /api/brands/{id}/verification`) and archiving (`DELETE /api/brands/{id}?confirm=<exact name>`, admin; nothing is erased).
