@@ -299,6 +299,14 @@ export interface SourceItem {
   cached_age_seconds: number | null;
   collectors: string[];
   source: string;
+  /** What a manual retry can cost. Only Tavily-backed sources spend credits (credits > 0). */
+  retry_estimate?: RetryEstimate | null;
+}
+export interface RetryEstimate {
+  credits: number;
+  provider: string | null;
+  remaining: number | null;
+  note: string;
 }
 export interface TavilyCredits {
   provider: string;
@@ -322,6 +330,7 @@ export interface RetryResult {
   state: string;
   status: SourceStatus;
   source: SourceItem;
+  estimated_credits?: number;
 }
 export interface DataModeInfo {
   data_mode: DataMode;

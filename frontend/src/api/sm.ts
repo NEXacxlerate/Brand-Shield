@@ -98,7 +98,8 @@ export const sm = {
   sources: (signal?: Sig) => request<SourceList>('/api/sources', { signal }),
   sourcesByKind: (kind: 'social' | 'store', signal?: Sig) => request<SourceList>(`/api/sources${qs({ kind })}`, { signal }),
   setMonitored: (id: number, monitored: boolean) => request<SourceItem>(`/api/sources/${id}`, { method: 'PATCH', json: { monitored } }),
-  retrySource: (id: number) => request<RetryResult>(`/api/sources/${id}/retry`, { method: 'POST' }),
+  /** `confirm` must be true when the retry can spend paid credits (see SourceItem.retry_estimate); the server answers 409 otherwise. */
+  retrySource: (id: number, confirm = false) => request<RetryResult>(`/api/sources/${id}/retry${confirm ? '?confirm=true' : ''}`, { method: 'POST' }),
   dataMode: (signal?: Sig) => request<DataModeInfo>('/api/settings/data-mode', { signal }),
   setDataMode: (data_mode: DataMode) => request<DataModeInfo>('/api/settings/data-mode', { method: 'PUT', json: { data_mode } }),
 

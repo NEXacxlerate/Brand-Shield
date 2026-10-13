@@ -85,6 +85,105 @@ describe('SourceHealthPage', () => {
   });
 });
 
+describe('paid retries need a confirmation (D6)', () => {
+  const estimate = { credits: 8, provider: 'tavily', remaining: 884, note: 'Up to 8 Tavily credits (about 8 searches). Credits are spent even if nothing new is found.' };
+
+  function paidServer(opts: { refuse?: boolean } = {}) {
+    const slow = src({ id: 4, slug: 'telegram', name: 'Telegram', status: 'slow', message: 'Rate limited.', retry_estimate: estimate });
+    return mockFetch((c) => {
+      const path = c.url.replace(/^.*\/api/, '').split('?')[0];
+      const method = c.init.method || 'GET';
+      if (path === '/me') return jsonResponse(200, USER);
+      if (path.startsWith('/brands/')) return jsonResponse(200, { id: 1, name: 'Acme Bank', official_assets: 3 });
+      if (path === '/sources') return jsonResponse(200, list([src({}), slow]));
+      if (path === '/scans') return jsonResponse(200, { total: 0, items: [] });
+      if (path === '/sources/4/retry' && method === 'POST') {
+        if (opts.refuse && !c.url.includes('confirm=true')) {
+          return jsonResponse(409, { detail: 'Retrying Telegram can spend up to 8 Tavily credits', code: 'confirmation_required', estimated_credits: 8, provider: 'tavily', credits_remaining: 884 });
+        }
+        return jsonResponse(202, { job_id: 'retry_1', source_id: 4, state: 'done', status: 'online', estimated_credits: 8, source: { ...slow, status: 'online', message: 'Working normally.' } });
+      }
+      return jsonResponse(404, { detail: 'nope' });
+    });
+  }
+
+  it('shows the credit cost first and sends nothing until the person confirms', async () => {
+    const { calls } = paidServer();
+    render(<MemoryRouter><SourceHealthPage /></MemoryRouter>);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Retry now' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveTextContent('Retry Telegram?');
+    expect(dialog).toHaveTextContent('up to 8 Tavily credits');
+    expect(dialog).toHaveTextContent('884 credits are left this month');
+    expect(calls.some((c) => c.url.includes('/retry'))).toBe(false); // nothing spent yet
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(calls.some((c) => c.url.includes('/retry'))).toBe(false);
+    await user.click(screen.getByRole('button', { name: 'Retry now' }));
+    await user.click(await screen.findByRole('button', { name: 'Spend up to 8 credits and retry' }));
+    await waitFor(() => expect(calls.some((c) => c.url.endsWith('/api/sources/4/retry?confirm=true') && c.init.method === 'POST')).toBe(true));
+    expect(await screen.findByText(/Telegram: retry finished, source is online/)).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('Escape closes the dialog without retrying', async () => {
+    const { calls } = paidServer();
+    render(<MemoryRouter><SourceHealthPage /></MemoryRouter>);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Retry now' }));
+    await screen.findByRole('dialog');
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(calls.some((c) => c.url.includes('/retry'))).toBe(false);
+  });
+
+  it('opens the same dialog when the server refuses an unconfirmed retry (409 confirmation_required)', async () => {
+    const { calls } = paidServer({ refuse: true });
+    // an older list without the estimate: the click goes to the server, which answers 409 with the cost
+    const slow = src({ id: 4, slug: 'telegram', name: 'Telegram', status: 'slow', message: 'Rate limited.' });
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit = {}) => {
+      const path = String(url).replace(/^.*\/api/, '').split('?')[0];
+      if (path === '/me') return jsonResponse(200, USER);
+      if (path.startsWith('/brands/')) return jsonResponse(200, { id: 1, name: 'Acme Bank', official_assets: 3 });
+      if (path === '/sources') return jsonResponse(200, list([slow]));
+      if (path === '/scans') return jsonResponse(200, { total: 0, items: [] });
+      if (path === '/sources/4/retry') {
+        calls.push({ url: String(url), init });
+        return String(url).includes('confirm=true')
+          ? jsonResponse(202, { job_id: 'r', source_id: 4, state: 'done', status: 'online', source: { ...slow, status: 'online' } })
+          : jsonResponse(409, { detail: 'x', code: 'confirmation_required', estimated_credits: 8, provider: 'tavily', credits_remaining: 100 });
+      }
+      return jsonResponse(404, { detail: 'nope' });
+    }));
+    render(<MemoryRouter><SourceHealthPage /></MemoryRouter>);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Retry now' }));
+    expect(await screen.findByRole('dialog')).toHaveTextContent('up to 8 Tavily credits');
+    await user.click(screen.getByRole('button', { name: /Spend up to 8 credits/ }));
+    await waitFor(() => expect(calls.filter((c) => c.url.includes('confirm=true'))).toHaveLength(1));
+  });
+
+  it('SourcesBar (App Store page) asks too', async () => {
+    const { calls } = paidServer();
+    const down = src({ id: 4, slug: 'app_store', name: 'Apple App Store', status: 'unavailable', message: 'The store could not be reached.', retry_estimate: estimate });
+    const onRetried = vi.fn();
+    render(
+      <MemoryRouter>
+        <SourcesBar variant="apps" state={{ data: { items: [down] } as never, loading: false, error: null, reload: () => {} }} onRetried={onRetried} />
+      </MemoryRouter>
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByRole('dialog')).toHaveTextContent('up to 8 Tavily credits');
+    expect(onRetried).not.toHaveBeenCalled();
+    expect(calls.some((c) => c.url.includes('/retry'))).toBe(false);
+    await user.click(screen.getByRole('button', { name: /Spend up to 8 credits/ }));
+    await waitFor(() => expect(onRetried).toHaveBeenCalled());
+    expect(calls.some((c) => c.url.endsWith('/api/sources/4/retry?confirm=true'))).toBe(true);
+  });
+});
+
 describe('SourcesBar (Social and App Store pages)', () => {
   it('shows a warning with the server message, cached time and a working Retry for an unavailable store', async () => {
     const { calls } = server();

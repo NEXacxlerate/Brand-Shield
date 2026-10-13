@@ -7,6 +7,7 @@ import type { DetectionDetail, ExcludedItem, FalsePositiveItem, SourceItem } fro
 import { ApiError } from '../../api/client';
 import { sm } from '../../api/sm';
 import { Empty, ErrorBox, Loading } from '../common/States';
+import { RetryCostDialog, isConfirmationRequired, retryNeedsConfirm } from '../common/ConfirmDialog';
 import type { ApiState } from '../../hooks/useApi';
 
 type Load<T> = Pick<ApiState<T>, 'data' | 'loading' | 'error' | 'reload'>;
@@ -57,14 +58,27 @@ export const SourcesBar: React.FC<{
   const items = state.data?.items ?? [];
   const problems = items.filter((s) => s.status !== 'online');
 
-  const retry = async (id: number) => {
-    setRetrying(id);
+  const [confirm, setConfirm] = React.useState<{ item: SourceItem; credits?: number; remaining?: number | null } | null>(null);
+
+  /** A retry that can spend paid credits asks first and shows the cost (the server refuses an unconfirmed one with 409). */
+  const retry = async (item: SourceItem, confirmed = false) => {
+    if (!confirmed && retryNeedsConfirm(item)) {
+      setConfirm({ item });
+      return;
+    }
+    setConfirm(null);
+    setRetrying(item.id);
     setRetryError(null);
     try {
-      await sm.retrySource(id);
+      await sm.retrySource(item.id, confirmed);
       onRetried();
     } catch (e) {
-      setRetryError(e instanceof ApiError ? e.message : 'Retry failed.');
+      if (isConfirmationRequired(e)) {
+        const b = e.body as { estimated_credits?: number; credits_remaining?: number | null };
+        setConfirm({ item, credits: b.estimated_credits, remaining: b.credits_remaining });
+      } else {
+        setRetryError(e instanceof ApiError ? e.message : 'Retry failed.');
+      }
     } finally {
       setRetrying(null);
     }
@@ -95,7 +109,7 @@ export const SourcesBar: React.FC<{
             {s.name}: {s.message}
             {s.cached_at && s.status === 'unavailable' ? ` Cached results from ${fmtDayTime(s.cached_at)}.` : ''}{' '}
             {variant === 'apps' ? (
-              <button type="button" className="retry-inline-btn" onClick={() => void retry(s.id)} disabled={retrying === s.id}>
+              <button type="button" className="retry-inline-btn" onClick={() => void retry(s)} disabled={retrying === s.id}>
                 {retrying === s.id ? 'Retrying…' : 'Retry'}
               </button>
             ) : (
@@ -107,6 +121,15 @@ export const SourcesBar: React.FC<{
         </div>
       ))}
       {retryError && <div className="helper-note warn">{retryError}</div>}
+      {confirm && (
+        <RetryCostDialog
+          item={confirm.item}
+          credits={confirm.credits}
+          remaining={confirm.remaining}
+          onConfirm={() => void retry(confirm.item, true)}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
     </div>
   );
 };

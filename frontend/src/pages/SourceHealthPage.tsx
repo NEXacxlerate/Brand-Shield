@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Header } from '../components/layout/Header';
 import { Empty, ErrorBox, Loading, Notice, SampleNote } from '../components/common/States';
 import { ApiError } from '../api/client';
+import { RetryCostDialog, isConfirmationRequired, retryNeedsConfirm } from '../components/common/ConfirmDialog';
 import { ageWords, fmtClock, fmtClock24, fmtDayTime, fmtFull, scheduleWords, sourceStatusLabel } from '../api/format';
 import { sm } from '../api/sm';
 import type { Scan, SourceItem, SourceList } from '../api/types';
@@ -64,6 +65,7 @@ export const SourceHealthPage: React.FC = () => {
   const src = useApi((signal) => sm.sources(signal), []);
   const scans = useApi((signal) => sm.scans(5, signal), []);
   const [retryingId, setRetryingId] = useState<number | null>(null);
+  const [confirmItem, setConfirmItem] = useState<{ item: SourceItem; credits?: number; remaining?: number | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -106,19 +108,30 @@ export const SourceHealthPage: React.FC = () => {
     }, 2000);
   };
 
-  const handleRetry = async (item: SourceItem) => {
+  /** A retry that can spend paid credits first asks for confirmation and shows the cost; the server enforces the same rule (409). */
+  const handleRetry = async (item: SourceItem, confirmed = false) => {
+    if (!confirmed && retryNeedsConfirm(item)) {
+      setConfirmItem({ item });
+      return;
+    }
+    setConfirmItem(null);
     setRetryingId(item.id);
     setError(null);
     setInfo(null);
     try {
-      const r = await sm.retrySource(item.id);
+      const r = await sm.retrySource(item.id, confirmed);
       patchItem(item.id, r.source);
       if (r.state !== 'done') pollUntilSettled(item.id, item, 10);
       setInfo(`${item.name}: retry finished, source is ${sourceStatusLabel(r.status).toLowerCase()}.`);
       src.reload();
       scans.reload();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Retry failed.'); // e.g. 409: nothing to retry / not monitored
+      if (isConfirmationRequired(e)) {
+        const b = e.body as { estimated_credits?: number; credits_remaining?: number | null };
+        setConfirmItem({ item, credits: b.estimated_credits, remaining: b.credits_remaining });
+      } else {
+        setError(e instanceof ApiError ? e.message : 'Retry failed.'); // e.g. 409: nothing to retry / not monitored
+      }
     } finally {
       setRetryingId(null);
     }
@@ -131,6 +144,15 @@ export const SourceHealthPage: React.FC = () => {
 
   return (
     <>
+      {confirmItem && (
+        <RetryCostDialog
+          item={confirmItem.item}
+          credits={confirmItem.credits}
+          remaining={confirmItem.remaining}
+          onConfirm={() => void handleRetry(confirmItem.item, true)}
+          onCancel={() => setConfirmItem(null)}
+        />
+      )}
       <Header
         title="Source Health"
         subtitle="Where we look for impersonations, and what happens when a source is down"

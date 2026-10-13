@@ -1,0 +1,42 @@
+.confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(8, 8, 11, 0.7);
+}
+
+.confirm-dialog {
+  width: min(440px, 100%);
+  padding: 20px;
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-card);
+  background: var(--bg-card);
+  color: var(--text-main);
+}
+
+.confirm-body {
+  margin: 10px 0 16px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.confirm-body p {
+  margin: 0 0 8px;
+}
+
+.confirm-note {
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
