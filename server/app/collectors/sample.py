@@ -18,7 +18,7 @@ import random
 import re
 from datetime import timedelta
 
-from app.collectors.base import BrandQuery, Candidate, CollectContext, Collector
+from app.collectors.base import WEB_PLATFORM, BrandQuery, Candidate, CollectContext, Collector, candidate_from_web_url
 from app.collectors.sample_images import make_variant
 from app.engine.name_match import FLAGGED, NameMatcher
 from app.engine.synthetic import BENIGN_SUFFIXES, generate_cases
@@ -70,7 +70,7 @@ def _valid_profile(platform: str, url: str) -> bool:
 class SampleCollector(Collector):
     name = "sample"
     kind = "mixed"
-    platforms = ("instagram", "facebook", "x", "telegram", "linkedin", "google_play", "app_store", "third_party_apk")
+    platforms = ("instagram", "facebook", "x", "telegram", "linkedin", "google_play", "app_store", "third_party_apk", WEB_PLATFORM)
 
     def __init__(self, *, seed: int = 3, lookalikes: int = 12, hard_negatives: int = 4, app_lookalikes: int = 5) -> None:
         super().__init__()
@@ -88,6 +88,7 @@ class SampleCollector(Collector):
         out.extend(self._lookalikes(brand, rnd, now))
         out.extend(self._hard_negatives(brand, rnd, now))
         out.extend(self._app_candidates(brand, rnd, now))
+        out.extend(self._web_candidates(brand, now))
         keep = [c for c in out if c.platform in ctx.platforms]
         for c in keep:
             c.source = SOURCE
@@ -265,4 +266,34 @@ class SampleCollector(Collector):
                     publisher=f"{slug[:8].title()} Apps Ltd", rating=rating[0], rating_count=rating[1], extras=extras, inline_image=image,
                 )
             )
+        return out
+
+    def _web_candidates(self, brand: BrandQuery, now) -> list[Candidate]:
+        """Look-alike websites. Every host uses the reserved `.test` TLD (RFC 2606: it can never be registered or resolve), so no
+        real website is ever implied. Nothing is fetched, and sample URLs are never sent to a reputation service."""
+        label = re.sub(r"[^a-z0-9]", "", brand.name.lower())
+        if len(label) < 4:
+            return []
+        first = re.sub(r"[^a-z0-9]", "", brand.name.split()[0].lower()) or label
+        official = brand.domains[0] if brand.domains else f"{label}.example"
+        swapped = label[:1] + label[2] + label[1] + label[3:] if len(label) > 3 and label[1] != label[2] else label[:-1]
+        homoglyph = label.replace("a", "а", 1) if "a" in label else label.replace("o", "о", 1)
+        specs = [
+            ("tld_swap", f"https://{label}.test/login", "strong"),
+            ("combo", f"https://{label}-support.test/kyc-update", "strong"),
+            ("deceptive_subdomain", f"https://{label}.{official}.verify-account.test/", "strong"),
+            ("typo", f"https://{swapped}.test/", "medium"),
+            ("homoglyph", f"https://{homoglyph}.test/", "medium"),
+            ("hard_negative", f"https://{first}-{BENIGN_SUFFIXES[0]}.test/", "weak"),
+        ]
+        out: list[Candidate] = []
+        for technique, url, tier in specs:
+            c = candidate_from_web_url(url, source=SOURCE, fetched_at=now,
+                                       extras={"sample_role": "hard_negative" if tier == "weak" else "lookalike", "sample_tier": tier, "technique": technique})
+            if c is not None and c.handle:
+                out.append(c)
+        if brand.domains:  # the brand's own site proves the allowlist excludes official domains
+            c = candidate_from_web_url(f"https://www.{brand.domains[0]}/", source=SOURCE, fetched_at=now, extras={"sample_role": "official_echo"})
+            if c is not None:
+                out.append(c)
         return out

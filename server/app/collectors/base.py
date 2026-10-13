@@ -17,11 +17,13 @@ from typing import Any
 import httpx
 
 from app.core.time import utcnow
+from app.engine.domain_match import normalize_url
 from app.engine.models import CandidateApp, CandidateSocial
 from app.engine.urls import ParsedUrl, parse_url
 
 SOCIAL_PLATFORMS = ("instagram", "facebook", "x", "telegram", "linkedin", "youtube")
 STORE_PLATFORMS = ("google_play", "app_store", "third_party_apk")
+WEB_PLATFORM = "web"  # look-alike domains / websites: a third candidate category beside social and apps (no Source Health row)
 # Platforms shown on the Source Health page (youtube only appears for official accounts).
 SOURCE_PLATFORMS = ("instagram", "facebook", "x", "telegram", "linkedin", "google_play", "app_store", "third_party_apk")
 
@@ -44,7 +46,7 @@ class Candidate:
     """One account/page/app found by a collector, normalized across providers."""
 
     platform: str  # instagram|facebook|x|telegram|linkedin|youtube | google_play|app_store|third_party_apk
-    kind: str  # "social" | "app"
+    kind: str  # "social" | "app" | "web"  (web: handle = ASCII host, profile_url = canonical URL; never fetched)
     handle: str | None  # profile handle/id, or package / bundle id for apps
     display_name: str | None
     profile_url: str | None
@@ -99,6 +101,8 @@ class Candidate:
 
     # ---- hand-off to the detection engine ----
     def to_engine(self) -> CandidateSocial | CandidateApp:
+        if self.kind == "web":
+            raise ValueError("web candidates are analysed by engine.domain_match, not by the social/app scorers")
         if self.kind == "social":
             return CandidateSocial(
                 platform=self.platform,
@@ -371,6 +375,28 @@ def candidate_from_url(
         snippet=snippet_text,
         store=store,
         extras=ex,
+    )
+
+
+def candidate_from_web_url(
+    url: str | None,
+    *,
+    source: str,
+    title: str | None = None,
+    snippet: str | None = None,
+    fetched_at: datetime | None = None,
+    extras: dict[str, Any] | None = None,
+) -> Candidate | None:
+    """A website candidate from a URL or bare host. None for unusable input and for raw IP hosts (no domain to compare).
+
+    The URL is only normalized (lower-case, userinfo and fragment removed, IDN as punycode); it is never opened."""
+    n = normalize_url(url)
+    if not n.ok or n.is_ip or not n.host or n.registrable_domain is None:
+        return None
+    return Candidate(
+        platform=WEB_PLATFORM, kind="web", handle=n.host, display_name=n.host_unicode, profile_url=n.canonical_url, source=source,
+        fetched_at=fetched_at or utcnow(), bio=as_text(snippet), title=as_text(title, 300), snippet=as_text(snippet),
+        extras={**(extras or {}), "registrable_domain": n.registrable_domain},
     )
 
 

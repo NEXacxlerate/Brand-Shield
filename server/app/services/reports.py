@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.core.time import iso_z, utcnow
 from app.models import Brand, Detection, OfficialAccount, OfficialApp, Report
-from app.services.detections import TYPES, ActionError, summary_row
+from app.services.detections import ALL_TYPES, ActionError, summary_row
 
 BASE_COLUMNS = ["id", "name", "handle_or_package", "platform", "type", "status", "score", "found_at", "publisher", "url", "reasons"]
 EVIDENCE_COLUMNS = ["evidence_sha256", "evidence_url", "captured_at"]
@@ -67,9 +67,9 @@ def select_detections(
     q = select(Detection).where(Detection.brand_id == brand.id, Detection.source == mode)
     q = q.where(Detection.status == status) if status else q.where(Detection.status == "confirmed")
     if types:
-        bad_types = [t for t in types if t not in TYPES]
+        bad_types = [t for t in types if t not in ALL_TYPES]
         if bad_types:
-            raise ActionError(422, f"types must be from: {', '.join(TYPES)}")
+            raise ActionError(422, f"types must be from: {', '.join(ALL_TYPES)}")
         q = q.where(Detection.type.in_(types))
     if from_:
         q = q.where(Detection.found_at >= from_)

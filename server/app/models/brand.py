@@ -63,6 +63,7 @@ class OfficialApp(Base):
     package_id: Mapped[str] = mapped_column(String(155))
     package_key: Mapped[str] = mapped_column(String(155))  # lower-case duplicate key
     publisher: Mapped[str] = mapped_column(String(120))
+    store_id: Mapped[str | None] = mapped_column(String(20), nullable=True)  # optional numeric App Store id (.../id123456789)
     stores: Mapped[list] = mapped_column(JSON, default=list)
     status: Mapped[str] = mapped_column(String(20), default="verified")
     source: Mapped[str] = mapped_column(String(10), default="live")

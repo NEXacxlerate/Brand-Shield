@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.time import as_utc
 from app.models import Brand, Detection
-from app.services.detections import OPEN_STATUSES, TYPES, summary_row
+from app.services.detections import ALL_TYPES, OPEN_STATUSES, TYPES, WEB_TYPES, summary_row
 
 
 def _percentages(counts: dict[str, int]) -> dict[str, int]:
@@ -47,11 +47,12 @@ def build(db: Session, brand: Brand, mode: str, now: datetime) -> dict:
     visible = scoped.where(Detection.status.in_((*OPEN_STATUSES, "dismissed")))
 
     by_type = _group(db, open_q, Detection.type)
-    type_counts = {t: by_type.get(t, 0) for t in TYPES}
+    type_counts = {t: by_type.get(t, 0) for t in ALL_TYPES}
     pct = _percentages(type_counts)
     by_platform = sorted(_group(db, open_q, Detection.platform).items(), key=lambda kv: (-kv[1], kv[0]))
     by_status = _group(db, visible, Detection.status)
     by_band = _group(db, open_q, Detection.band)
+    by_severity = _group(db, open_q, Detection.severity)
     needs = db.scalars(scoped.where(Detection.status.in_(("new", "reviewing"))).order_by(Detection.score.desc(), Detection.id.desc()).limit(5)).all()
     recent = db.scalars(open_q.order_by(Detection.found_at.desc(), Detection.id.desc()).limit(6)).all()
     top = db.scalars(open_q.order_by(Detection.score.desc(), Detection.id.desc()).limit(1)).first()
@@ -66,20 +67,25 @@ def build(db: Session, brand: Brand, mode: str, now: datetime) -> dict:
             "total_detections": kpi(db, open_q, now),
             "social_impersonations": kpi(db, open_q.where(Detection.category == "social"), now),
             "suspicious_apps": kpi(db, open_q.where(Detection.category == "apps"), now),
+            "web_threats": kpi(db, open_q.where(Detection.category == "web"), now),
             "official_assets": {"value": len(brand.accounts) + len(brand.apps)},
         },
         "counts": {
             "by_status": {s: by_status.get(s, 0) for s in ("new", "reviewing", "confirmed", "dismissed")},
             "by_band": {b: by_band.get(b, 0) for b in ("high", "medium", "low")},
+            "by_severity": {sv: by_severity.get(sv, 0) for sv in ("LOW", "MEDIUM", "HIGH", "CRITICAL")},
             "by_type": type_counts,
             "by_category": {
-                "social": sum(n for t, n in type_counts.items() if t != "fake_app"),
+                "social": sum(n for t, n in type_counts.items() if t in TYPES and t != "fake_app"),
                 "apps": type_counts["fake_app"],
+                "web": sum(type_counts[t] for t in WEB_TYPES),
             },
             "cleared": db.scalar(select(func.count()).select_from(select(Detection).where(
                 Detection.brand_id == brand.id, Detection.source == mode, Detection.status == "cleared").subquery())) or 0,
         },
-        "by_type": [{"type": t, "count": type_counts[t], "percent": pct[t]} for t in sorted(TYPES, key=lambda t: (-type_counts[t], t))],
+        # the web type is listed only once something was found, so a workspace without web findings looks exactly as before
+        "by_type": [{"type": t, "count": type_counts[t], "percent": pct[t]}
+                    for t in sorted(ALL_TYPES, key=lambda t: (-type_counts[t], t)) if t in TYPES or type_counts[t] > 0],
         "by_platform": [{"platform": p, "count": n} for p, n in by_platform],
         "total_open": total_open,
         "needs_review": [

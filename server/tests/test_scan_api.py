@@ -251,7 +251,7 @@ def test_credit_aware_status_pauses_scheduled_scans_in_live_mode(settings, check
     with make_client(s, checker, [StaticCollector([])]) as c:
         h = headers_for(c, *ADMIN)
         set_mode(c, h, "live")
-        setup_brand(c, h, accounts=(), apps=())
+        setup_brand(c, h)  # with official assets: the scheduler waits for the first one (see test_scheduler_waits_for_the_first_official_asset)
         ok = c.get("/api/scan/status", headers=h).json()["scheduler"]
         assert ok["paused_for_credits"] is False and ok["stretched_for_credits"] is True  # 100 credits: stretched, not paused
         month = c.app_ref.state.collector_runtime.ledger.snapshot()["month"]
@@ -263,6 +263,28 @@ def test_credit_aware_status_pauses_scheduled_scans_in_live_mode(settings, check
         assert scheduler_tick(c.app_ref.state.scan_ctx).skipped_for_credits is True
         assert c.get("/api/scans", headers=h).json()["total"] == 0
         assert run_scan(c, h)["status"] == "completed"  # a manual scan still works
+
+
+def test_scheduler_waits_for_the_first_official_asset(settings, checker):
+    """D5: a brand with no official account or app is not scanned automatically (no credits spent before the allowlist can work)."""
+    s = settings.model_copy(update={"scheduler_enabled": True, "scan_interval_minutes": 60})
+    with make_client(s, checker, [StaticCollector([])]) as c:
+        h = headers_for(c, *ADMIN)
+        set_mode(c, h, "sample")
+        b = setup_brand(c, h, accounts=(), apps=())
+        sch = c.get("/api/scan/status", headers=h).json()["scheduler"]
+        assert sch["waiting_for_official_assets"] is True and sch["next_scan_at"] is None and "first official account or app" in sch["reason"]
+        d = scheduler_tick(c.app_ref.state.scan_ctx)
+        assert d.run is False and "first official" in d.reason
+        assert c.get("/api/scans", headers=h).json()["total"] == 0
+        # the first official asset releases the scheduler: the very next tick starts the first scan
+        assert c.post(f"/api/brands/{b['id']}/accounts", json={"platform": "instagram", "handle": "acmebank"}, headers=h).status_code == 201
+        sch = c.get("/api/scan/status", headers=h).json()["scheduler"]
+        assert sch["waiting_for_official_assets"] is False and sch["next_scan_at"]
+        assert scheduler_tick(c.app_ref.state.scan_ctx).run is True
+        assert c.get("/api/scans", headers=h).json()["total"] == 1
+        # manual scans were never blocked
+        assert run_scan(c, h) is not None
 
 
 def test_scheduler_loop_is_not_started_in_tests(settings, checker):
@@ -349,7 +371,11 @@ def test_dashboard_numbers_come_from_data(client, admin_h, sample):
     assert d["kpis"]["total_detections"]["value"] == n == d["total_open"]
     assert d["kpis"]["total_detections"]["delta_week"] == n and d["kpis"]["total_detections"]["trend"][-1] == n and len(d["kpis"]["total_detections"]["trend"]) == 7
     social_n = sum(i["category"] == "social" for i in items)
-    assert d["kpis"]["social_impersonations"]["value"] == social_n and d["kpis"]["suspicious_apps"]["value"] == n - social_n
+    apps_n = sum(i["category"] == "apps" for i in items)
+    web_n = sum(i["category"] == "web" for i in items)
+    assert web_n > 0 and social_n + apps_n + web_n == n
+    assert d["kpis"]["social_impersonations"]["value"] == social_n and d["kpis"]["suspicious_apps"]["value"] == apps_n
+    assert d["kpis"]["web_threats"]["value"] == web_n and d["counts"]["by_category"] == {"social": social_n, "apps": apps_n, "web": web_n}
     assert sum(t["percent"] for t in d["by_type"]) == 100 and sum(t["count"] for t in d["by_type"]) == n
     assert sum(p["count"] for p in d["by_platform"]) == n
     assert d["counts"]["by_status"]["new"] == n and sum(d["counts"]["by_band"].values()) == n
@@ -373,7 +399,7 @@ def test_dashboard_shows_credit_meter_and_next_scan_in_live_mode(settings, check
     with make_client(s, checker, [StaticCollector([social("instagram", "acrnebank")])]) as c:
         h = headers_for(c, *ADMIN)
         set_mode(c, h, "live")
-        setup_brand(c, h, accounts=(), apps=())
+        setup_brand(c, h)
         d = c.get("/api/dashboard", headers=h).json()
         assert d["credits"]["budget"] == 900 and d["next_scan_at"] and d["schedule"]["enabled"] is True
         assert d["is_sample"] is False

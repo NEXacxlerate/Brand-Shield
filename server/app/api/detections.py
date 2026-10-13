@@ -55,10 +55,11 @@ def _source_filter(source: str | None, mode: str) -> str | None:
 @router.get("")
 def list_detections(
     request: Request,
-    category: Literal["social", "apps"] | None = None,
+    category: Literal["social", "apps", "web"] | None = None,
     type: str | None = None,
     platform: str | None = None,
     band: Literal["high", "medium", "low"] | None = None,
+    severity: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"] | None = None,
     status: list[str] | None = Query(None),
     source: Literal["live", "sample", "all"] | None = None,
     q: str | None = Query(None, max_length=200),
@@ -81,7 +82,7 @@ def list_detections(
         bad = [s for s in statuses if s not in ("new", "reviewing", "confirmed", "dismissed", "marked_official")]
         if bad:
             raise HTTPException(422, "status must be one of: new, reviewing, confirmed, dismissed")
-    f = svc.Filters(brand.id, category=category or cat, type=dtype, platform=platform, band=band, statuses=statuses,
+    f = svc.Filters(brand.id, category=category or cat, type=dtype, platform=platform, band=band, severity=severity, statuses=statuses,
                     source=_source_filter(source, mode), q=q, min_score=min_score, from_=from_, to=to)
     res = svc.list_detections(db, f, sort, limit, offset)
     items = [svc.summary_row(d) for d in res["rows"]]
@@ -94,7 +95,7 @@ def list_detections(
 @router.get("/excluded")
 def excluded(
     request: Request,
-    category: Literal["social", "apps"] | None = None,
+    category: Literal["social", "apps", "web"] | None = None,
     brand_id: int | None = None,
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -108,7 +109,7 @@ def excluded(
 @router.get("/false-positives")
 def false_positives(
     request: Request,
-    category: Literal["social", "apps"] | None = None,
+    category: Literal["social", "apps", "web"] | None = None,
     source: Literal["live", "sample", "all"] | None = None,
     brand_id: int | None = None,
     _: User = Depends(get_current_user),

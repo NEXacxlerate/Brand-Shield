@@ -192,6 +192,7 @@ def sensitivity_preview(
     threshold = app_settings.threshold_for(body.sensitivity)
     rows = db.scalars(select(Detection).where(Detection.source == mode, Detection.status != "marked_official")).all()
 
-    would = sum(1 for d in rows if is_hit(d.score, threshold, d.reasons or [], ((d.details or {}).get("name_match") or {}).get("verdict")))
+    would = sum(1 for d in rows if is_hit(d.score, threshold, d.reasons or [], ((d.details or {}).get("name_match") or {}).get("verdict"),
+                                           lookalike=((d.details or {}).get("domain") or {}).get("verdict") == "lookalike"))
     return {"sensitivity": body.sensitivity, "threshold": threshold, "would_review": would, "total": len(rows), "data_mode": mode,
             "is_sample": mode == "sample", "message": _message(body.sensitivity)}

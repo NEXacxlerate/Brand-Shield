@@ -12,6 +12,7 @@ from dataclasses import dataclass
 
 from app.collectors.base import Candidate
 from app.engine.allowlist import Allowlist
+from app.engine.domain_match import normalize_url, official_registrables
 from app.engine.models import BrandProfileInput, OfficialAssets
 from app.engine.name_match import (
     ADDED_WORD,
@@ -72,9 +73,15 @@ SIGNAL_LABELS = {
     "few_installs": "Store signals",
     "new_listing": "Store signals",
     "few_ratings": "Store signals",
+    "domain_similarity": "Domain similarity",
+    "rapidfuzz_similarity": "String similarity (RapidFuzz)",
+    "deceptive_subdomain": "Deceptive subdomain",
+    "idn_homograph": "Look-alike characters (IDN)",
+    "url_reputation": "URL reputation (Google Safe Browsing)",
 }
 # a reason that ties the candidate to THIS brand (account/store oddities alone never make a detection)
-BRAND_SIGNALS = frozenset({"name_similarity", "logo_similarity", "icon_similarity", "description_overlap"})
+BRAND_SIGNALS = frozenset({"name_similarity", "logo_similarity", "icon_similarity", "description_overlap",
+                           "domain_similarity", "rapidfuzz_similarity", "deceptive_subdomain", "idn_homograph"})
 
 
 def build_matcher(brand: Brand | str, aliases: list[str] | None = None, words: list[str] | None = None) -> NameMatcher:
@@ -108,6 +115,7 @@ def official_assets(brand: Brand) -> OfficialAssets:
         urls.append(f"https://{a.url}" if "://" not in a.url else a.url)
     play = [a.package_id for a in brand.apps if "google_play" in (a.stores or [])]
     apple = [a.package_id for a in brand.apps if "app_store" in (a.stores or []) and a.package_id.isdigit()]
+    apple += [a.store_id for a in brand.apps if a.store_id and a.store_id not in apple]  # numeric App Store id stored with the bundle id
     return OfficialAssets(
         social_handles=handles,
         social_urls=urls,
@@ -137,8 +145,27 @@ class BrandAllowlist:
         self._account_ids = {(a.platform, a.handle.lower()): a.id for a in brand.accounts}
         self._play_ids = {a.package_id.lower(): a.id for a in brand.apps if "google_play" in (a.stores or [])}
         self._apple_bundles = {a.package_id.lower(): a.id for a in brand.apps if "app_store" in (a.stores or [])}
+        self._apple_numeric = {a.store_id: a.id for a in brand.apps if a.store_id}
+        self._apple_numeric.update({a.package_id: a.id for a in brand.apps if "app_store" in (a.stores or []) and a.package_id.isdigit()})
+        self._domains = official_registrables(list(brand.domains or []))
 
+    def learn_apple_ids(self, candidates: list[Candidate]) -> int:
+        """An App Store listing found with an official BUNDLE id (iTunes) also tells us its numeric id. The same app arriving from a
+        source that only exposes the numeric id (a Tavily URL) is then recognised as official too. Per scan, in memory only: the
+        registry itself is not changed. Returns how many ids were learned."""
+        n = 0
+        for c in candidates:
+            if c.kind != "app" or c.platform != "app_store" or not c.handle or c.handle.lower() not in self._apple_bundles:
+                continue
+            numeric = str(c.extras.get("apple_app_id") or "").strip()
+            if numeric.isdigit() and numeric not in self.engine.apple_ids:
+                self.engine.apple_ids.add(numeric)
+                self._apple_numeric[numeric] = self._apple_bundles[c.handle.lower()]
+                n += 1
+        return n
     def check(self, c: Candidate) -> OfficialHit | None:
+        if c.kind == "web":
+            return self._check_web(c)
         eng = c.to_engine()
         if c.kind == "social":
             m = self.engine.check_social(eng)  # type: ignore[arg-type]
@@ -150,12 +177,20 @@ class BrandAllowlist:
             return OfficialHit("exact_handle" if m.asset == "handle" else "exact_url", m.reason, m.value, "account", account_id=acc)
         m = self.engine.check_app(eng)  # type: ignore[arg-type]
         if m is not None:
-            app_id = self._play_ids.get(m.value.lower())
+            app_id = self._play_ids.get(m.value.lower()) if m.asset == "package_id" else self._apple_numeric.get(m.value)
             reason = {"package_id": "package_id", "apple_id": "apple_id"}.get(m.asset, "package_id")
             return OfficialHit(reason, m.reason, m.value, "app", app_id=app_id)
         # App Store listings expose the bundle id; an exact bundle id of an official app is official.
         if c.platform == "app_store" and c.handle and c.handle.lower() in self._apple_bundles:
             return OfficialHit("bundle_id", "Exact official App Store bundle id.", c.handle, "app", app_id=self._apple_bundles[c.handle.lower()])
+        return None
+
+
+    def _check_web(self, c: Candidate) -> OfficialHit | None:
+        n = normalize_url(c.profile_url or c.handle)
+        if n.ok and n.registrable_domain and n.registrable_domain in self._domains:
+            return OfficialHit("official_domain", f"Registrable domain {n.registrable_domain} is an official domain of the brand.",
+                               n.registrable_domain, "domain")
         return None
 
 
@@ -201,9 +236,10 @@ def summary_and_tags(name: NameMatchResult, reasons: list[dict], logo_pct: float
     return (", ".join(parts)[:300] or "No strong signal"), tags
 
 
-def is_hit(score: int, threshold: int, reasons: list[dict], name_verdict: str | None) -> bool:
+def is_hit(score: int, threshold: int, reasons: list[dict], name_verdict: str | None, *, lookalike: bool = False) -> bool:
     """A candidate becomes a detection when it has evidence tied to THIS brand (name, logo/icon or description) AND
     either its score reaches the sensitivity threshold or the engine flagged its name outright. A flagged name always
-    goes to review; the sensitivity setting moves the bar for weaker evidence only."""
+    goes to review; the sensitivity setting moves the bar for weaker evidence only. `lookalike` is the domain analysis verdict of a web
+    candidate (deceptive subdomain, look-alike characters ...)."""
     brand_signal = any(r["signal"] in BRAND_SIGNALS and r["points"] > 0 for r in reasons)
-    return brand_signal and (score >= threshold or name_verdict == FLAGGED)
+    return brand_signal and (score >= threshold or name_verdict == FLAGGED or lookalike)

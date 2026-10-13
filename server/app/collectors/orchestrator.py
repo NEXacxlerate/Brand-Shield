@@ -21,6 +21,7 @@ from app.collectors.base import (
     SOCIAL_PLATFORMS,
     SOURCE_PLATFORMS,
     STORE_PLATFORMS,
+    WEB_PLATFORM,
     BrandQuery,
     Candidate,
     CollectContext,
@@ -190,7 +191,7 @@ def _cached(st: CollectorState, brand_id: int, platforms: frozenset[str], now: d
             c = Candidate.from_dict(d)
         except (TypeError, ValueError, KeyError):
             continue
-        if c.platform in platforms or c.platform == "youtube":
+        if c.platform in platforms or c.platform == "youtube" or (c.platform == WEB_PLATFORM and WEB_PLATFORM in platforms):
             c.stale = True
             c.cached_at = as_utc(st.cached_at) if st.cached_at else None
             out.append(c)
@@ -223,6 +224,8 @@ def run_collectors(
     platforms = _scope_platforms(scope) & monitored
     if only_platforms is not None:
         platforms &= only_platforms
+    elif scope == "all":
+        platforms = platforms | {WEB_PLATFORM}  # web candidates have no Source Health row: they ride along with a full scan
     ctx = CollectContext(platforms=platforms, max_queries=max_queries, now=now)
     reports: list[SourceReport] = []
     merged: list[Candidate] = []

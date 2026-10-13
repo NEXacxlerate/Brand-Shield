@@ -1,0 +1,980 @@
+{
+ "logo": [
+  {
+   "key": [
+    "app_store",
+    "com.acmebank.app"
+   ],
+   "score": 45,
+   "band": "low",
+   "raw_total": 45,
+   "reasons": [
+    [
+     "name_similarity",
+     23
+    ],
+    [
+     "publisher_differs",
+     22
+    ]
+   ]
+  },
+  {
+   "key": [
+    "facebook",
+    "acmebabk"
+   ],
+   "score": 32,
+   "band": "low",
+   "raw_total": 32,
+   "reasons": [
+    [
+     "name_similarity",
+     30
+    ],
+    [
+     "unverified",
+     2
+    ]
+   ]
+  },
+  {
+   "key": [
+    "facebook",
+    "cmebank"
+   ],
+   "score": 74,
+   "band": "medium",
+   "raw_total": 74,
+   "reasons": [
+    [
+     "name_similarity",
+     33
+    ],
+    [
+     "logo_similarity",
+     21
+    ],
+    [
+     "bio_signals",
+     14
+    ],
+    [
+     "account_age",
+     4
+    ],
+    [
+     "unverified",
+     2
+    ]
+   ]
+  },
+  {
+   "key": [
+    "facebook",
+    "helpdeskacmebank"
+   ],
+   "score": 93,
+   "band": "high",
+   "raw_total": 93,
+   "reasons": [
+    [
+     "name_similarity",
+     31
+    ],
+    [
+     "logo_similarity",
+     21
+    ],
+    [
+     "added_words",
+     12
+    ],
+    [
+     "bio_signals",
+     14
+    ],
+    [
+     "account_age",
+     6
+    ],
+    [
+     "few_posts",
+     3
+    ],
+    [
+     "follower_oddity",
+     4
+    ],
+    [
+     "unverified",
+     2
+    ]
+   ]
+  },
+  {
+   "key": [
+    "google_play",
+    "com.4cmebank.app"
+   ],
+   "score": 70,
+   "band": "medium",
+   "raw_total": 70,
+   "reasons": [
+    [
+     "name_similarity",
+     23
+    ],
+    [
+     "icon_similarity",
+     22
+    ],
+    [
+     "publisher_differs",
+     22
+    ],
+    [
+     "few_installs",
+     3
+    ]
+   ]
+  },
+  {
+   "key": [
+    "google_play",
+    "com.acmebank.app"
+   ],
+   "score": 45,
+   "band": "low",
+   "raw_total": 45,
+   "reasons": [
+    [
+     "name_similarity",
+     23
+    ],
+    [
+     "publisher_differs",
+     22
+    ]
+   ]
+  },
+  {
+   "key": [
+    "instagram",
+    "@4cme8ank"
+   ],
+   "score": 35,
+   "band": "low",
+   "raw_total": 35,
+   "reasons": [
+    [
+     "name_similarity",
+     33
+    ],
+    [
+     "unverified",
+     2
+    ]
+   ]
+  },
+  {
+   "key": [
+    "instagram",
+    "@acmeb4nk"
+   ],
+   "score": 77,
+   "band": "medium",
+   "raw_total": 77,
+   "reasons": [
+    [
+     "name_similarity",
+     33
+    ],
+    [
+     "logo_similarity",
+     24
+    ],
+    [
+     "bio_signals",
+     14
+    ],
+    [
+     "account_age",
+     4
+    ],
+    [
+     "unverified",
+     2
+    ]
+   ]
+  },
+  {
+   "key": [
+    "instagram",
+    "@acmebank.giveaway"
+   ],
+   "score": 100,
+   "band": "high",
+   "raw_total": 108,
+   "reasons": [
+    [
+     "name_similarity",
+     31
+    ],
+    [
+     "logo_similarity",
+     28
+    ],
+    [
+     "added_words",
+     12
+    ],
+    [
+     "bio_signals",
+     22
+    ],
+    [
+     "account_age",
+     6
+    ],
+    [
+     "few_posts",
+     3
+    ],
+    [
+     "follower_oddity",
+     4
+    ],
+    [
+     "unverified",
+     2
+    ]
+   ]
+  },
+  {
+   "key": [
+    "linkedin",
+    "acmebnk"
+   ],
+   "score": 35,
+   "band": "low",
+   "raw_total": 35,
+   "reasons": [
+    [
+     "name_similarity",
+     33
+    ],
+    [
+     "unverified",
+     2
+    ]
+   ]
+  },
+  {
+   "key": [
+    "linkedin",
+    "acrnebank"
+   ],
+   "score": 77,
+   "band": "medium",
+   "raw_total": 77,
+   "reasons": [
+    [
+     "name_similarity",
+     33
+    ],
+    [
+     "logo_similarity",
+     21
+    ],
+    [
+     "bio_signals",
+     14
+    ],
+    [
+     "account_age",
+     4
+    ],
+    [
+     "few_posts",
+     3
+    ],
+    [
+     "unverified",
+     2
+    ]
+   ]
+  },
+  {
+   "key": [
+    "telegram",
+    "acmebnk"
+   ],
+   "score": 35,
+   "band": "low",
+   "raw_total": 35,
+   "reasons": [
+    [
+     "name_similarity",
+     33
+    ],
+    [
+     "unverified",
+     2
+    ]
+   ]
+  },
+  {
+   "key": [
+    "telegram",
+    "helpdesk_acmebank_team"
+   ],
+   "score": 100,
+   "band": "high",
+   "raw_total": 104,
+   "reasons": [
+    [
+     "name_similarity",
+     31
+    ],
+    [
+     "logo_similarity",
+     24
+    ],
+    [
+     "added_words",
+     12
+    ],
+    [
+     "bio_signals",
+     22
+    ],
+    [
+     "account_age",
+     6
+    ],
+    [
+     "few_posts",
+     3
+    ],
+    [
+     "follower_oddity",
+     4
+    ],
+    [
+     "unverified",
+     2
+    ]
+   ]
+  },
+  {
+   "key": [
+    "third_party_apk",
+    "com.4cmebank.app"
+   ],
+   "score": 85,
+   "band": "high",
+   "raw_total": 85,
+   "reasons": [
+    [
+     "name_similarity",
+     23
+    ],
+    [
+     "icon_similarity",
+     30
+    ],
+    [
+     "publisher_differs",
+     22
+    ],
+    [
+     "third_party_mirror",
+     4
+    ],
+    [
+     "few_installs",
+     3
+    ],
+    [
+     "new_listing",
+     2
+    ],
+    [
+     "few_ratings",
+     1
+    ]
+   ]
+  },
+  {
+   "key": [
+    "third_party_apk",
+    "com.acmeb4nk.app"
+   ],
+   "score": 85,
+   "band": "high",
+   "raw_total": 85,
+   "reasons": [
+    [
+     "name_similarity",
+     23
+    ],
+    [
+     "icon_similarity",
+     30
+    ],
+    [
+     "publisher_differs",
+     22
+    ],
+    [
+     "third_party_mirror",
+     4
+    ],
+    [
+     "few_installs",
+     3
+    ],
+    [
+     "new_listing",
+     2
+    ],
+    [
+     "few_ratings",
+     1
+    ]
+   ]
+  },
+  {
+   "key": [
+    "x",
+    "@4cm3bank"
+   ],
+   "score": 35,
+   "band": "low",
+   "raw_total": 35,
+   "reasons": [
+    [
+     "name_similarity",
+     33
+    ],
+    [
+     "unverified",
+     2
+    ]
+   ]
+  },
+  {
+   "key": [
+    "x",
+    "@acmebankcare"
+   ],
+   "score": 93,
+   "band": "high",
+   "raw_total": 93,
+   "reasons": [
+    [
+     "name_similarity",
+     31
+    ],
+    [
+     "logo_similarity",
+     21
+    ],
+    [
+     "added_words",
+     12
+    ],
+    [
+     "bio_signals",
+     14
+    ],
+    [
+     "account_age",
+     6
+    ],
+    [
+     "few_posts",
+     3
+    ],
+    [
+     "follower_oddity",
+     4
+    ],
+    [
+     "unverified",
+     2
+    ]
+   ]
+  }
+ ],
+ "nologo": [
+  {
+   "key": [
+    "app_store",
+    "com.acmebank.app"
+   ],
+   "score": 45,
+   "band": "low",
+   "raw_total": 45,
+   "reasons": [
+    [
+     "name_similarity",
+     23
+    ],
+    [
+     "publisher_differs",
+     22
+    ]
+   ]
+  },
+  {
+   "key": [
+    "facebook",
+    "acmebabk"
+   ],
+   "score": 32,
+   "band": "low",
+   "raw_total": 32,
+   "reasons": [
+    [
+     "name_similarity",
+     30
+    ],
+    [
+     "unverified",
+     2
+    ]
+   ]
+  },
+  {
+   "key": [
+    "facebook",
+    "cmebank"
+   ],
+   "score": 53,
+   "band": "low",
+   "raw_total": 53,
+   "reasons": [
+    [
+     "name_similarity",
+     33
+    ],
+    [
+     "bio_signals",
+     14
+    ],
+    [
+     "account_age",
+     4
+    ],
+    [
+     "unverified",
+     2
+    ]
+   ]
+  },
+  {
+   "key": [
+    "facebook",
+    "helpdeskacmebank"
+   ],
+   "score": 72,
+   "band": "medium",
+   "raw_total": 72,
+   "reasons": [
+    [
+     "name_similarity",
+     31
+    ],
+    [
+     "added_words",
+     12
+    ],
+    [
+     "bio_signals",
+     14
+    ],
+    [
+     "account_age",
+     6
+    ],
+    [
+     "few_posts",
+     3
+    ],
+    [
+     "follower_oddity",
+     4
+    ],
+    [
+     "unverified",
+     2
+    ]
+   ]
+  },
+  {
+   "key": [
+    "google_play",
+    "com.4cmebank.app"
+   ],
+   "score": 48,
+   "band": "low",
+   "raw_total": 48,
+   "reasons": [
+    [
+     "name_similarity",
+     23
+    ],
+    [
+     "publisher_differs",
+     22
+    ],
+    [
+     "few_installs",
+     3
+    ]
+   ]
+  },
+  {
+   "key": [
+    "google_play",
+    "com.acmebank.app"
+   ],
+   "score": 45,
+   "band": "low",
+   "raw_total": 45,
+   "reasons": [
+    [
+     "name_similarity",
+     23
+    ],
+    [
+     "publisher_differs",
+     22
+    ]
+   ]
+  },
+  {
+   "key": [
+    "instagram",
+    "@4cme8ank"
+   ],
+   "score": 35,
+   "band": "low",
+   "raw_total": 35,
+   "reasons": [
+    [
+     "name_similarity",
+     33
+    ],
+    [
+     "unverified",
+     2
+    ]
+   ]
+  },
+  {
+   "key": [
+    "instagram",
+    "@acmeb4nk"
+   ],
+   "score": 53,
+   "band": "low",
+   "raw_total": 53,
+   "reasons": [
+    [
+     "name_similarity",
+     33
+    ],
+    [
+     "bio_signals",
+     14
+    ],
+    [
+     "account_age",
+     4
+    ],
+    [
+     "unverified",
+     2
+    ]
+   ]
+  },
+  {
+   "key": [
+    "instagram",
+    "@acmebank.giveaway"
+   ],
+   "score": 80,
+   "band": "medium",
+   "raw_total": 80,
+   "reasons": [
+    [
+     "name_similarity",
+     31
+    ],
+    [
+     "added_words",
+     12
+    ],
+    [
+     "bio_signals",
+     22
+    ],
+    [
+     "account_age",
+     6
+    ],
+    [
+     "few_posts",
+     3
+    ],
+    [
+     "follower_oddity",
+     4
+    ],
+    [
+     "unverified",
+     2
+    ]
+   ]
+  },
+  {
+   "key": [
+    "linkedin",
+    "acmebnk"
+   ],
+   "score": 35,
+   "band": "low",
+   "raw_total": 35,
+   "reasons": [
+    [
+     "name_similarity",
+     33
+    ],
+    [
+     "unverified",
+     2
+    ]
+   ]
+  },
+  {
+   "key": [
+    "linkedin",
+    "acrnebank"
+   ],
+   "score": 56,
+   "band": "low",
+   "raw_total": 56,
+   "reasons": [
+    [
+     "name_similarity",
+     33
+    ],
+    [
+     "bio_signals",
+     14
+    ],
+    [
+     "account_age",
+     4
+    ],
+    [
+     "few_posts",
+     3
+    ],
+    [
+     "unverified",
+     2
+    ]
+   ]
+  },
+  {
+   "key": [
+    "telegram",
+    "acmebnk"
+   ],
+   "score": 35,
+   "band": "low",
+   "raw_total": 35,
+   "reasons": [
+    [
+     "name_similarity",
+     33
+    ],
+    [
+     "unverified",
+     2
+    ]
+   ]
+  },
+  {
+   "key": [
+    "telegram",
+    "helpdesk_acmebank_team"
+   ],
+   "score": 80,
+   "band": "medium",
+   "raw_total": 80,
+   "reasons": [
+    [
+     "name_similarity",
+     31
+    ],
+    [
+     "added_words",
+     12
+    ],
+    [
+     "bio_signals",
+     22
+    ],
+    [
+     "account_age",
+     6
+    ],
+    [
+     "few_posts",
+     3
+    ],
+    [
+     "follower_oddity",
+     4
+    ],
+    [
+     "unverified",
+     2
+    ]
+   ]
+  },
+  {
+   "key": [
+    "third_party_apk",
+    "com.4cmebank.app"
+   ],
+   "score": 55,
+   "band": "low",
+   "raw_total": 55,
+   "reasons": [
+    [
+     "name_similarity",
+     23
+    ],
+    [
+     "publisher_differs",
+     22
+    ],
+    [
+     "third_party_mirror",
+     4
+    ],
+    [
+     "few_installs",
+     3
+    ],
+    [
+     "new_listing",
+     2
+    ],
+    [
+     "few_ratings",
+     1
+    ]
+   ]
+  },
+  {
+   "key": [
+    "third_party_apk",
+    "com.acmeb4nk.app"
+   ],
+   "score": 55,
+   "band": "low",
+   "raw_total": 55,
+   "reasons": [
+    [
+     "name_similarity",
+     23
+    ],
+    [
+     "publisher_differs",
+     22
+    ],
+    [
+     "third_party_mirror",
+     4
+    ],
+    [
+     "few_installs",
+     3
+    ],
+    [
+     "new_listing",
+     2
+    ],
+    [
+     "few_ratings",
+     1
+    ]
+   ]
+  },
+  {
+   "key": [
+    "x",
+    "@4cm3bank"
+   ],
+   "score": 35,
+   "band": "low",
+   "raw_total": 35,
+   "reasons": [
+    [
+     "name_similarity",
+     33
+    ],
+    [
+     "unverified",
+     2
+    ]
+   ]
+  },
+  {
+   "key": [
+    "x",
+    "@acmebankcare"
+   ],
+   "score": 72,
+   "band": "medium",
+   "raw_total": 72,
+   "reasons": [
+    [
+     "name_similarity",
+     31
+    ],
+    [
+     "added_words",
+     12
+    ],
+    [
+     "bio_signals",
+     14
+    ],
+    [
+     "account_age",
+     6
+    ],
+    [
+     "few_posts",
+     3
+    ],
+    [
+     "follower_oddity",
+     4
+    ],
+    [
+     "unverified",
+     2
+    ]
+   ]
+  }
+ ]
+}

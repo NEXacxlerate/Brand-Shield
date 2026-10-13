@@ -15,8 +15,8 @@ class Detection(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     brand_id: Mapped[int] = mapped_column(ForeignKey("brands.id", ondelete="CASCADE"), index=True)
-    type: Mapped[str] = mapped_column(String(20))  # fake_profile | fake_brand_page | scam_account | fake_app
-    category: Mapped[str] = mapped_column(String(10))  # social | apps
+    type: Mapped[str] = mapped_column(String(20))  # fake_profile | fake_brand_page | scam_account | fake_app | lookalike_domain
+    category: Mapped[str] = mapped_column(String(10))  # social | apps | web
     platform: Mapped[str] = mapped_column(String(20), index=True)
     name: Mapped[str] = mapped_column(String(200), default="")
     handle: Mapped[str | None] = mapped_column(String(200), nullable=True)
@@ -25,6 +25,10 @@ class Detection(Base):
     profile_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     score: Mapped[int] = mapped_column(Integer)
     band: Mapped[str] = mapped_column(String(10))  # high | medium | low
+    # LOW | MEDIUM | HIGH | CRITICAL, beside band (engine/risk_engine.py)
+    severity: Mapped[str] = mapped_column(String(10), default="LOW", server_default="LOW")
+    algorithm_version: Mapped[str | None] = mapped_column(String(10), nullable=True)  # "1.0" social/app, "2.0" web
+    scored_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # new | reviewing | confirmed | dismissed | marked_official | cleared (below threshold but near-name: false-positive guard)
     status: Mapped[str] = mapped_column(String(20), default="new", index=True)
     canonical_key: Mapped[str] = mapped_column(String(400), default="")  # "<platform>:<lower-case handle or package or url>"

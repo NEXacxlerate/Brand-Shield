@@ -24,7 +24,7 @@ class StaticCollector(Collector):
 
     name = "static"
     kind = "mixed"
-    platforms = ("instagram", "facebook", "x", "telegram", "linkedin", "google_play", "app_store", "third_party_apk")
+    platforms = ("instagram", "facebook", "x", "telegram", "linkedin", "google_play", "app_store", "third_party_apk", "web")
 
     def __init__(self, candidates: list[Candidate]) -> None:
         super().__init__()
@@ -46,8 +46,8 @@ class FailingCollector(Collector):
 class FixedRuntime(CollectorRuntime):
     """Collector runtime whose chain is fixed by the test."""
 
-    def __init__(self, settings, session_factory, collectors) -> None:
-        super().__init__(settings, session_factory, now=lambda: datetime.now(UTC))
+    def __init__(self, settings, session_factory, collectors, transport=None) -> None:
+        super().__init__(settings, session_factory, transport=transport, now=lambda: datetime.now(UTC))
         self.fixed = collectors
 
     def build(self, selection, **_kw):
@@ -68,6 +68,15 @@ def app_candidate(platform: str, package: str, name: str, publisher: str = "Quic
                      publisher=publisher, **kw)
 
 
+def web(url: str, source: str = "static", **kw) -> Candidate:
+    """A website candidate through the same constructor the collectors use."""
+    from app.collectors.base import candidate_from_web_url
+
+    c = candidate_from_web_url(url, source=source, **kw)
+    assert c is not None, url
+    return c
+
+
 def png_bytes(color=(200, 30, 30), size=300, shape="square") -> bytes:
     img = Image.new("RGB", (size, size), (255, 255, 255))
     px = img.load()
@@ -81,12 +90,12 @@ def png_bytes(color=(200, 30, 30), size=300, shape="square") -> bytes:
 
 
 @contextmanager
-def make_client(settings, checker, collectors=None, **kw):
+def make_client(settings, checker, collectors=None, *, transport=None, **kw):
     """A TestClient on a fresh in-memory DB. With `collectors`, the scan chain is exactly those collectors."""
     engine = make_engine("sqlite://")
     Base.metadata.create_all(engine)
     sf = make_session_factory(engine)
-    runtime = FixedRuntime(settings, sf, collectors) if collectors is not None else None
+    runtime = FixedRuntime(settings, sf, collectors, transport) if collectors is not None else None
     app = create_app(settings, engine=engine, url_checker=checker, collector_runtime=runtime, **kw)
     with TestClient(app) as c:
         c.app_ref = app  # type: ignore[attr-defined]
@@ -123,4 +132,4 @@ def all_detections(client, headers, **params) -> list[dict]:
 
 
 __all__ = ["FailingCollector", "FixedRuntime", "SampleCollector", "StaticCollector", "all_detections", "app_candidate", "make_client", "png_bytes",
-           "run_scan", "set_mode", "setup_brand", "social"]
+           "run_scan", "set_mode", "setup_brand", "social", "web"]

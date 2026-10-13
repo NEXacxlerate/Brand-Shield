@@ -63,14 +63,16 @@ def test_canary_fails_when_detection_regresses(monkeypatch):
 
 
 def test_canary_fails_when_scoring_regresses(monkeypatch):
-    real = sp.score_social
+    from app.engine import risk_engine
+
+    real = risk_engine.score_social
 
     def flat(*a, **k):
         res = real(*a, **k)
         res.score = 5
         return res
 
-    monkeypatch.setattr(sp, "score_social", flat)
+    monkeypatch.setattr(risk_engine, "score_social", flat)
     r = canary.run_canary()
     assert r["passed"] is False and any(f.startswith("lookalike_profile_detected") for f in r["failures"])
 

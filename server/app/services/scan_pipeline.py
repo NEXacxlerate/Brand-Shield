@@ -34,14 +34,17 @@ from app.collectors.selection import CollectorRuntime, select_collectors
 from app.core.config import Settings
 from app.core.logging import Redactor
 from app.core.time import as_utc, iso_z
+from app.engine.domain_match import DomainAnalysis, analyze_domain, make_domain_matcher
 from app.engine.llm import LLMIntentResult, ScamIntentLLM, build_scam_llm
 from app.engine.logo_similarity import best_logo_similarity, load_image
 from app.engine.models import BrandProfileInput
 from app.engine.name_match import SAFE, NameMatchResult
 from app.engine.pipeline import _package_name_text, best_name_match
-from app.engine.scoring import ScoreResult, band_for, handle_from_url, score_app, score_social
+from app.engine.risk_engine import RiskAssessment, RiskConfig, RiskEngine
+from app.engine.scoring import ScoreResult, handle_from_url
 from app.engine.urls import parse_url
 from app.models import Brand, Detection, DetectionEvent, OfficialMatch, Scan, Source, User
+from app.providers.base import ReputationResult
 from app.services import app_settings, audit, data_mode, evidence
 from app.services.image_fetch import FetchError, SafeFetcher
 from app.services.matching import (
@@ -233,6 +236,8 @@ def _near_name(name: NameMatchResult) -> bool:
 
 
 def _detection_type(c: Candidate, reasons: list[dict]) -> str:
+    if c.kind == "web":
+        return "lookalike_domain"
     if c.kind == "app":
         return "fake_app"
     if any(r["signal"] == "bio_signals" and r["points"] >= 6 for r in reasons):
@@ -253,6 +258,9 @@ class Outcome:
     tags: list[str] = field(default_factory=list)
     threshold: int = 25
     llm_used: bool = False
+    assessment: RiskAssessment | None = None
+    analysis: DomainAnalysis | None = None  # web candidates
+    reputation: ReputationResult | None = None
 
 
 class _Env:
@@ -267,6 +275,13 @@ class _Env:
         self.assets = official_assets(brand)
         self.brand_profile = BrandProfileInput(name=brand.name, aliases=list(brand.aliases or []),
                                                extra_impersonation_words=list(mon["impersonation_words"]))
+        st = ctx.settings
+        self.engine = RiskEngine(RiskConfig(st.severity_medium_min, st.severity_high_min, st.severity_critical_min), now=ctx.now)
+        self.domain_matcher = make_domain_matcher(brand.name, list(brand.aliases or []), list(brand.domains or []), words=list(mon["impersonation_words"]))
+        self.official_domains = list(brand.domains or [])
+        self.aliases = list(brand.aliases or [])
+        self.reputation: dict[str, ReputationResult] = {}  # canonical URL -> Safe Browsing result (web candidates, live only)
+        self.reputation_note: dict[str, str] = {}  # canonical URL -> why it was not checked
         self.official_logo = _load_brand_logo(ctx.settings, brand)
         self.logo_fetches = 0
         self.llm, self.llm_note = ctx.get_llm()
@@ -338,7 +353,79 @@ def _logo_step(ctx: ScanContext, env: _Env, c: Candidate, counts: dict) -> tuple
     return float(sim), {"status": "compared", "similarity": round(float(sim), 1), "reason": None, "origin": "fetched"}
 
 
+def _reputation_pass(ctx: ScanContext, env: _Env, cands: list[Candidate], counts: dict) -> None:
+    """Ask Safe Browsing about the candidate URLs that already look related to the brand. One batched request.
+
+    Only live, fresh, non-official web candidates are sent: sample URLs are never sent to a provider, a cached copy is not
+    re-checked, and unrelated domains are not sent at all (quota and privacy). The URLs are looked up, never opened."""
+    to_check: list[str] = []
+    for c in cands:
+        if c.kind != "web" or not c.profile_url:
+            continue
+        counts["web_candidates"] += 1
+        if env.allow.check(c) is not None:
+            continue
+        if c.data_source == "sample":
+            env.reputation_note[c.profile_url] = "Sample data: the URL is not sent to Google."
+            counts["reputation_skipped_sample"] += 1
+            continue
+        if c.stale:
+            env.reputation_note[c.profile_url] = "The candidate is a cached copy; reputation was not re-checked."
+            continue
+        analysis = analyze_domain(c.profile_url, env.brand_profile.name, env.official_domains, aliases=env.aliases, matcher=env.domain_matcher)
+        if not analysis.brand_related:
+            env.reputation_note[c.profile_url] = "The domain does not resemble the brand, so it was not sent for a reputation check."
+            continue
+        if len(to_check) >= ctx.settings.safe_browsing_max_urls_per_scan:
+            env.reputation_note[c.profile_url] = "Per-scan reputation lookup limit reached."
+            counts["reputation_over_limit"] += 1
+            continue
+        to_check.append(c.profile_url)
+    if not to_check:
+        return
+    results = ctx.runtime.safe_browsing.check_urls(to_check)
+    env.reputation.update(results)
+    for r in results.values():
+        counts["reputation_checked" if r.checked_at else "reputation_not_checked"] += 1
+        if r.verdict == "match":
+            counts["reputation_match"] += 1
+        elif r.verdict == "clean":
+            counts["reputation_clean"] += 1
+        else:
+            counts["reputation_unavailable"] += 1
+
+
+def _evaluate_web(env: _Env, c: Candidate, counts: dict) -> Outcome:
+    analysis = analyze_domain(c.profile_url or c.handle or "", env.brand_profile.name, env.official_domains, aliases=env.aliases,
+                              matcher=env.domain_matcher)
+    name = analysis.name_match or NameMatchResult(SAFE, 0, notes=["No domain name to compare."])
+    if analysis.url.reason or analysis.verdict == "not_comparable" or not analysis.brand_related:
+        counts["prefiltered"] += 1
+        return Outcome(c, "ignored", name=name, analysis=analysis)
+    rep = env.reputation.get(c.profile_url or "")
+    note = env.reputation_note.get(c.profile_url or "")
+    assessment = env.engine.assess_web(analysis, rep, synthetic=c.data_source == "sample", reputation_note=note)
+    counts["evaluated"] += 1
+    reasons = reason_dicts(assessment.reasons)
+    parts = [t.replace("_", " ") for t in name.techniques]
+    if analysis.components.get("brand_in_subdomain"):
+        parts.append("brand in the subdomain")
+    if analysis.components.get("tld_swap"):
+        parts.append("TLD swap")
+    if any(r["signal"] == "idn_homograph" for r in reasons):
+        parts.append("look-alike characters")
+    if rep is not None and rep.verdict == "match":
+        parts.append("listed by Google Safe Browsing")
+    summary = (", ".join(parts) or f"domain resembles the brand ({name.name_match_pct}%)")[:300]
+    tags = [p[:1].upper() + p[1:] for p in parts]
+    hit = is_hit(assessment.score, env.threshold, reasons, name.verdict, lookalike=analysis.verdict == "lookalike")
+    return Outcome(c, "hit" if hit else "cleared", assessment.score_result, name, analysis.url.registrable_domain, reasons, {}, summary, tags,
+                   env.threshold, False, assessment, analysis, rep)
+
+
 def evaluate(ctx: ScanContext, env: _Env, brand: Brand, c: Candidate, counts: dict) -> Outcome:
+    if c.kind == "web":
+        return _evaluate_web(env, c, counts)
     eng = c.to_engine()
     if c.kind == "social":
         texts = [c.handle, c.display_name, handle_from_url(c.profile_url)]
@@ -353,6 +440,7 @@ def evaluate(ctx: ScanContext, env: _Env, brand: Brand, c: Candidate, counts: di
 
     sim, logo = _logo_step(ctx, env, c, counts)
     llm_result: LLMIntentResult | None = None
+    synthetic = c.data_source == "sample"
     if c.kind == "social":
         eng.logo_similarity = sim  # type: ignore[union-attr]
         if env.llm is not None and c.bio and len(c.bio) >= 20 and c.data_source != "sample" and not c.stale:
@@ -361,15 +449,16 @@ def evaluate(ctx: ScanContext, env: _Env, brand: Brand, c: Candidate, counts: di
                 counts["llm_checked"] += 1
             except Exception:  # noqa: BLE001 - optional check must never fail a candidate
                 counts["llm_errors"] += 1
-        score = score_social(eng, env.assets, name, today=env.today, llm=llm_result)  # type: ignore[arg-type]
+        assessment = env.engine.assess_social(eng, env.assets, name, today=env.today, llm=llm_result, synthetic=synthetic)  # type: ignore[arg-type]
     else:
         eng.icon_similarity = sim  # type: ignore[union-attr]
-        score = score_app(eng, env.brand_profile, env.assets, name, today=env.today, publisher_matcher=env.matcher)  # type: ignore[arg-type]
+        assessment = env.engine.assess_app(eng, env.brand_profile, env.assets, name, today=env.today, publisher_matcher=env.matcher, synthetic=synthetic)  # type: ignore[arg-type]
+    score = assessment.score_result
     counts["evaluated"] += 1
     reasons = reason_dicts(score.reasons)
     summary, tags = summary_and_tags(name, reasons, sim)
     kind = "hit" if is_hit(score.score, env.threshold, reasons, name.verdict) else ("cleared" if near else "ignored")
-    return Outcome(c, kind, score, name, matched, reasons, logo, summary, tags, env.threshold, llm_result is not None)
+    return Outcome(c, kind, score, name, matched, reasons, logo, summary, tags, env.threshold, llm_result is not None, assessment)
 
 
 def _clear_reason(oc: Outcome) -> str:
@@ -439,6 +528,13 @@ def _details(oc: Outcome) -> dict:
         "extras": oc.candidate.extras,
         "ai_text_check": oc.llm_used,
     }
+    if oc.assessment is not None:
+        d["signals"] = [sg.to_dict() for sg in oc.assessment.signals]
+        d["weights"] = oc.assessment.weights
+    if oc.analysis is not None:
+        d["domain"] = oc.analysis.to_dict()
+        d["reputation"] = oc.reputation.to_dict() if oc.reputation is not None else {
+            "verdict": "unavailable", "provider": "google_safe_browsing", "checked_at": None}
     if oc.kind == "cleared":
         d["clear_reason"] = _clear_reason(oc)
     return d
@@ -464,15 +560,17 @@ def _apply_fields(det: Detection, oc: Outcome, now: datetime, status: str) -> No
     c = oc.candidate
     assert oc.score is not None
     det.type = _detection_type(c, oc.reasons)
-    det.category = "apps" if c.kind == "app" else "social"
+    det.category = {"app": "apps", "web": "web"}.get(c.kind, "social")
     det.platform = c.platform
     det.name = (c.display_name or c.handle or c.title or "")[:200]
-    det.handle = (c.handle or None) if c.kind == "social" else None
+    det.handle = (c.handle or None) if c.kind in ("social", "web") else None
     det.package_id = c.handle if c.kind == "app" else None
     det.publisher = c.publisher
     det.profile_url = c.profile_url
     det.score = oc.score.score
-    det.band = band_for(oc.score.score)
+    det.band = oc.score.band  # unchanged 85 / 70 cutoffs
+    assert oc.assessment is not None
+    det.severity, det.algorithm_version, det.scored_at = oc.assessment.severity, oc.assessment.algorithm_version, oc.assessment.scored_at
     det.reasons = oc.reasons
     det.details = _details(oc)
     det.stale = c.stale
@@ -491,7 +589,7 @@ def upsert_detection(ctx: ScanContext, db: Session, scan: Scan, brand: Brand, oc
         if oc.kind == "cleared" and not _near_name(oc.name):
             return
         det = Detection(brand_id=brand.id, canonical_key=key, found_at=now, first_seen_at=now, last_seen_at=now, last_scan_id=scan.id,
-                        score=oc.score.score, band=band_for(oc.score.score), type="", category="", platform=c.platform, status=new_status)
+                        score=oc.score.score, band=oc.score.band, type="", category="", platform=c.platform, status=new_status)
         _apply_fields(det, oc, now, new_status)
         det.evidence = _evidence_for(ctx, c, now, None)
         det.score_history = []
@@ -534,6 +632,8 @@ def _record_official(db: Session, scan: Scan, brand: Brand, c: Candidate, hit: O
     row = seen.get(key) or db.scalar(select(OfficialMatch).where(OfficialMatch.brand_id == brand.id, OfficialMatch.match_key == key))
     if c.kind == "social":
         label = f"{display_handle(c.platform, (c.handle or hit.value).lstrip('@'))} on {c.platform}"
+    elif c.kind == "web":
+        label = f"{c.handle or hit.value} (official domain {hit.value})"
     else:
         label = f"{c.display_name or hit.value} · {c.handle or hit.value}"
     if row is None:
@@ -627,7 +727,8 @@ def _execute(ctx: ScanContext, scan_id: int, t0: float) -> None:
     counts: dict[str, int] = {k: 0 for k in (
         "candidates_found", "duplicates_removed", "unique_candidates", "official_excluded", "prefiltered", "evaluated", "detections_new",
         "detections_updated", "detections_protected", "cleared_new", "logo_compared", "logo_unavailable", "llm_checked", "llm_errors",
-        "official_detections_closed", "truncated")}
+        "official_detections_closed", "truncated", "web_candidates", "reputation_checked", "reputation_not_checked", "reputation_match",
+        "reputation_clean", "reputation_unavailable", "reputation_skipped_sample", "reputation_over_limit")}
     counts["candidates_found"] = len(result.candidates)
     cands, removed = dedupe_candidates(result.candidates)
     counts["duplicates_removed"] = removed
@@ -642,6 +743,8 @@ def _execute(ctx: ScanContext, scan_id: int, t0: float) -> None:
         brand = db.get(Brand, brand_id)
         assert scan is not None and brand is not None
         env = _Env(ctx, db, brand)
+        env.allow.learn_apple_ids(result.candidates)  # before de-duplication: the iTunes and Tavily copies of one listing share a URL and merge
+        _reputation_pass(ctx, env, cands, counts)
         existing = {d.canonical_key: d for d in db.scalars(select(Detection).where(Detection.brand_id == brand.id))}
         seen_official: dict[str, OfficialMatch] = {}
         n = max(1, len(cands))

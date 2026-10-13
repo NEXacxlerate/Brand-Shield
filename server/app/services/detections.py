@@ -21,8 +21,10 @@ from app.services import audit, evidence
 from app.services.matching import BrandAllowlist
 from app.services.validators import build_account_url, display_handle
 
-TYPES = ("fake_profile", "fake_brand_page", "scam_account", "fake_app")
-CATEGORIES = ("social", "apps")
+TYPES = ("fake_profile", "fake_brand_page", "scam_account", "fake_app")  # the four original types (social + apps)
+WEB_TYPES = ("lookalike_domain",)  # category "web": look-alike domains / websites
+ALL_TYPES = (*TYPES, *WEB_TYPES)
+CATEGORIES = ("social", "apps", "web")
 BANDS = ("high", "medium", "low")
 OPEN_STATUSES = ("new", "reviewing", "confirmed")
 LISTED_STATUSES = ("new", "reviewing", "confirmed", "dismissed")  # shown in the lists; cleared and marked_official never are
@@ -46,6 +48,7 @@ class Filters:
     type: str | None = None
     platform: str | None = None
     band: str | None = None
+    severity: str | None = None
     statuses: list[str] | None = None
     source: str | None = None  # live | sample | None = all
     q: str | None = None
@@ -59,13 +62,15 @@ def normalize_type(value: str | None) -> tuple[str | None, str | None]:
     if not value:
         return None, None
     v = value.strip().lower()
-    if v in TYPES:
+    if v in ALL_TYPES:
         return v, None
     if v in ("social",):
         return None, "social"
     if v in ("app", "apps"):
         return None, "apps"
-    raise ActionError(422, f"type must be one of: {', '.join(TYPES)}, social, app")
+    if v in ("web", "website", "websites"):
+        return None, "web"
+    raise ActionError(422, f"type must be one of: {', '.join(ALL_TYPES)}, social, app, web")
 
 
 def _base(f: Filters, *, ignore_type: bool = False, ignore_platform: bool = False) -> Select:
@@ -81,6 +86,8 @@ def _base(f: Filters, *, ignore_type: bool = False, ignore_platform: bool = Fals
         q = q.where(Detection.platform == f.platform)
     if f.band:
         q = q.where(Detection.band == f.band)
+    if f.severity:
+        q = q.where(Detection.severity == f.severity)
     if f.source:
         q = q.where(Detection.source == f.source)
     if f.min_score is not None:
@@ -125,7 +132,9 @@ def list_detections(db: Session, f: Filters, sort: str, limit: int, offset: int)
         "rows": rows,
         "counts": {
             "all": db.scalar(select(func.count()).select_from(no_tab.subquery())) or 0,
-            "by_type": {t: by_type.get(t, 0) for t in TYPES},
+            "by_type": {t: by_type.get(t, 0) for t in ALL_TYPES},
+            "by_category": _count_by(db, _base(Filters(**{**f.__dict__, "category": None, "type": None, "platform": None})), Detection.category),
+            "by_severity": _count_by(db, _base(f), Detection.severity),
             "by_platform": dict(sorted(by_platform.items())),
             "by_status": by_status,
             "by_band": _count_by(db, _base(f), Detection.band),
@@ -159,6 +168,7 @@ def summary_row(d: Detection) -> dict:
         "profile_url": d.profile_url,
         "score": d.score,
         "risk_band": d.band,
+        "severity": d.severity,
         "status": d.status,
         "summary": det.get("summary", ""),
         "tags": det.get("tags", []),
@@ -170,6 +180,8 @@ def summary_row(d: Detection) -> dict:
 
 
 def _official_side(brand: Brand, d: Detection) -> dict:
+    if d.category == "web":
+        return {"name": brand.name, "domains": list(brand.domains or []), "on_allowlist": False}
     if d.category == "apps":
         apps = list(brand.apps)
         match = next((a for a in apps if d.platform in (a.stores or [])), apps[0] if apps else None)
@@ -200,6 +212,12 @@ def detail(db: Session, d: Detection, brand: Brand) -> dict:
     out.update({
         "brand_id": d.brand_id,
         "first_seen_at": _iso(d.first_seen_at),
+        "algorithm_version": d.algorithm_version,
+        "scored_at": _iso(d.scored_at),
+        "weights": det.get("weights"),
+        "signals": det.get("signals") or [],
+        "domain": det.get("domain"),
+        "reputation": det.get("reputation"),
         "name_match": det.get("name_match"),
         "matched_text": det.get("matched_text"),
         "raw_total": det.get("raw_total"),
@@ -230,6 +248,10 @@ def detail(db: Session, d: Detection, brand: Brand) -> dict:
             "description": {"snippet": (cand.get("bio") or "")[:400] or None,
                             "overlap_points": next((r["points"] for r in (d.reasons or []) if r["signal"] == "description_overlap"), 0)},
         })
+    elif d.category == "web":
+        dom = det.get("domain") or {}
+        out["suspect"] = {"url": d.profile_url, "host": d.name, "registrable_domain": (dom.get("url") or {}).get("registrable_domain"),
+                          "components": dom.get("components"), "reputation": det.get("reputation")}
     else:
         out["suspect"] = {"bio": cand.get("bio"), "followers": cand.get("followers"), "following": cand.get("following"),
                           "posts": cand.get("posts"), "joined": cand.get("created_at"), "verified": cand.get("verified"),
@@ -287,6 +309,8 @@ def mark_official(db: Session, brand: Brand, d: Detection, user: User, note: str
         raise ActionError(409, "This detection is already marked official.")
     now = utcnow()
     audit_actions: list[tuple[str, str, str]] = []
+    if d.category == "web":
+        raise ActionError(422, "A look-alike domain cannot be marked official here. If it really is yours, add its domain to the brand's official domains on the Brand Profile.")
     if d.category == "apps":
         if d.platform not in ("google_play", "app_store"):
             raise ActionError(422, "Only apps listed on Google Play or the App Store can be marked official. A third-party APK listing is never official.")
@@ -354,7 +378,7 @@ def mark_official(db: Session, brand: Brand, d: Detection, user: User, note: str
 def candidate_from_detection(d: Detection) -> Candidate:
     cand = (d.details or {}).get("candidate") or {}
     return Candidate(
-        platform=d.platform, kind="app" if d.category == "apps" else "social", handle=(d.package_id if d.category == "apps" else d.handle),
+        platform=d.platform, kind={"apps": "app", "web": "web"}.get(d.category, "social"), handle=(d.package_id if d.category == "apps" else d.handle),
         display_name=d.name, profile_url=d.profile_url, source=d.source, store=cand.get("store"), publisher=d.publisher,
         extras=(d.details or {}).get("extras") or {},
     )

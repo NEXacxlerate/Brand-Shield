@@ -45,6 +45,11 @@ def _sample_scan(settings, checker, *, with_logo=True):
     return ctx, client, h, b, scan
 
 
+def _social_and_apps(client, h):
+    """Web (look-alike domain) detections carry no logo; the logo/band tests are about social profiles and apps."""
+    return [i for i in all_detections(client, h) if i["category"] != "web"]
+
+
 def _details(client, h, items):
     return [client.get(f"/api/detections/{i['id']}", headers=h).json() for i in items]
 
@@ -90,7 +95,7 @@ def test_sample_scan_reaches_every_band_with_recorded_logo_comparison(settings, 
     ctx, c, h, _b, scan = _sample_scan(settings, checker)
     try:
         assert scan["counts"]["logo_compared"] > 0 and scan["counts"]["logo_unavailable"] == 0
-        items = all_detections(c, h)
+        items = _social_and_apps(c, h)
         bands = {band: [i for i in items if i["risk_band"] == band] for band in ("high", "medium", "low")}
         assert all(i["source"] == "sample" for i in items)
         assert len(bands["high"]) >= 4 and len(bands["medium"]) >= 3 and len(bands["low"]) >= 3
@@ -117,9 +122,9 @@ def test_sample_scan_reaches_every_band_with_recorded_logo_comparison(settings, 
 def test_sample_scan_excludes_official_echoes_and_does_not_flag_hard_negatives(settings, checker):
     ctx, c, h, _b, scan = _sample_scan(settings, checker)
     try:
-        assert scan["counts"]["official_excluded"] == 3
-        names = {i["name"].lower() for i in all_detections(c, h)}
-        assert "acmebank" not in {i["handle"] for i in all_detections(c, h) if i["platform"] in ("instagram", "x")}
+        assert scan["counts"]["official_excluded"] == 4  # 2 accounts + 1 app + 1 official domain (the web echo)
+        names = {i["name"].lower() for i in _social_and_apps(c, h)}
+        assert "acmebank" not in {i["handle"] for i in _social_and_apps(c, h) if i["platform"] in ("instagram", "x")}
         assert not any(n in ("acme bakery", "acme hotels", "acme weather") for n in names)
         cleared = c.get("/api/detections/false-positives", headers=h).json()["items"]
         assert len(cleared) >= 3 and all(i["source"] == "sample" and i["score"] < 25 for i in cleared)
@@ -132,7 +137,7 @@ def test_sample_scan_without_a_logo_stays_honestly_unavailable_and_caps_below_hi
     ctx, c, h, _b, scan = _sample_scan(settings, checker, with_logo=False)
     try:
         assert scan["counts"]["logo_compared"] == 0 and scan["counts"]["logo_unavailable"] > 0
-        items = all_detections(c, h)
+        items = _social_and_apps(c, h)
         assert items and all(i["score"] < 85 for i in items)
         d = _details(c, h, items[:1])[0]
         assert d["logo"]["status"] == "unavailable" and "Logo unavailable" in d["logo"]["reason"]
@@ -143,9 +148,9 @@ def test_sample_scan_without_a_logo_stays_honestly_unavailable_and_caps_below_hi
 def test_rescan_is_stable(settings, checker):
     ctx, c, h, _b, _scan = _sample_scan(settings, checker)
     try:
-        first = {(i["platform"], i["handle"], i["package_id"]): i["score"] for i in all_detections(c, h)}
+        first = {(i["platform"], i["handle"], i["package_id"]): i["score"] for i in _social_and_apps(c, h)}
         run_scan(c, h)
-        second = {(i["platform"], i["handle"], i["package_id"]): i["score"] for i in all_detections(c, h)}
+        second = {(i["platform"], i["handle"], i["package_id"]): i["score"] for i in _social_and_apps(c, h)}
         assert first == second
     finally:
         ctx.__exit__(None, None, None)
@@ -163,7 +168,7 @@ def test_inline_bytes_are_ignored_for_non_sample_sources(settings, checker):
         assert c.post(f"/api/brands/{b['id']}/logo", files={"file": ("logo.png", LOGO, "image/png")}, headers=h).status_code == 200
         scan = run_scan(c, h)
         assert scan["counts"]["logo_compared"] == 0 and scan["counts"]["logo_unavailable"] == 1
-        d = _details(c, h, all_detections(c, h))[0]
+        d = _details(c, h, _social_and_apps(c, h))[0]
         assert d["logo"]["status"] == "unavailable" and d["logo"].get("origin") is None
         assert not any(r["signal"] == "logo_similarity" for r in d["reasons"])
         assert d["source"] == "live"
@@ -178,7 +183,7 @@ def test_reset_sample_removes_only_sample_rows_and_a_rescan_restores_them(settin
     ctx, c, h, b, _scan = _sample_scan(settings, checker)
     try:
         sf = c.app_ref.app.state.session_factory if hasattr(c.app_ref, "app") else c.app_ref.state.session_factory
-        before = len(all_detections(c, h))
+        before = len(_social_and_apps(c, h))
         with sf() as db:
             live = Detection(brand_id=b["id"], source="live", type="fake_profile", category="social", platform="x", name="Live Row", handle="liverow", score=50, band="low")
             db.add(live)
@@ -189,6 +194,6 @@ def test_reset_sample_removes_only_sample_rows_and_a_rescan_restores_them(settin
             assert db.scalar(select(func.count()).select_from(Detection).where(Detection.source == "live")) == 1
             assert reset_sample_detections(db, b["id"]) == 0
         run_scan(c, h)
-        assert len([i for i in all_detections(c, h) if i["source"] == "sample"]) == before
+        assert len([i for i in _social_and_apps(c, h) if i["source"] == "sample"]) == before
     finally:
         ctx.__exit__(None, None, None)
