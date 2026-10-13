@@ -88,6 +88,12 @@ def decide_schedule(
     return ScheduleDecision(False, "Next scheduled scan is not due yet" + note + ".", due, effective, interval_minutes, stretched)
 
 
+WAITING_FOR_ASSETS = (
+    "Waiting for the first official account or app. Scheduled scans start once the brand has at least one, so no credits are spent "
+    "on a profile that cannot yet tell the brand's own pages from look-alikes."
+)
+
+
 def schedule_inputs(ctx: ScanContext, db) -> dict:
     """Read everything `decide_schedule` needs from settings, scans and the credit ledger."""
     mon = app_settings.get_monitoring(db)
@@ -106,6 +112,7 @@ def schedule_inputs(ctx: ScanContext, db) -> dict:
     return {
         "interval_minutes": minutes, "interval_source": source, "schedule": mon["schedule"], "last_scan_at": last,
         "running": running is not None, "credits_remaining": credits, "cost_per_scan": cost, "brand": brand,
+        "official_assets": (len(brand.accounts) + len(brand.apps)) if brand is not None else 0,
     }
 
 
@@ -114,6 +121,7 @@ def schedule_status(ctx: ScanContext, db, now: datetime | None = None) -> dict:
     now = now or ctx.now()
     inp = schedule_inputs(ctx, db)
     enabled = ctx.settings.scheduler_enabled and inp["interval_minutes"] > 0 and inp["brand"] is not None
+    waiting = inp["brand"] is not None and inp["official_assets"] == 0 and inp["interval_minutes"] > 0
     d = decide_schedule(now=now, interval_minutes=inp["interval_minutes"], last_scan_at=inp["last_scan_at"], running=inp["running"],
                         credits_remaining=inp["credits_remaining"], cost_per_scan=inp["cost_per_scan"])
     return {
@@ -124,8 +132,10 @@ def schedule_status(ctx: ScanContext, db, now: datetime | None = None) -> dict:
         "effective_interval_minutes": d.effective_interval_minutes,
         "stretched_for_credits": d.stretched,
         "paused_for_credits": d.skipped_for_credits,
-        "next_scan_at": d.next_run_at if enabled else None,
-        "reason": d.reason if enabled else ("The scheduler is disabled." if not ctx.settings.scheduler_enabled else d.reason),
+        "waiting_for_official_assets": waiting,
+        "next_scan_at": None if waiting else (d.next_run_at if enabled else None),
+        "reason": WAITING_FOR_ASSETS if waiting and ctx.settings.scheduler_enabled else (
+            d.reason if enabled else ("The scheduler is disabled." if not ctx.settings.scheduler_enabled else d.reason)),
     }
 
 
@@ -137,6 +147,8 @@ def scheduler_tick(ctx: ScanContext, now: datetime | None = None) -> ScheduleDec
             inp = schedule_inputs(ctx, db)
             if inp["brand"] is None:
                 return ScheduleDecision(False, "No brand profile yet.", None, 0, inp["interval_minutes"])
+            if inp["official_assets"] == 0 and inp["interval_minutes"] > 0:
+                return ScheduleDecision(False, WAITING_FOR_ASSETS, None, inp["interval_minutes"], inp["interval_minutes"])
             d = decide_schedule(now=now, interval_minutes=inp["interval_minutes"], last_scan_at=inp["last_scan_at"], running=inp["running"],
                                 credits_remaining=inp["credits_remaining"], cost_per_scan=inp["cost_per_scan"])
             if d.run:

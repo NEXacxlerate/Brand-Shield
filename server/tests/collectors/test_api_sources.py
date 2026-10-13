@@ -151,7 +151,7 @@ def test_retry_flow_unavailable_then_recovers_and_online_is_409(client, admin_h,
     assert client.post("/api/sources/9999/retry", headers=admin_h).status_code == 404
 
     world.tavily_status = 500
-    r = client.post(f"/api/sources/{sid}/retry", headers=analyst_h)
+    r = client.post(f"/api/sources/{sid}/retry?confirm=true", headers=analyst_h)
     assert r.status_code == 202, r.text
     j = r.json()
     assert j["source_id"] == sid and j["job_id"].startswith("retry_") and j["status"] == "unavailable"
@@ -162,8 +162,8 @@ def test_retry_flow_unavailable_then_recovers_and_online_is_409(client, admin_h,
     assert body["tavily_credits"]["used"] == 1  # a 5xx keeps the reservation (may have been billed)
 
     world.tavily_status = 200  # still inside the back-off window, but a manual retry ignores it
-    r = client.post(f"/api/sources/{sid}/retry", headers=admin_h)
-    assert r.status_code == 202 and r.json()["status"] == "online", r.text
+    r = client.post(f"/api/sources/{sid}/retry?confirm=true", headers=admin_h)
+    assert r.status_code == 202 and r.json()["status"] == "online" and r.json()["estimated_credits"] == 2, r.text
     _, by = sources_by_slug(client, viewer_h)
     assert by["instagram"]["status"] == "online" and by["instagram"]["last_sync_at"] and by["instagram"]["next_retry_at"] is None
     assert client.post(f"/api/sources/{sid}/retry", headers=admin_h).status_code == 409
@@ -173,6 +173,32 @@ def test_retry_flow_unavailable_then_recovers_and_online_is_409(client, admin_h,
     assert "tvly-test-key" not in client.get("/api/sources", headers=admin_h).text
     # all outbound requests went to the mocked hosts with the bearer key only in the header
     assert all(rq.url.host in ("api.tavily.com", "itunes.apple.com") for rq in world.requests)
+
+
+def test_retry_that_spends_credits_needs_confirmation_and_states_the_cost(client, admin_h, brand, world, db):
+    """D6: 'Retry now' on a Tavily-backed source used to spend credits silently."""
+    _, by = sources_by_slug(client, admin_h)
+    sid = by["instagram"]["id"]
+    est = by["instagram"]["retry_estimate"]
+    assert est["provider"] == "tavily" and est["credits"] == 2 and est["remaining"] == 900 and "2 Tavily credits" in est["note"]
+    assert by["app_store"]["retry_estimate"]["credits"] == 0 or by["app_store"]["retry_estimate"]["provider"] == "tavily"  # tavily also covers the stores
+    world.tavily_status = 500
+    r = client.post(f"/api/sources/{sid}/retry", headers=admin_h)  # no confirmation
+    assert r.status_code == 409 and r.json()["code"] == "confirmation_required" and r.json()["estimated_credits"] == 2
+    assert "2 Tavily credits" in r.json()["detail"] and r.json()["credits_remaining"] == 900
+    assert world.requests == [] and client.get("/api/sources", headers=admin_h).json()["tavily_credits"]["used"] == 0  # nothing was spent
+    assert db.query(AuditLog).filter(AuditLog.action == "source.retry").count() == 0
+    assert client.post(f"/api/sources/{sid}/retry?confirm=false", headers=admin_h).status_code == 409
+    ok = client.post(f"/api/sources/{sid}/retry?confirm=true", headers=admin_h)
+    assert ok.status_code == 202 and ok.json()["estimated_credits"] == 2
+    assert "confirmed" in db.query(AuditLog).filter(AuditLog.action == "source.retry").one().detail
+
+
+def test_retry_estimate_is_zero_in_sample_mode(client, admin_h, brand, world):
+    client.put("/api/settings/data-mode", json={"data_mode": "sample"}, headers=admin_h)
+    _, by = sources_by_slug(client, admin_h)
+    assert by["x"]["retry_estimate"]["credits"] == 0
+    assert client.post(f"/api/sources/{by['x']['id']}/retry", headers=admin_h).status_code == 202  # free: no confirmation needed
 
 
 def test_retry_requires_brand_and_monitoring(client, admin_h, world):
@@ -199,7 +225,7 @@ def test_budget_exhaustion_through_the_api_marks_source_unavailable(client, admi
     rt = app.state.collector_runtime
     rt.ledger.budget = 0
     _, by = sources_by_slug(client, admin_h)
-    r = client.post(f"/api/sources/{by['facebook']['id']}/retry", headers=admin_h)
+    r = client.post(f"/api/sources/{by['facebook']['id']}/retry?confirm=true", headers=admin_h)
     assert r.status_code == 202 and r.json()["status"] == "unavailable"
     assert "budget" in r.json()["source"]["message"].lower()
     assert world.requests == []
