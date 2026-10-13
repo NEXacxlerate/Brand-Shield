@@ -20,7 +20,13 @@ function watch(page: Page) {
 }
 
 /** A browser-reported failed HTTP status is an expected "console error" in tests that provoke 4xx/5xx on purpose. */
-const withoutHttpStatusNoise = (errors: string[]) => errors.filter((e) => !/Failed to load resource: the server responded with a status of (4|5)\d\d/.test(e));
+/** The report preview iframe is deliberately sandbox="" (no scripts). On Linux Chromium, Playwright inspecting that frame logs a "Blocked script execution" message: harmless, so it is ignored too. */
+const withoutHttpStatusNoise = (errors: string[]) =>
+  errors.filter(
+    (e) =>
+      !/Failed to load resource: the server responded with a status of (4|5)\d\d/.test(e) &&
+      !/Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed/.test(e)
+  );
 
 async function offlineFonts(page: Page) {
   // index.html loads Manrope from Google Fonts: keep the tests free of third-party network access.
