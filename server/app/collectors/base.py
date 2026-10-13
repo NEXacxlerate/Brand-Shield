@@ -66,6 +66,9 @@ class Candidate:
     extras: dict[str, Any] = field(default_factory=dict)
     stale: bool = False  # True when served from the cache because the source was unavailable
     cached_at: datetime | None = None
+    # SAMPLE-ONLY: generated image bytes (see sample_images.py). The scan pipeline ignores this for any
+    # candidate whose source is not "sample", and it is never serialized (cache / evidence snapshots).
+    inline_image: bytes | None = field(default=None, repr=False, compare=False)
 
     @property
     def data_source(self) -> str:
@@ -79,6 +82,7 @@ class Candidate:
     # ---- (de)serialization for the result cache ----
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
+        d.pop("inline_image", None)
         d["fetched_at"] = self.fetched_at.isoformat()
         d["cached_at"] = self.cached_at.isoformat() if self.cached_at else None
         d["created_at"] = self.created_at.isoformat() if self.created_at else None
@@ -120,6 +124,7 @@ class Candidate:
             publisher=self.publisher,
             description=self.bio,
             rating_count=self.rating_count,
+            installs=self.extras["installs_count"] if isinstance(self.extras.get("installs_count"), int) else None,
             published_at=_iso_datetime(self.extras.get("released_at")),
         )
 
@@ -145,6 +150,8 @@ class BrandQuery:
     official_handles: dict[str, tuple[str, ...]] = field(default_factory=dict)  # platform -> bare handles
     official_apps: tuple[tuple[str, str, str], ...] = ()  # (name, package_id, publisher)
     publisher_names: tuple[str, ...] = ()
+    # Raw bytes of the uploaded brand logo. Loaded only in sample mode, for the sample collector's generated images.
+    logo_bytes: bytes | None = field(default=None, repr=False, compare=False)
 
     @property
     def terms(self) -> list[str]:

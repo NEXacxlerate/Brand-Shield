@@ -283,6 +283,14 @@ def _load_brand_logo(settings: Settings, brand: Brand):
         return None
 
 
+def _read_logo_bytes(settings: Settings, brand: Brand) -> bytes | None:
+    path = evidence.safe_path(settings.data_dir, brand.logo_path)
+    try:
+        return path.read_bytes() if path is not None else None
+    except OSError:
+        return None
+
+
 def _logo_step(ctx: ScanContext, env: _Env, c: Candidate, counts: dict) -> tuple[float | None, dict]:
     """SSRF-safe fetch + similarity. A failure NEVER fails the candidate: it is recorded as 'logo unavailable'."""
     what = "icon" if c.kind == "app" else "profile picture"
@@ -291,10 +299,25 @@ def _logo_step(ctx: ScanContext, env: _Env, c: Candidate, counts: dict) -> tuple
         counts["logo_unavailable"] += 1
         return None, {"status": "unavailable", "similarity": None, "reason": f"Logo unavailable: {why}"}
 
+    if c.data_source == "sample":
+        # Sample candidates never touch the network. They may carry generated image bytes (derived from the brand's
+        # own uploaded logo); without them the honest answer stays "unavailable". Non-sample candidates never get here.
+        if not c.inline_image:
+            return unavailable("this sample candidate has no generated image (no brand logo has been uploaded)")
+        if env.official_logo is None:
+            return unavailable("no official logo has been uploaded for the brand")
+        try:
+            sim = best_logo_similarity(load_image(c.inline_image), [env.official_logo])
+        except Exception:  # noqa: BLE001
+            return unavailable(f"the generated sample {what} could not be compared")
+        counts["logo_compared"] += 1
+        return float(sim), {
+            "status": "compared", "similarity": round(float(sim), 1), "reason": None,
+            "origin": "generated_sample", "variant": c.extras.get("logo_variant"),
+            "note": "Compared against a generated sample image, not a real downloaded picture.",
+        }
     if not ctx.settings.scan_logo_fetch:
         return unavailable("logo fetching is switched off")
-    if c.data_source == "sample":
-        return unavailable("sample data has no images")
     if env.official_logo is None:
         return unavailable("no official logo has been uploaded for the brand")
     if not c.icon_url:
@@ -312,7 +335,7 @@ def _logo_step(ctx: ScanContext, env: _Env, c: Candidate, counts: dict) -> tuple
     except Exception:  # noqa: BLE001
         return unavailable(f"{what} could not be compared")
     counts["logo_compared"] += 1
-    return float(sim), {"status": "compared", "similarity": round(float(sim), 1), "reason": None}
+    return float(sim), {"status": "compared", "similarity": round(float(sim), 1), "reason": None, "origin": "fetched"}
 
 
 def evaluate(ctx: ScanContext, env: _Env, brand: Brand, c: Candidate, counts: dict) -> Outcome:
@@ -586,7 +609,9 @@ def _execute(ctx: ScanContext, scan_id: int, t0: float) -> None:
         assert scan is not None
         brand_id, scope = scan.brand_id, scan.scope
         selection = select_collectors(ctx.settings, data_mode.get_data_mode(db))
-        brand_query = load_brand_query(db, brand_id)
+        brand_query = load_brand_query(
+            db, brand_id, logo_bytes=(lambda b: _read_logo_bytes(ctx.settings, b)) if selection.effective_mode == "sample" else None
+        )
         if brand_query is None:
             raise RuntimeError("brand missing")
         collectors = ctx.runtime.build(selection)

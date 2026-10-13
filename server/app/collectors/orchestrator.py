@@ -120,7 +120,7 @@ class RunResult:
 # Brand snapshot
 
 
-def load_brand_query(db: Session, brand_id: int | None = None) -> BrandQuery | None:
+def load_brand_query(db: Session, brand_id: int | None = None, *, logo_bytes: Callable[[Brand], bytes | None] | None = None) -> BrandQuery | None:
     brand = db.get(Brand, brand_id) if brand_id else db.scalars(select(Brand).order_by(Brand.id)).first()
     if brand is None:
         return None
@@ -136,6 +136,7 @@ def load_brand_query(db: Session, brand_id: int | None = None) -> BrandQuery | N
         official_handles={k: tuple(v) for k, v in handles.items()},
         official_apps=tuple((a.name, a.package_id, a.publisher) for a in brand.apps),
         publisher_names=tuple({a.publisher for a in brand.apps if a.publisher}),
+        logo_bytes=logo_bytes(brand) if logo_bytes else None,
     )
 
 

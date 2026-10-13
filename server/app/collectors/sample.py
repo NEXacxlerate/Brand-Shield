@@ -3,8 +3,11 @@
 Used when the data mode resolves to `sample` (never in live mode). EVERY candidate has source="sample".
 It produces, seeded by brand id and name:
   * echoes of the brand's own official assets (to prove the allowlist excludes them),
-  * mutated look-alikes with lure bios and young accounts (engine techniques, see engine/synthetic.py),
+  * mutated look-alikes in three tiers (strong / medium / weak). The tier sets bio, account age and which generated
+    logo variant they carry, so a sample scan spans Low, Medium and High through the unchanged scorer,
   * hard negatives: other businesses that share one word with the brand.
+When the brand has an uploaded logo, candidates carry GENERATED image bytes (sample_images.py: variants of that logo, or an
+unrelated image). Only this collector produces them and the pipeline honours them only for source="sample".
 Names are derived only from the user's own brand profile plus generic business words. It never invents
 real people or real brands.
 """
@@ -16,8 +19,11 @@ import re
 from datetime import timedelta
 
 from app.collectors.base import BrandQuery, Candidate, CollectContext, Collector
+from app.collectors.sample_images import make_variant
+from app.engine.name_match import FLAGGED, NameMatcher
 from app.engine.synthetic import BENIGN_SUFFIXES, generate_cases
 from app.engine.urls import parse_profile_url, parse_store_url
+from app.engine.vocab import STRONG_SCAM_WORDS
 
 SOURCE = "sample"
 _LURES = [
@@ -66,7 +72,7 @@ class SampleCollector(Collector):
     kind = "mixed"
     platforms = ("instagram", "facebook", "x", "telegram", "linkedin", "google_play", "app_store", "third_party_apk")
 
-    def __init__(self, *, seed: int = 3, lookalikes: int = 8, hard_negatives: int = 4, app_lookalikes: int = 3) -> None:
+    def __init__(self, *, seed: int = 3, lookalikes: int = 12, hard_negatives: int = 4, app_lookalikes: int = 5) -> None:
         super().__init__()
         self.seed = seed
         self.n_look = lookalikes
@@ -113,29 +119,77 @@ class SampleCollector(Collector):
             )
         return out
 
+    def _ranked(self, brand: BrandQuery, seed: int, per_technique: int, ascii_only: bool = False, scam_word_bonus: int = 0) -> list[tuple]:
+        """Flagged-looking name mutations, strongest name signal first (ties broken deterministically by a seeded shuffle)."""
+        matcher = NameMatcher(brand.name, brand.aliases)
+        positives = [c for c in generate_cases(brand.name, seed=seed, per_technique=per_technique) if c.expect_flagged]
+        if ascii_only:
+            positives = [c for c in positives if c.text.isascii()]
+        random.Random(f"{seed}:{brand.brand_id}:rank").shuffle(positives)
+        scored = [(matcher.match(c.text), c) for c in positives]
+        def strength(m) -> int:
+            return m.name_match_pct + (scam_word_bonus if any(w in STRONG_SCAM_WORDS for w in m.added_words) else 0)
+
+        scored.sort(key=lambda t: (t[0].verdict != FLAGGED, -strength(t[0])))
+        return scored
+
+    @staticmethod
+    def _tiers(n: int) -> list[str]:
+        """Tier of each look-alike: a few strong, a few medium, the rest weak (they stay Low)."""
+        strong, medium = max(1, round(n * 0.33)), max(1, round(n * 0.25))
+        return (["strong"] * strong + ["medium"] * medium + ["weak"] * n)[:n]
+
+    @staticmethod
+    def _image(brand: BrandQuery, variant: str, seed: str, extras: dict) -> bytes | None:
+        """Generated image for the candidate, or None when the brand has no uploaded logo (then 'logo unavailable' is honest)."""
+        data = make_variant(brand.logo_bytes, variant, seed)
+        if data is not None:
+            extras["logo_image"] = "generated_sample"
+            extras["logo_variant"] = variant
+        return data
+
     def _lookalikes(self, brand: BrandQuery, rnd: random.Random, now) -> list[Candidate]:
-        positives = [c for c in generate_cases(brand.name, seed=self.seed, per_technique=4) if c.expect_flagged]
-        rnd.shuffle(positives)
+        ranked = self._ranked(brand, self.seed, 4, scam_word_bonus=15)
+        strong_variants = ["near_copy", "resized", "recoloured", "cropped"]
         out: list[Candidate] = []
         used: set[tuple[str, str]] = set()
+        tiers = self._tiers(self.n_look)
+        own_handles = {re.sub(r"[^a-z0-9]", "", t.lower()) for t in (brand.name, *brand.aliases)}
         i = 0
-        for case in positives:
-            if len(out) >= self.n_look:
+        for match, case in ranked:
+            if len(out) >= len(tiers):
                 break
+            tier = tiers[len(out)]
+            if tier != "strong" and any(w in STRONG_SCAM_WORDS for w in match.added_words):
+                continue  # scam words in the name are what lift a candidate into High; keep them for the strong tier
             platform = _SOCIAL[i % len(_SOCIAL)]
             handle = _slug(case.text, platform)
+            if handle.replace("_", "").replace(".", "") in own_handles:
+                continue  # a look-alike must never collide with the brand's own handle (e.g. "Ac Meb Ank" -> "acmebank")
             if len(handle) < 4 or (platform, handle) in used or not _valid_profile(platform, _profile_url(platform, handle)):
                 continue
             used.add((platform, handle))
             i += 1
-            age = rnd.randint(3, 60)
+            extras: dict = {"sample_role": "lookalike", "sample_tier": tier, "technique": case.technique}
+            if tier == "strong":  # copied logo, lure bio, brand-new account with the follower pattern of a scam page
+                age, bio = rnd.randint(3, 12), _LURES[(0, 1, 4)[len(out) % 3]]
+                variant = strong_variants[len(out) % len(strong_variants)]
+                stats = {"followers": rnd.randint(20, 400), "following": rnd.randint(2500, 4000), "posts": rnd.randint(0, 4)}
+            elif tier == "medium":  # edited logo and a lure bio on a young account
+                age, bio = rnd.randint(20, 55), _LURES[(1, 4)[len(out) % 2]]
+                variant = "cropped" if len(out) % 2 else "recoloured"
+                stats = {"followers": rnd.randint(100, 900), "following": rnd.randint(300, 1500), "posts": rnd.randint(0, 9)}
+            else:  # look-alike name only: its own picture, ordinary bio, older account
+                age, bio = rnd.randint(150, 600), rnd.choice(_NEUTRAL_BIOS)
+                variant = "unrelated"
+                stats = {"followers": rnd.randint(200, 3000), "following": rnd.randint(100, 600), "posts": rnd.randint(20, 200)}
+            extras["account_age_days"] = age
+            image = self._image(brand, variant, f"{brand.brand_id}:{handle}", extras)
             out.append(
                 Candidate(
                     platform=platform, kind="social", handle=handle, display_name=case.text.title() if case.text.isascii() else case.text,
-                    profile_url=_profile_url(platform, handle), source=SOURCE, fetched_at=now, bio=rnd.choice(_LURES),
-                    followers=rnd.randint(20, 900), following=rnd.randint(300, 4000), posts=rnd.randint(0, 9), verified=False,
-                    created_at=(now - timedelta(days=age)).date(),
-                    extras={"sample_role": "lookalike", "technique": case.technique, "account_age_days": age},
+                    profile_url=_profile_url(platform, handle), source=SOURCE, fetched_at=now, bio=bio, verified=False,
+                    created_at=(now - timedelta(days=age)).date(), extras=extras, inline_image=image, **stats,
                 )
             )
         return out
@@ -151,51 +205,64 @@ class SampleCollector(Collector):
             if len(handle) < 4 or not _valid_profile(platform, _profile_url(platform, handle)):
                 continue
             age = rnd.randint(700, 3000)
+            extras = {"sample_role": "hard_negative", "account_age_days": age}
+            image = self._image(brand, "unrelated", f"{brand.brand_id}:{handle}", extras)
             out.append(
                 Candidate(
                     platform=platform, kind="social", handle=handle, display_name=name, profile_url=_profile_url(platform, handle),
                     source=SOURCE, fetched_at=now, bio=rnd.choice(_NEUTRAL_BIOS), followers=rnd.randint(300, 20_000),
                     following=rnd.randint(50, 400), posts=rnd.randint(40, 900), verified=False,
                     created_at=(now - timedelta(days=age)).date(),
-                    extras={"sample_role": "hard_negative", "account_age_days": age},
+                    extras=extras, inline_image=image,
                 )
             )
         return out
 
     def _app_candidates(self, brand: BrandQuery, rnd: random.Random, now) -> list[Candidate]:
-        positives = [c for c in generate_cases(brand.name, seed=self.seed + 1, per_technique=3) if c.expect_flagged and c.text.isascii()]
-        rnd.shuffle(positives)
+        ranked = self._ranked(brand, self.seed + 1, 3, ascii_only=True)
+        n = self.n_apps
+        tiers = (["strong"] * max(1, round(n * 0.4)) + ["medium"] * max(1, round(n * 0.2)) + ["weak"] * n)[:n]
         out: list[Candidate] = []
-        for case in positives:
-            if len(out) >= self.n_apps:
+        for _match, case in ranked:
+            if len(out) >= len(tiers):
                 break
+            tier = tiers[len(out)]
             slug = re.sub(r"[^a-z0-9]", "", case.text.lower())
             if len(slug) < 4:
                 continue
-            platform = _STORES[len(out) % len(_STORES)]
+            # strong ones are APK-mirror copies; the others sit in the official stores
+            platform = "third_party_apk" if tier == "strong" else ("google_play", "app_store")[len(out) % 2]
             pkg = f"com.{slug}.app"
+            app_id = str(rnd.randint(1_000_000_000, 1_999_999_999))
             if platform == "google_play":
                 url, store = f"https://play.google.com/store/apps/details?id={pkg}", "google_play"
-                ok = parse_store_url(url).ok
             elif platform == "app_store":
-                app_id = str(rnd.randint(1_000_000_000, 1_999_999_999))
                 url, store = f"https://apps.apple.com/in/app/{slug}/id{app_id}", "apple_app_store"
-                ok = parse_store_url(url).ok
             else:
                 url, store = f"https://apkpure.com/{slug}/{pkg}", "apkpure"
-                ok = parse_store_url(url).ok
-            if not ok:
+            if not parse_store_url(url).ok:
                 continue
-            extras = {"sample_role": "lookalike", "technique": case.technique}
+            extras: dict = {"sample_role": "lookalike", "sample_tier": tier, "technique": case.technique}
             if platform == "app_store":
                 extras["apple_app_id"] = app_id
             if platform == "third_party_apk":
                 extras["mirror"] = store
+            if tier == "strong":  # brand-new, barely installed mirror copy with the official icon
+                extras["installs_count"] = rnd.randint(40, 900)
+                extras["released_at"] = (now - timedelta(days=rnd.randint(2, 20))).isoformat()
+                variant = "near_copy"
+                rating = (round(rnd.uniform(2.1, 3.6), 1), rnd.randint(2, 9))
+            elif tier == "medium":  # an edited icon on a barely installed copy
+                extras["installs_count"] = rnd.randint(200, 900)
+                variant, rating = "recoloured", (round(rnd.uniform(2.1, 3.6), 1), rnd.randint(10, 80))
+            else:
+                variant, rating = "unrelated", (round(rnd.uniform(3.0, 4.2), 1), rnd.randint(50, 400))
+            image = self._image(brand, variant, f"{brand.brand_id}:{pkg}", extras)
             out.append(
                 Candidate(
                     platform=platform, kind="app", handle=pkg, display_name=case.text.title(), profile_url=url, source=SOURCE,
-                    fetched_at=now, bio=rnd.choice(_LURES), store=store, publisher=f"{slug[:8].title()} Apps Ltd",
-                    rating=round(rnd.uniform(2.1, 3.6), 1), rating_count=rnd.randint(3, 400), extras=extras,
+                    fetched_at=now, bio=_LURES[0] if tier != "weak" else rnd.choice(_NEUTRAL_BIOS), store=store,
+                    publisher=f"{slug[:8].title()} Apps Ltd", rating=rating[0], rating_count=rating[1], extras=extras, inline_image=image,
                 )
             )
         return out

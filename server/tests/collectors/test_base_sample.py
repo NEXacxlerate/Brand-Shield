@@ -124,7 +124,9 @@ def test_sample_contains_echoes_lookalikes_and_hard_negatives():
     echoes = [c for c in out if c.extras["sample_role"] == "official_echo"]
     assert {(c.platform, c.handle) for c in echoes} == {("instagram", "acmebank"), ("x", "acmebank"), ("google_play", "com.acmebank.mobile")}
     looks = [c for c in out if c.extras["sample_role"] == "lookalike" and c.kind == "social"]
-    assert len(looks) >= 5 and all(c.extras["account_age_days"] <= 60 and (c.bio or "") for c in looks)
+    assert len(looks) >= 10 and all((c.bio or "") for c in looks)
+    assert {c.extras["sample_tier"] for c in looks} == {"strong", "medium", "weak"}
+    assert all(c.extras["account_age_days"] <= 60 for c in looks if c.extras["sample_tier"] != "weak")
     assert all(c.handle != "acmebank" for c in looks)
     negs = [c for c in out if c.extras["sample_role"] == "hard_negative"]
     assert negs and all(c.display_name.startswith("Acme ") for c in negs) and all(c.extras["account_age_days"] > 365 for c in negs)

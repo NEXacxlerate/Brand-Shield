@@ -13,7 +13,7 @@ Code: `server/app/collectors/`.
 | SearXNG | `searxng.py` | Optional fallback for social profiles. Needs `SEARXNG_BASE_URL` and `json` enabled in the instance |
 | iTunes | `itunes.py`, `util.py` | App Store search, no key. Spaced to ~20 calls/min, responses cached with a TTL |
 | Google Play | `google_play.py` | Optional package behind an adapter; `not_installed` when absent |
-| Sample | `sample.py` | Deterministic synthetic candidates, every one `source="sample"` |
+| Sample | `sample.py`, `sample_images.py` | Deterministic synthetic candidates, every one `source="sample"`: official echoes, strong / medium / weak look-alikes, hard negatives, app look-alikes. With an uploaded brand logo they carry GENERATED image bytes (`Candidate.inline_image`: near copy, resized, recoloured, cropped or unrelated) so the normal logo comparison runs with no network; the pipeline honours those bytes only for `source="sample"`. Details: DECISIONS.md "Sample logo variants" |
 | Selection | `selection.py` | Data mode (`live\|sample\|auto`) and the ordered chain with reasons |
 | Orchestrator | `orchestrator.py` | Runs the chain, records `sources` status, caches last good results, back-off |
 

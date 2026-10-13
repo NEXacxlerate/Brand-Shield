@@ -3,7 +3,10 @@
 Goes through the real endpoints, so every validation rule applies. Safe to re-run: an existing brand is reused.
 Nothing here is real: "Acme Bank" and its handles are made up, and the detections it produces are labelled sample data.
 
-Usage (API must be running):  python -m scripts.seed_test_brand [--base-url http://127.0.0.1:8000]
+Usage (API must be running):  python -m scripts.seed_test_brand [--base-url http://127.0.0.1:8000] [--reset-sample]
+Re-running refreshes the brand's sample detections (same handles are updated in place, human decisions are kept). When the sample
+generator itself changed (new handles / scores), pass --reset-sample: it deletes ONLY this brand's source="sample" detections
+and cleared rows from the database in DATABASE_URL (live data is untouched), then scans again.
 Credentials come from ADMIN_EMAIL / ADMIN_PASSWORD in the environment or server/.env (never printed).
 """
 import argparse
@@ -54,6 +57,7 @@ def env_value(name: str) -> str | None:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--base-url", default="http://127.0.0.1:8000")
+    ap.add_argument("--reset-sample", action="store_true", help="delete this brand's sample-data detections first (sample rows only)")
     args = ap.parse_args()
     email, password = env_value("ADMIN_EMAIL"), env_value("ADMIN_PASSWORD")
     if not (email and password):
@@ -83,6 +87,14 @@ def main() -> int:
             print(f"Account {platform}/{handle}:", r.status_code, "" if r.status_code == 201 else r.text[:150])
         r = c.post(f"/api/brands/{brand['id']}/apps", json=APP, headers=h)
         print("App:", r.status_code, "" if r.status_code == 201 else r.text[:150])
+
+    if args.reset_sample:
+        from app.core.config import get_settings
+        from app.db.session import make_engine, make_session_factory
+        from app.services.sample_reset import reset_sample_detections
+
+        with make_session_factory(make_engine(get_settings().database_url))() as db:
+            print(f"Removed {reset_sample_detections(db, brand['id'])} sample detections (live data untouched).")
 
     r = c.put("/api/settings/data-mode", json={"data_mode": "sample"}, headers=h)
     print("Data mode -> sample:", r.status_code)
