@@ -58,6 +58,8 @@ class AppCreate(BaseModel):
     package_id: str = Field(min_length=1, max_length=155)
     publisher: str = Field(min_length=1, max_length=120)
     stores: list[str] = Field(min_length=1)
+    # Optional numeric App Store id (or the listing URL): lets a listing that only exposes the id be recognised as official.
+    apple_app_id: str | None = Field(default=None, max_length=300)
 
     @field_validator("name", "publisher")
     @classmethod
@@ -82,7 +84,22 @@ class AppCreate(BaseModel):
     @model_validator(mode="after")
     def _package(self) -> "AppCreate":
         self.package_id = v.validate_package_id(self.package_id, self.stores)
+        if self.apple_app_id is not None and self.apple_app_id.strip():
+            if "app_store" not in self.stores:
+                raise ValueError("An App Store id can only be given for an app listed on the App Store")
+            self.apple_app_id = v.normalize_apple_app_id(self.apple_app_id)
+        else:
+            self.apple_app_id = None
         return self
+
+
+class AppUpdate(BaseModel):
+    apple_app_id: str = Field(min_length=1, max_length=300)
+
+    @field_validator("apple_app_id")
+    @classmethod
+    def _apple(cls, raw: str) -> str:
+        return v.normalize_apple_app_id(raw)
 
 
 class LogoOut(BaseModel):
@@ -120,6 +137,7 @@ class AppOut(BaseModel):
     stores: list[str]
     status: str
     source: str
+    apple_app_id: str | None = None
 
 
 class AppList(BaseModel):

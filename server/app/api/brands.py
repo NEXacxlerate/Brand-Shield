@@ -21,6 +21,7 @@ from app.schemas.brand import (
     AppCreate,
     AppList,
     AppOut,
+    AppUpdate,
     BrandIdentity,
     BrandOut,
     BrandSummary,
@@ -67,6 +68,7 @@ def app_out(a: OfficialApp) -> AppOut:
         stores=a.stores,
         status=a.status,
         source=a.source,
+        apple_app_id=a.store_id,
     )
 
 
@@ -282,8 +284,21 @@ def add_app(
 ) -> AppOut:
     brand = get_brand_or_404(db, brand_id)
     key = body.package_id.lower()
-    if db.scalar(select(OfficialApp.id).where(OfficialApp.brand_id == brand.id, OfficialApp.package_key == key)):
-        raise HTTPException(409, f"{body.package_id} is already an official app")
+    existing = db.scalar(select(OfficialApp).where(OfficialApp.brand_id == brand.id, OfficialApp.package_key == key))
+    if existing is not None:
+        # D4: the same app on the other store is the same official app: add the store instead of refusing
+        new_stores = [st for st in body.stores if st not in (existing.stores or [])]
+        if not new_stores:
+            raise HTTPException(409, f"{body.package_id} is already an official app")
+        existing.stores = [*(existing.stores or []), *new_stores]
+        if body.apple_app_id:
+            existing.store_id = body.apple_app_id
+        _touch(brand)
+        audit.record(db, user, "app.updated", f"{existing.name} ({existing.package_id})", "store added: " + ", ".join(new_stores))
+        db.expire(brand, ["apps"])
+        sync_with_allowlist(db, brand, user)
+        db.commit()
+        return app_out(existing)
     app = OfficialApp(
         brand_id=brand.id,
         name=body.name,
@@ -291,6 +306,7 @@ def add_app(
         package_key=key,
         publisher=body.publisher,
         stores=body.stores,
+        store_id=body.apple_app_id,
     )
     db.add(app)
     db.flush()
@@ -303,6 +319,26 @@ def add_app(
     except IntegrityError as exc:
         db.rollback()
         raise HTTPException(409, f"{body.package_id} is already an official app") from exc
+    return app_out(app)
+
+
+@router.patch("/{brand_id}/apps/{app_id}", response_model=AppOut)
+def update_app(
+    brand_id: int, app_id: int, body: AppUpdate, user: User = Depends(require_writer), db: Session = Depends(get_db)
+) -> AppOut:
+    """Store the numeric App Store id of an official app (so the same listing arriving with only its id is not flagged)."""
+    brand = get_brand_or_404(db, brand_id)
+    app = db.get(OfficialApp, app_id)
+    if app is None or app.brand_id != brand.id:
+        raise HTTPException(404, "App not found")
+    if "app_store" not in (app.stores or []):
+        raise HTTPException(422, "Only an app listed on the App Store has an App Store id")
+    app.store_id = body.apple_app_id
+    _touch(brand)
+    audit.record(db, user, "app.updated", f"{app.name} ({app.package_id})", f"App Store id {body.apple_app_id}")
+    db.expire(brand, ["apps"])
+    sync_with_allowlist(db, brand, user)
+    db.commit()
     return app_out(app)
 
 

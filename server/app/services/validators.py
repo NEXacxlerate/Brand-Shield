@@ -90,3 +90,20 @@ def validate_package_id(package_id: str, stores: list[str]) -> str:
     if "app_store" in stores and not _APPLE_BUNDLE_RE.fullmatch(pkg):
         raise ValueError("Not a valid App Store bundle ID (e.g. com.example.app: letters, digits, hyphen, dot)")
     return pkg
+
+
+_APPLE_ID_RE = re.compile(r"^[0-9]{6,15}$")
+_APPLE_URL_ID_RE = re.compile(r"^https?://(?:apps|itunes)\.apple\.com/.*?/?id([0-9]{6,15})(?:[/?#].*)?$", re.I)
+
+
+def normalize_apple_app_id(raw: str) -> str:
+    """The numeric App Store id from `123456789`, `id123456789` or an apps.apple.com/.../id123456789 URL. Raises ValueError otherwise."""
+    t = (raw or "").strip()
+    m = _APPLE_URL_ID_RE.match(t)
+    if m:
+        return m.group(1)
+    if t.lower().startswith("id"):
+        t = t[2:]
+    if not _APPLE_ID_RE.fullmatch(t):
+        raise ValueError("Not an App Store id: use the number from the listing URL (apps.apple.com/.../id123456789) or paste the URL")
+    return t
