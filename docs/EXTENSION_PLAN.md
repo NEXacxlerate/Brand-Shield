@@ -1,6 +1,6 @@
 # Extension plan: DigitalTrust AI brief on top of ScamMind AI
 
-Status: PLAN ONLY. No code changed. Written 2026-10-13 from a read of `server/app`, `frontend/src`, `docs/`.
+Status: E1-E4 IMPLEMENTED 2026-10-14 (see the progress table below); E5-E10 not started. Originally written as a plan only. Written 2026-10-13 from a read of `server/app`, `frontend/src`, `docs/`.
 Provider facts in section 3 were read from official docs/PyPI on this date; anything not confirmed is marked UNVERIFIED.
 
 ## 1. Gap analysis (requirement by requirement)
@@ -103,6 +103,17 @@ Rules for every package: all existing tests stay green; `pytest -q` and `npm tes
 **E10 Evaluation, security hardening, verification (L)**
 - Evaluation extensions (confusion matrix, FPR, per-class, versions, hard negatives: fan pages, authorized resellers, unrelated similar names; all tagged synthetic). General rate limiter on write/import/upload routes; CORS review; prompt-injection regression set; SSRF tests for new URL inputs; `docs/SECURITY.md` finalized (auth, audit, tenant isolation notes). Optional: RF baseline in `scripts/train_ml.py`, off by default, only if labelled data exists.
 - Final verification: full pytest (SQLite + Postgres if available), frontend tsc/vitest/build, migration up/down, `scripts/evaluate.py`, live-check script with keys, update `API.md`, `DECISIONS.md`, `COLLECTORS.md`, `FRONTEND_CONTRACT.md`, `DEPENDENCIES.md`.
+
+### Progress (updated 2026-10-14)
+
+| Package | State | Notes |
+|---|---|---|
+| E1 Decisions and foundations | DONE (partly) | Decisions recorded in DECISIONS.md. Deps: tldextract, rapidfuzz, idna in `requirements.txt`; ImageHash in `requirements-extra.txt` (unused until E6); google-genai / huggingface_hub NOT added yet (E5). `.env.example` has the Safe Browsing and severity names; Gemini/HF names come with E5. `docs/SECURITY.md` skeleton not written. |
+| E2 Risk engine skeleton | DONE | `engine/risk_engine.py` (severity, algorithm_version, scored_at, signals, provenance, weights_v1 frozen, golden test). Migration 0005 adds severity, algorithm_version, scored_at. `resolution` column and `provenance` in `evidence` deliberately NOT done (signals live in `details`; `resolution` belongs to Investigations, E9). |
+| E3 Domain lookalike | DONE | `engine/domain_match.py`: URL normalization, IDN/punycode, registrable domain, deceptive subdomain, userinfo trick, TLD swap, homoglyph, RapidFuzz (additional signal). Handle (social) lookalike with RapidFuzz not done. |
+| E4 Safe Browsing | DONE (mocked HTTP only) | `providers/safe_browsing.py`, wired into the scan for web candidates, budget and 429 handling, `GET /api/sources` > `reputation`. Not run against the live API (needs a key). Source Health row not added (reported as a block on `/api/sources`). Web candidate category added end to end (D8) in the API; no UI list yet. |
+| Defects D3, D4, D5, D6 | FIXED | See FEATURE_STATUS.md. |
+| E5-E10 | NOT STARTED | |
 
 ## 5. What the user must provide, and when
 

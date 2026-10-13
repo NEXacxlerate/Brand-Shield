@@ -943,3 +943,59 @@ No component makes a live third-party call. Collector state comes from configura
 `GET /api/health/details` adds, per component: `migration {current, expected, note}`, `collectors {data_mode, effective_mode, sources: {name: {configured, active, status, reason, last_status, last_reason, last_attempt_age_seconds, last_success_age_seconds, consecutive_failures}}}`, `redis {error}`, `worker {workers, queued, last_heartbeat_age_seconds}`, `data_dir {writable, free_mb}`.
 
 Canary `checks[].name`: `scan_completed`, `lookalike_profile_detected`, `lookalike_app_detected`, `official_assets_excluded`, `unrelated_business_not_flagged`, `score_is_explained`, `results_labelled_sample`. The canary never reads or writes the real database and makes no network call.
+
+
+## 20. Extension work packages E1-E4 (authoritative for the items below)
+
+### 20.1 Severity, algorithm version, signals (every detection)
+`risk_band` is unchanged (`high` >= 85, `medium` 70-84, `low` < 70). Detection summaries and details now also carry:
+
+| Field | Meaning |
+|---|---|
+| `severity` | `LOW` / `MEDIUM` / `HIGH` / `CRITICAL`. Default cutoffs: LOW < 40, MEDIUM 40-69, HIGH 70-84, CRITICAL 85+ (`SEVERITY_MEDIUM_MIN`, `SEVERITY_HIGH_MIN`, `SEVERITY_CRITICAL_MIN`). HIGH and CRITICAL begin where the old medium and high bands begin. |
+| `algorithm_version` (detail) | `"1.0"` social and app detections (original scorer, frozen weights `weights_v1`); `"2.0"` web detections (`weights_v2_web`). |
+| `scored_at` (detail) | When this score was computed (ISO UTC). |
+| `weights` (detail) | `weights_v1` or `weights_v2_web`. |
+| `signals` (detail) | List of `{id, status, value, points, max_points, provenance, note, checked_at}`. `status`: `present` (found, scored), `clean` (checked, nothing found), `unavailable` (could not be checked: no logo, no bio, no key, quota, timeout). `value` is 0-1 for present/clean and `null` for unavailable, so a missing answer is never read as clean. `provenance`: `real_api` (a live provider answered), `local_algorithm`, `pretrained_model` (reserved), `synthetic` (sample data). |
+
+`GET /api/detections` accepts `severity=LOW|MEDIUM|HIGH|CRITICAL`; `counts` gains `by_severity` and `by_category`. The engine only scores; no status is ever set automatically.
+`GET /api/dashboard`: `counts.by_severity`, `counts.by_category.web`, `counts.by_type.lookalike_domain`, `kpis.web_threats`. `by_type` lists `lookalike_domain` only when something was found.
+
+### 20.2 The `web` category (look-alike domains / websites)
+* `category=web`, `type=lookalike_domain`, `platform=web`. Filters: `category=web`, `type=web` (category word) or `type=lookalike_domain`, `platform=web`.
+* `handle` is the normalized ASCII host (punycode for IDN), `name` the Unicode host, `profile_url` the canonical URL (userinfo, query and fragment removed). One detection per host.
+* Detail: `domain` (normalized URL parts and `components`: label, subdomain, suffix, techniques, `tld_swap`, `brand_in_subdomain`, `userinfo_trick`, `mixed_script`, `rapidfuzz`), `reputation` (see 20.3), `suspect` (`url`, `host`, `registrable_domain`, `components`, `reputation`), `official.domains`.
+* Reasons (signals) and maximum points (`weights_v2_web`): `domain_similarity` 40, `rapidfuzz_similarity` 12 (only when the name matcher said `safe`), `deceptive_subdomain` 20 (brand in a subdomain, or in the text before `@`), `idn_homograph` 15, `added_words` 10, `url_reputation` 45 (Safe Browsing MATCH only). The total is capped at 100. These weights need the owner's approval.
+* Official domains are excluded by REGISTRABLE domain (public-suffix aware), never by substring: `acmebank.in.evil.test` is not official. Excluded items are recorded in `official_matches` with `kind = "domain"`.
+* A web detection cannot be marked official (422): add the domain to the brand's official domains instead.
+* Sources: the sample collector (hosts on the reserved `.test` TLD only, never sent to a provider). A web candidate is created by `candidate_from_web_url`; manual entry and import arrive in a later package (E8). There is no Source Health row for web.
+* Scan `counts` gain `web_candidates`, `reputation_checked`, `reputation_not_checked`, `reputation_match`, `reputation_clean`, `reputation_unavailable`, `reputation_skipped_sample`, `reputation_over_limit`.
+* The UI has no Web list yet (E9). Web rows appear in the Dashboard totals and are reachable through the API.
+
+### 20.3 URL reputation: Google Safe Browsing (Lookup API v4, `threatMatches:find`)
+`detail.reputation` = `{url, verdict, provider: "google_safe_browsing", api_version: "v4", checked_at, threat_types, reason, message, cached, provenance}`.
+
+| `verdict` | When | Risk-engine status |
+|---|---|---|
+| `match` | Google lists the URL (`threat_types`, e.g. `SOCIAL_ENGINEERING`) | `present` (+45) |
+| `clean` | Request succeeded, no match. "Not a safety guarantee." | `clean` (0) |
+| `unknown` | Not asked or not answered: `no_key`, `budget` (our daily limit), `quota` (HTTP 429 or a 403 quota message; further requests wait for `Retry-After`, default 1 h) | `unavailable` |
+| `failed` | Asked and it went wrong: `timeout`, `unreachable`, `server_error` (5xx), `invalid_key` (400/401/403), `bad_response` | `unavailable` |
+
+Only live, fresh, non-official web candidates whose domain already resembles the brand are sent, in one batched request (max 500 URLs). Sample URLs are never sent. URLs are looked up, never opened. The key is read only from `GOOGLE_SAFE_BROWSING_API_KEY` and sent in the `x-goog-api-key` header. Budget: `SAFE_BROWSING_DAILY_BUDGET` requests per UTC day (default 5000, our own limit), per-scan URL cap `SAFE_BROWSING_MAX_URLS_PER_SCAN` (100), cache TTL `SAFE_BROWSING_CACHE_TTL_SECONDS` (3600), timeout `SAFE_BROWSING_TIMEOUT_SECONDS` (5).
+`GET /api/sources` adds `reputation`: `{provider, api_version, configured, note, key_env, quota: {used, budget, remaining, unit: "requests", period: "UTC day"}, last, blocked_until}`. Never the key.
+
+### 20.4 Official App Store id (defect D3) and the same app on both stores (D4)
+* `POST /api/brands/{id}/apps` accepts optional `apple_app_id` (numeric id, `id123456789` or an apps.apple.com URL; only with store `app_store`). `AppOut` returns `apple_app_id`.
+* `PATCH /api/brands/{id}/apps/{app_id}` with `{ "apple_app_id": "..." }` stores it later (audit `app.updated`) and closes existing detections for that listing.
+* Adding an existing package id with a store it does not have yet adds the store and returns 201 (before: 409). The same store again is still 409.
+* During a scan, an App Store listing matched by its official BUNDLE id (iTunes) also teaches its numeric id for that scan, so the copy that arrives with only the numeric id is excluded. The registry is not changed by this.
+
+### 20.5 Scheduler waits for an official asset (D5)
+`GET /api/scan/status` > `scheduler` gains `waiting_for_official_assets`. While the brand has no official account and no official app, the scheduler starts nothing, `next_scan_at` is `null` and `reason` says so. The first official asset releases it (the next tick starts the first scheduled scan). Manual scans are never blocked. Data mode `auto` still resolves to `live` whenever a Tavily key or SearXNG URL exists; the reason is shown (`Auto: live because configured: Tavily key.`).
+
+### 20.6 Retry confirmation (D6)
+Each `GET /api/sources` item has `retry_estimate: {credits, provider, remaining, note}`. `credits > 0` only for Tavily-backed sources in live mode (queries per scan x credit cost of the search depth, an upper bound). `POST /api/sources/{id}/retry` for such a source without `?confirm=true` answers **409** `{detail, code: "confirmation_required", estimated_credits, provider, credits_remaining}` and spends nothing. With `?confirm=true` it runs; the response carries `estimated_credits` and the audit row records it. Free retries (sample, iTunes, SearXNG) need no confirmation.
+
+### 20.7 Migration 0005
+`detections.severity`, `algorithm_version`, `scored_at` (existing rows back-filled with the default cutoffs and version `1.0`), `official_apps.store_id`. Downgrade drops them.
