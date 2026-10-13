@@ -8,6 +8,7 @@ automatically.**
 * `server/` FastAPI + SQLAlchemy 2 + Alembic API, detection engine, collectors, RQ worker (this is the product backend)
 * `frontend/` React + TypeScript + Vite app (10 screens + evaluation view)
 * `docs/` decisions, API contract, collectors, dependencies and licenses, Definition-of-Done audit
+* **[User guide](docs/USER_GUIDE.md)**: install, sign in, every page with sample inputs, scoring, credits and troubleshooting (written for non-developers as well as the operator). What is verified on real data and what is not: **[docs/FEATURE_STATUS.md](docs/FEATURE_STATUS.md)**.
 * `backend/` an **older product's** API, kept on disk untouched and **not used** by anything above (see `docs/DECISIONS.md`)
 
 ## Architecture
