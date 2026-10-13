@@ -31,6 +31,8 @@ class Detection(Base):
     scored_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # new | reviewing | confirmed | dismissed | marked_official | cleared (below threshold but near-name: false-positive guard)
     status: Mapped[str] = mapped_column(String(20), default="new", index=True)
+    # Investigation outcome: true_positive | false_positive | resolved | monitoring (null = none recorded)
+    resolution: Mapped[str | None] = mapped_column(String(20), nullable=True)
     canonical_key: Mapped[str] = mapped_column(String(400), default="")  # "<platform>:<lower-case handle or package or url>"
     first_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

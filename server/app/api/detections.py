@@ -22,6 +22,11 @@ class StatusBody(BaseModel):
     note: str = Field(default="", max_length=1000)
 
 
+class ResolutionBody(BaseModel):
+    resolution: Literal["true_positive", "false_positive", "resolved", "monitoring"]
+    note: str = Field(default="", max_length=1000)
+
+
 class NoteBody(BaseModel):
     note: str = Field(default="", max_length=1000)
 
@@ -60,6 +65,7 @@ def list_detections(
     platform: str | None = None,
     band: Literal["high", "medium", "low"] | None = None,
     severity: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"] | None = None,
+    resolution: Literal["true_positive", "false_positive", "resolved", "monitoring"] | None = None,
     status: list[str] | None = Query(None),
     source: Literal["live", "sample", "all"] | None = None,
     q: str | None = Query(None, max_length=200),
@@ -82,7 +88,7 @@ def list_detections(
         bad = [s for s in statuses if s not in ("new", "reviewing", "confirmed", "dismissed", "marked_official")]
         if bad:
             raise HTTPException(422, "status must be one of: new, reviewing, confirmed, dismissed")
-    f = svc.Filters(brand.id, category=category or cat, type=dtype, platform=platform, band=band, severity=severity, statuses=statuses,
+    f = svc.Filters(brand.id, category=category or cat, type=dtype, platform=platform, band=band, severity=severity, resolution=resolution, statuses=statuses,
                     source=_source_filter(source, mode), q=q, min_score=min_score, from_=from_, to=to)
     res = svc.list_detections(db, f, sort, limit, offset)
     items = [svc.summary_row(d) for d in res["rows"]]
@@ -159,6 +165,13 @@ def _status_response(db: Session, d: Detection, audit_id: int | None) -> dict:
 def set_status(detection_id: int, body: StatusBody, user: User = Depends(require_writer), db: Session = Depends(get_db)) -> dict:
     d = _get(db, detection_id)
     d, audit_id = _wrap(lambda: svc.change_status(db, d, user, body.status, body.note))
+    return _status_response(db, d, audit_id)
+
+
+@router.post("/{detection_id}/resolution")
+def set_resolution(detection_id: int, body: ResolutionBody, user: User = Depends(require_writer), db: Session = Depends(get_db)) -> dict:
+    d = _get(db, detection_id)
+    d, audit_id = _wrap(lambda: svc.set_resolution(db, d, user, body.resolution, body.note))
     return _status_response(db, d, audit_id)
 
 

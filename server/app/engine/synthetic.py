@@ -269,6 +269,16 @@ def generate_cases(brand: str, seed: int = 7, per_technique: int = 25, other_bra
             if t.lower() not in seen and _compact(t) != _compact(brand):
                 seen.add(t.lower())
                 cases.append(Case(t, NEGATIVE, False, "hard_negative"))
+    # fan pages and authorized resellers: legitimate-looking names that carry the brand. Labelled NOT impersonation here
+    # (a real analyst still reviews them); a "flagged" verdict on one counts as a false positive.
+    for t in (f"{brand} Fans", f"{brand} Fan Club", f"{brand} Alumni Association", f"Friends of {brand}"):
+        if t.lower() not in seen:
+            seen.add(t.lower())
+            cases.append(Case(t, NEGATIVE, False, "fan_page"))
+    for t in (f"{brand} Authorized Reseller", f"{brand} Authorised Partner", f"Authorized {brand} Dealer"):
+        if t.lower() not in seen:
+            seen.add(t.lower())
+            cases.append(Case(t, NEGATIVE, False, "authorized_reseller"))
     for name in [*UNRELATED, *(other_brands or [])]:
         if name.lower() not in seen and _compact(name) != _compact(brand):
             seen.add(name.lower())

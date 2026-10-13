@@ -9,13 +9,17 @@ from app.api.common import mode_of, resolve_brand
 from app.core.deps import get_current_user, require_writer
 from app.core.time import iso_z
 from app.db.session import get_db
-from app.engine.evaluation import BRANDS, evaluate_brand, merge
+from app.engine.evaluation import BRANDS, confusion, evaluate_brand, merge
 from app.engine.name_match import TECHNIQUES
+from app.engine.risk_engine import ALGORITHM_V1, ALGORITHM_V2
 from app.engine.synthetic import MIXED
 from app.models import Detection, User
 from app.services import audit, lookalike
 
 router = APIRouter(prefix="/evaluation")
+
+DATASET_NAME = "scammind-synthetic-names"
+DATASET_VERSION = "2"  # v2 added fan pages and authorized resellers as hard negatives
 
 LABEL = (
     "Synthetic numbers are optimistic. The test names are produced by the same set of tricks the matcher was built to catch, "
@@ -38,6 +42,13 @@ def synthetic_evaluation(seed: int = 7, per_technique: int = 25, refresh: bool =
             "seed": seed, "per_technique": per_technique, "brands": len(BRANDS), "computed_at": iso_z(datetime.now(UTC)),
             "by_technique": [{"technique": t, **combined[t]} for t in (*TECHNIQUES, MIXED)],
             "overall": combined["overall"],
+            "confusion": confusion(results),
+            "dataset": {"name": DATASET_NAME, "version": DATASET_VERSION, "size": confusion(results)["total_cases"], "synthetic": True,
+                        "brands": list(BRANDS), "negative_groups": ["hard_negative", "fan_page", "authorized_reseller", "unrelated"],
+                        "split": "none: every case is a test case, nothing is trained, so no variants can leak between splits",
+                        "banner": "SYNTHETIC DATA: generated, not real impersonation reports."},
+            "algorithm_version": {"social_app": ALGORITHM_V1, "web": ALGORITHM_V2},
+            "ml_classifier": "deferred until labelled analyst data exists",
             "false_positives": sorted({fp for r in results for fp in r["false_positives"]})[:20],
         }
         _cache[key] = out
@@ -57,7 +68,17 @@ def build(db: Session, brand, mode: str, refresh: bool) -> dict:
     for b in by_type.values():
         n = b["confirmed"] + b["dismissed"]
         b["precision"] = round(b["confirmed"] / n, 3) if n else None
+    by_cat: dict[str, dict] = {c: {"category": c, "total": 0, "confirmed": 0, "dismissed": 0} for c in ("social", "apps", "web")}
+    for d in rows:
+        c = by_cat.setdefault(d.category, {"category": d.category, "total": 0, "confirmed": 0, "dismissed": 0})
+        c["total"] += 1
+        if d.status in ("confirmed", "dismissed"):
+            c[d.status] += 1
+    for c in by_cat.values():
+        n = c["confirmed"] + c["dismissed"]
+        c["precision"] = round(c["confirmed"] / n, 3) if n else None
     return {
+        "by_category": list(by_cat.values()),
         "data_mode": mode, "is_sample": mode == "sample", "label": LABEL, "synthetic": synthetic_evaluation(refresh=refresh),
         "lookalike_tests": {**{k: cases[k] for k in ("total", "passed", "failed", "summary", "ran_at")}, **lookalike.confusion(cases["items"]), "items": cases["items"]},
         "reviewed": {"confirmed": confirmed, "dismissed": dismissed, "marked_official": sum(d.status == "marked_official" for d in rows),

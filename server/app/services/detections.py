@@ -49,6 +49,7 @@ class Filters:
     platform: str | None = None
     band: str | None = None
     severity: str | None = None
+    resolution: str | None = None
     statuses: list[str] | None = None
     source: str | None = None  # live | sample | None = all
     q: str | None = None
@@ -86,6 +87,8 @@ def _base(f: Filters, *, ignore_type: bool = False, ignore_platform: bool = Fals
         q = q.where(Detection.platform == f.platform)
     if f.band:
         q = q.where(Detection.band == f.band)
+    if f.resolution:
+        q = q.where(Detection.resolution == f.resolution)
     if f.severity:
         q = q.where(Detection.severity == f.severity)
     if f.source:
@@ -170,6 +173,7 @@ def summary_row(d: Detection) -> dict:
         "risk_band": d.band,
         "severity": d.severity,
         "status": d.status,
+        "resolution": d.resolution,
         "summary": det.get("summary", ""),
         "tags": det.get("tags", []),
         "found_at": _iso(d.found_at),
@@ -300,6 +304,25 @@ def change_status(db: Session, d: Detection, user: User, to: str, note: str = ""
         d.notes = [*(d.notes or []), {"at": iso_z(utcnow()), "actor": user.name, "text": note, "kind": "reviewer"}][-50:]
     _event(db, d, user, frm=old, to=to, note=note)
     row = audit.record(db, user, "detection.status_changed", _target(d), f"{old} -> {to}" + (f": {note}" if note else ""), source=d.source)
+    db.commit()
+    return d, row.id
+
+
+RESOLUTIONS = ("true_positive", "false_positive", "resolved", "monitoring")
+
+
+def set_resolution(db: Session, d: Detection, user: User, resolution: str, note: str = "") -> tuple[Detection, int]:
+    """Records the investigation outcome. Audited and added to the detection's event log; the status is left alone."""
+    if resolution not in RESOLUTIONS:
+        raise ActionError(422, "resolution must be one of: " + ", ".join(RESOLUTIONS))
+    old = d.resolution
+    note = (note or "").strip()
+    d.resolution = resolution
+    d.updated_at = utcnow()
+    if note:
+        d.notes = [*(d.notes or []), {"at": iso_z(utcnow()), "actor": user.name, "text": note, "kind": "reviewer"}][-50:]
+    _event(db, d, user, frm=old, to=resolution, note=note, kind="resolution")
+    row = audit.record(db, user, "detection.resolution_set", _target(d), f"{old or 'none'} -> {resolution}" + (f": {note}" if note else ""), source=d.source)
     db.commit()
     return d, row.id
 

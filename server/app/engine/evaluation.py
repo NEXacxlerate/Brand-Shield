@@ -29,6 +29,7 @@ def evaluate_brand(brand: str, seed: int, per_technique: int) -> dict:
     fn = defaultdict(int)
     label_ok = defaultdict(int)
     fp_neg: list[str] = []
+    neg_groups: dict[str, list[int]] = defaultdict(lambda: [0, 0])  # group -> [n, flagged]
     misses: dict[str, list[str]] = defaultdict(list)
     n_neg = 0
     for c in cases:
@@ -43,7 +44,9 @@ def evaluate_brand(brand: str, seed: int, per_technique: int) -> dict:
                 misses[c.technique].append(f"{c.text!r} -> {r.verdict}")
         else:
             n_neg += 1
+            neg_groups[c.group or "other"][0] += 1
             if r.verdict == "flagged":
+                neg_groups[c.group or "other"][1] += 1
                 fp_neg.append(c.text)
     rows = {}
     for t in (*TECHNIQUES, MIXED):
@@ -54,8 +57,30 @@ def evaluate_brand(brand: str, seed: int, per_technique: int) -> dict:
     overall = _prf(sum(tp.values()), len(fp_neg), sum(fn.values()))
     overall["n_pos"] = sum(tp.values()) + sum(fn.values())
     overall["n_neg"] = n_neg
+    overall["tn"] = n_neg - len(fp_neg)
     overall["label_ok"] = round(sum(label_ok.values()) / sum(tp.values()), 3) if tp else 0.0
-    return {"brand": brand, "techniques": rows, "overall": overall, "false_positives": fp_neg, "misses": {k: v[:5] for k, v in misses.items()}}
+    return {"brand": brand, "techniques": rows, "overall": overall, "false_positives": fp_neg, "negative_groups": dict(neg_groups), "misses": {k: v[:5] for k, v in misses.items()}}
+
+
+def confusion(results: list[dict]) -> dict:
+    """Binary confusion matrix (flagged vs not flagged) over every synthetic case, FPR and per-negative-group rates."""
+    tp = sum(r["overall"]["tp"] for r in results)
+    fn = sum(r["overall"]["fn"] for r in results)
+    fp = sum(r["overall"]["fp"] for r in results)
+    tn = sum(r["overall"]["tn"] for r in results)
+    groups: dict[str, list[int]] = defaultdict(lambda: [0, 0])
+    for r in results:
+        for g, (n, f) in r["negative_groups"].items():
+            groups[g][0] += n
+            groups[g][1] += f
+    return {
+        "matrix": {"tp": tp, "fp": fp, "fn": fn, "tn": tn},
+        "false_positive_rate": round(fp / (fp + tn), 4) if fp + tn else 0.0,
+        "false_negative_rate": round(fn / (fn + tp), 4) if fn + tp else 0.0,
+        "accuracy": round((tp + tn) / (tp + tn + fp + fn), 4) if tp + tn + fp + fn else 0.0,
+        "negative_groups": [{"group": g, "n": n, "flagged": f, "false_positive_rate": round(f / n, 4) if n else 0.0} for g, (n, f) in sorted(groups.items())],
+        "total_cases": tp + fp + fn + tn,
+    }
 
 
 def merge(results: list[dict]) -> dict:

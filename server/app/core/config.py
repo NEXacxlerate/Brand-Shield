@@ -107,6 +107,9 @@ class Settings(BaseSettings):
     safe_browsing_max_urls_per_scan: int = 100
     safe_browsing_cache_ttl_seconds: int = 3600
 
+    # General API rate limit (requests per minute, per client IP and per login token). 0 = off. In-memory, single process only.
+    api_rate_limit_per_minute: int = 600
+
     # Risk engine severity cutoffs (LOW below `medium`; HIGH and CRITICAL start where the old medium and high bands start).
     severity_medium_min: int = 40
     severity_high_min: int = 70

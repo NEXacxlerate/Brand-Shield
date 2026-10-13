@@ -1,6 +1,9 @@
 from contextlib import asynccontextmanager
 
-from fastapi import APIRouter, FastAPI
+import hashlib
+
+from fastapi import APIRouter, FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import Engine
 from sqlalchemy.exc import SQLAlchemyError
@@ -26,7 +29,7 @@ from app.core.config import Settings, get_settings
 from app.core.errors import install_error_handlers
 from app.core.logging import configure_logging
 from app.core.observability import init_sentry
-from app.core.ratelimit import FailureLimiter
+from app.core.ratelimit import FailureLimiter, RequestLimiter
 from app.db.session import make_engine, make_session_factory
 from app.services.context import build_context
 from app.services.image_fetch import SafeFetcher
@@ -81,6 +84,7 @@ def create_app(
     app.state.engine = engine
     app.state.session_factory = make_session_factory(engine)
     app.state.login_limiter = FailureLimiter(settings.login_max_failures, settings.login_window_seconds)
+    app.state.request_limiter = RequestLimiter(settings.api_rate_limit_per_minute, 60)
     app.state.url_checker = url_checker or UrlChecker(
         timeout=settings.url_check_timeout_seconds,
         max_redirects=settings.url_check_max_redirects,
@@ -91,6 +95,23 @@ def create_app(
         settings, app.state.session_factory, app.state.collector_runtime, fetcher=image_fetcher, screenshot=screenshot_provider
     )
     app.state.scheduler_loop = None
+
+    @app.middleware("http")
+    async def rate_limit(request: Request, call_next):
+        # /health* and CORS preflights are exempt. Both the client IP and (if present) the bearer token are limited,
+        # so garbage tokens cannot be used to dodge the per-IP bucket.
+        path = request.url.path
+        if path.startswith("/api") and request.method != "OPTIONS":
+            lim: RequestLimiter = request.app.state.request_limiter
+            ip = request.client.host if request.client else "unknown"
+            keys = [f"ip:{ip}"]
+            auth = request.headers.get("authorization")
+            if auth:
+                keys.append("tok:" + hashlib.sha256(auth.encode()).hexdigest()[:16])
+            if not all([lim.allow(k) for k in keys]):
+                return JSONResponse({"detail": "Too many requests. Slow down and retry shortly."}, status_code=429, headers={"Retry-After": "60"})
+        return await call_next(request)
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
