@@ -21,6 +21,7 @@ from app.collectors.tavily import TavilyCollector
 from app.collectors.util import Clock, Sleep, SpacingLimiter, TTLCache
 from app.core.config import Settings
 from app.core.time import utcnow
+from app.providers.safe_browsing import DailyLedger, SafeBrowsingClient
 
 DATA_MODES = ("live", "sample", "auto")
 CHAIN_ORDER = ("tavily", "searxng", "itunes", "google_play")
@@ -134,13 +135,22 @@ class CollectorRuntime:
         self.itunes_cache = TTLCache(settings.itunes_cache_ttl_seconds, clock=clock)
         self.play_limiter = SpacingLimiter(30, clock=clock, sleep=sleep)
         self.ledger = CreditLedger(session_factory, settings.tavily_monthly_budget, now=now)
+        # URL reputation (Google Safe Browsing). Key only from the environment; without it every lookup is "unknown".
+        key = settings.google_safe_browsing_api_key.get_secret_value() if settings.google_safe_browsing_api_key else None
+        self.safe_browsing = SafeBrowsingClient(
+            key, client_factory=self.client_factory_for(settings.safe_browsing_timeout_seconds),
+            ledger=DailyLedger(session_factory, settings.safe_browsing_daily_budget, now=now),
+            cache=TTLCache(settings.safe_browsing_cache_ttl_seconds, clock=clock), now=now, timeout=settings.safe_browsing_timeout_seconds,
+        )
 
-    def client_factory(self) -> Callable[[], httpx.Client]:
-        timeout = self.settings.collector_timeout_seconds
+    def client_factory_for(self, timeout: float) -> Callable[[], httpx.Client]:
         if self.transport is None:
             return default_client_factory(timeout)
         transport = self.transport
         return lambda: httpx.Client(timeout=timeout, transport=transport)
+
+    def client_factory(self) -> Callable[[], httpx.Client]:
+        return self.client_factory_for(self.settings.collector_timeout_seconds)
 
     def build(self, selection: Selection, *, env: Mapping[str, str] | None = None, google_play_search: Callable | None = None) -> list[Collector]:
         s = self.settings

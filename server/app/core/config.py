@@ -82,6 +82,20 @@ class Settings(BaseSettings):
     scheduler_max_queries_per_scan: int | None = None  # credit estimate; default = tavily_max_queries_per_scan
     anthropic_api_key: SecretStr | None = None  # only used when SCAM_LLM_ENABLED=true; never logged
 
+    # URL reputation: Google Safe Browsing Lookup API v4. The key comes ONLY from GOOGLE_SAFE_BROWSING_API_KEY
+    # (optional: no key = reputation is "unavailable"). Non-commercial use only; see docs/DECISIONS.md.
+    # The daily budget is our own limit (requests per UTC day).
+    google_safe_browsing_api_key: SecretStr | None = None
+    safe_browsing_timeout_seconds: float = 5.0
+    safe_browsing_daily_budget: int = 5000
+    safe_browsing_max_urls_per_scan: int = 100
+    safe_browsing_cache_ttl_seconds: int = 3600
+
+    # Risk engine severity cutoffs (LOW below `medium`; HIGH and CRITICAL start where the old medium and high bands start).
+    severity_medium_min: int = 40
+    severity_high_min: int = 70
+    severity_critical_min: int = 85
+
     # Optional Sentry error reporting (Phase 6). No DSN = off. The DSN is a secret.
     sentry_dsn: SecretStr | None = None
     sentry_environment: str | None = None  # default: APP_ENV
@@ -94,7 +108,8 @@ class Settings(BaseSettings):
     @property
     def secret_values(self) -> list[str]:
         key = self.tavily_api_key.get_secret_value() if self.tavily_api_key else None
-        extra = [x.get_secret_value() for x in (self.redis_url, self.anthropic_api_key, self.sentry_dsn) if x]
+        secrets = (self.redis_url, self.anthropic_api_key, self.sentry_dsn, self.google_safe_browsing_api_key)
+        extra = [x.get_secret_value() for x in secrets if x]
         return [v for v in (self.jwt_secret, self.admin_password, key, *extra) if v]
 
 
