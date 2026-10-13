@@ -91,6 +91,26 @@
   gap: 10px;
 }
 
+.source-detail-row.status-slow {
+  background: rgba(245, 158, 85, 0.05);
+  border-color: rgba(245, 158, 85, 0.35);
+}
+.source-detail-row.status-unavailable {
+  background: rgba(240, 86, 106, 0.05);
+  border-color: rgba(240, 86, 106, 0.35);
+}
+
+/* healthy rows: the message and the sync line share one row, as in the design */
+.source-detail-row.status-online {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  column-gap: 16px;
+}
+.source-detail-row.status-online .source-row-top { grid-column: 1 / -1; }
+.source-detail-row.status-online .source-status-message { grid-column: 1; grid-row: 2; }
+.source-detail-row.status-online .source-row-bottom { grid-column: 2; grid-row: 2; border-top: none; padding-top: 0; }
+
 .source-row-top {
   display: flex;
   justify-content: space-between;
@@ -156,9 +176,9 @@
 }
 
 .source-status-message {
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.45;
-  color: #a4a7b9;
+  color: #c4c6d6;
 }
 
 .source-row-bottom {
@@ -170,8 +190,8 @@
 }
 
 .source-sync-text {
-  font-size: 11.5px;
-  color: #6e7185;
+  font-size: 12px;
+  color: #8a8d9f;
 }
 
 .retry-btn {
@@ -207,11 +227,12 @@
 }
 
 .step-circle {
-  width: 22px;
-  height: 22px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
-  background: #14172c;
-  color: #8b9bff;
+  background: #1a1d36;
+  border: 1px solid #353a68;
+  color: #ffffff;
   font-size: 11.5px;
   font-weight: 800;
   display: flex;
@@ -222,9 +243,13 @@
 }
 
 .step-msg {
-  font-size: 12.5px;
-  line-height: 1.45;
-  color: #9295a8;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: #b1b4c6;
+}
+.step-msg strong {
+  color: #ffffff;
+  font-weight: 700;
 }
 
 /* Recent Source Events */

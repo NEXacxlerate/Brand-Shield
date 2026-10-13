@@ -1,18 +1,18 @@
 import React from 'react';
+import { BrandMark, Wordmark } from '../common/BrandMark';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutGrid,
   ShieldCheck,
   Users,
   Smartphone,
-  Scan,
+  ScanText,
   Activity,
   FileText,
-  SlidersHorizontal,
+  SlidersVertical,
   Headphones,
   Search,
   ChevronsUpDown,
-  Shield,
 } from 'lucide-react';
 import { useBrand } from '../../hooks/useBrand';
 import './Layout.css';
@@ -36,10 +36,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
     <aside className={`app-sidebar ${isOpen ? 'open' : ''}`}>
       {/* 1. Logo */}
       <NavLink to="/dashboard" className="sidebar-logo" onClick={onClose}>
-        <div className="logo-shield">
-          <Shield size={18} strokeWidth={2.4} />
-        </div>
-        <div className="logo-text">ScamMind AI</div>
+        <BrandMark />
+        <div className="logo-text"><Wordmark /></div>
       </NavLink>
 
       {/* 2. Search Box */}
@@ -73,7 +71,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
           className={`nav-item ${isNavActive('/dashboard') ? 'active' : ''}`}
           onClick={onClose}
         >
-          <LayoutGrid size={18} strokeWidth={1.8} />
+          <LayoutGrid size={19} strokeWidth={1.8} />
           <span>Dashboard</span>
         </NavLink>
 
@@ -82,7 +80,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
           className={`nav-item ${isNavActive('/brand') ? 'active' : ''}`}
           onClick={onClose}
         >
-          <ShieldCheck size={18} strokeWidth={1.8} />
+          <ShieldCheck size={19} strokeWidth={1.8} />
           <span>Brand Profile</span>
         </NavLink>
 
@@ -91,7 +89,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
           className={`nav-item ${isNavActive('/social') ? 'active' : ''}`}
           onClick={onClose}
         >
-          <Users size={18} strokeWidth={1.8} />
+          <Users size={19} strokeWidth={1.8} />
           <span>Social Monitoring</span>
         </NavLink>
 
@@ -100,7 +98,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
           className={`nav-item ${isNavActive('/apps') ? 'active' : ''}`}
           onClick={onClose}
         >
-          <Smartphone size={18} strokeWidth={1.8} />
+          <Smartphone size={19} strokeWidth={1.8} />
           <span>App Store Monitoring</span>
         </NavLink>
 
@@ -109,7 +107,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
           className={`nav-item ${isNavActive('/lookalike') ? 'active' : ''}`}
           onClick={onClose}
         >
-          <Scan size={18} strokeWidth={1.8} />
+          <ScanText size={19} strokeWidth={1.8} />
           <span>Look-alike Lab</span>
         </NavLink>
 
@@ -118,7 +116,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
           className={`nav-item ${isNavActive('/sources') ? 'active' : ''}`}
           onClick={onClose}
         >
-          <Activity size={18} strokeWidth={1.8} />
+          <Activity size={19} strokeWidth={1.8} />
           <span>Source Health</span>
         </NavLink>
 
@@ -127,7 +125,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
           className={`nav-item ${isNavActive('/reports') ? 'active' : ''}`}
           onClick={onClose}
         >
-          <FileText size={18} strokeWidth={1.8} />
+          <FileText size={19} strokeWidth={1.8} />
           <span>Reports</span>
         </NavLink>
       </nav>
@@ -142,7 +140,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
           className={`nav-item ${isNavActive('/settings') ? 'active' : ''}`}
           onClick={onClose}
         >
-          <SlidersHorizontal size={18} strokeWidth={1.8} />
+          <SlidersVertical size={19} strokeWidth={1.8} />
           <span>Settings</span>
         </NavLink>
 
@@ -155,7 +153,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
           }}
           aria-label="Support desk"
         >
-          <Headphones size={18} strokeWidth={1.8} />
+          <Headphones size={19} strokeWidth={1.8} />
           <span>Support</span>
         </button>
       </div>

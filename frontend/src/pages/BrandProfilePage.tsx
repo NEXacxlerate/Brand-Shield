@@ -4,8 +4,11 @@ import {
   Check,
   AlertCircle,
   Plus,
-  Trash2,
+  Minus,
+  ShieldCheck,
 } from 'lucide-react';
+import { ScoreRing } from '../components/charts/ScoreRing';
+import { renderAccountLabel } from '../components/monitor/MonitorParts';
 import { Header } from '../components/layout/Header';
 import { ErrorBox, Loading, NoBrand, Notice } from '../components/common/States';
 import { ApiError } from '../api/client';
@@ -306,7 +309,7 @@ export const BrandProfilePage: React.FC = () => {
                     <label className="field-lbl">Keywords to watch</label>
                     <div className="tags-input-container">
                       {keywords.map((kw, i) => (
-                        <span key={i} className="interactive-tag-pill">
+                        <span key={i} className="interactive-tag-pill pill-neutral">
                           {kw}
                           <button
                             type="button"
@@ -418,7 +421,7 @@ export const BrandProfilePage: React.FC = () => {
                         </div>
                         <div className="account-handle-info">
                           <span className="account-handle-title">
-                            {acc.handle} on {platformLabel(acc.platform)}
+                            {renderAccountLabel(`${acc.handle} on ${platformLabel(acc.platform)}`)}
                           </span>
                           <span className="account-url-sub">{acc.url}</span>
                         </div>
@@ -440,7 +443,7 @@ export const BrandProfilePage: React.FC = () => {
                           aria-label={`Remove ${acc.handle} from allowlist`}
                           disabled={!canWrite}
                         >
-                          <Trash2 size={14} />
+                          <Minus size={14} />
                         </button>
                       </div>
                     </div>
@@ -543,7 +546,7 @@ export const BrandProfilePage: React.FC = () => {
                               aria-label={`Remove ${app.name}`}
                               disabled={!canWrite}
                             >
-                              <Trash2 size={14} />
+                              <Minus size={14} />
                             </button>
                           </td>
                         </tr>
@@ -680,9 +683,7 @@ export const BrandProfilePage: React.FC = () => {
               <div className="card side-panel-card">
                 <h3 className="side-card-title">Profile health</h3>
                 <div className="health-gauge-row">
-                  <div className="health-circle-badge">
-                    <span className="health-pct-num" data-testid="health-pct">{health.percent}%</span>
-                  </div>
+                  <ScoreRing score={health.percent} text={`${health.percent}%`} caption="" color="#34d399" size={92} stroke={8} testId="health-pct" />
                   <div className="health-gauge-text">
                     {health.message}
                   </div>
@@ -706,8 +707,8 @@ export const BrandProfilePage: React.FC = () => {
               </div>
 
               {/* Allowlist: never flagged */}
-              <div className="card side-panel-card">
-                <h3 className="side-card-title">Allowlist: never flagged</h3>
+              <div className="card side-panel-card allowlist-card">
+                <h3 className="side-card-title with-icon"><ShieldCheck size={17} aria-hidden="true" />Allowlist: never flagged</h3>
                 <div className="allowlist-tri-stats">
                   <div className="allowlist-stat">
                     <span className="allowlist-num">{brand.allowlist.accounts}</span>
@@ -734,25 +735,25 @@ export const BrandProfilePage: React.FC = () => {
                   <div className="guide-step">
                     <span className="guide-step-idx">1</span>
                     <span className="guide-step-text">
-                      Search platforms and stores for your names, aliases and keywords.
+                      <strong>Search</strong> platforms and stores for your names, aliases and keywords.
                     </span>
                   </div>
                   <div className="guide-step">
                     <span className="guide-step-idx">2</span>
                     <span className="guide-step-text">
-                      Exclude anything on the allowlist by exact handle, URL or package ID.
+                      <strong>Exclude</strong> anything on the allowlist by exact handle, URL or package ID.
                     </span>
                   </div>
                   <div className="guide-step">
                     <span className="guide-step-idx">3</span>
                     <span className="guide-step-text">
-                      Compare names, logos, publishers and descriptions with your official ones.
+                      <strong>Compare</strong> names, logos, publishers and descriptions with your official ones.
                     </span>
                   </div>
                   <div className="guide-step">
                     <span className="guide-step-idx">4</span>
                     <span className="guide-step-text">
-                      Score each match with reasons, then queue it for a person to review.
+                      <strong>Score</strong> each match with reasons, then queue it for a person to review.
                     </span>
                   </div>
                 </div>

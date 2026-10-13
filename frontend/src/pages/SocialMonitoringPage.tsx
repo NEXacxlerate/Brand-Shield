@@ -1,5 +1,6 @@
 import React from 'react';
 import { RotateCw } from 'lucide-react';
+import { ScoreRing } from '../components/charts/ScoreRing';
 import { Header } from '../components/layout/Header';
 import { ActionRow, EvidenceBox, ExcludedCard, GuardCard, ReasonsBox, SourcesBar } from '../components/monitor/MonitorParts';
 import { Empty, ErrorBox, Loading, NoBrand, Notice, SampleNote } from '../components/common/States';
@@ -132,7 +133,7 @@ export const SocialMonitoringPage: React.FC = () => {
                     </div>
 
                     <div className="detection-row-right">
-                      <span className="score-val">{item.score}</span>
+                      <span className={`score-val band-${item.risk_band}`}>{item.score}</span>
                       <span className={`chip ${statusChip(item.status)}`}>{statusLabel(item.status)}</span>
                     </div>
                   </div>
@@ -169,10 +170,7 @@ export const SocialMonitoringPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="big-risk-badge">
-                    <span className="risk-num">{detail.score}</span>
-                    <span className="risk-lbl">Risk</span>
-                  </div>
+                  <ScoreRing score={detail.score} band={detail.risk_band} />
                 </div>
 
                 {/* OFFICIAL vs SUSPECT Comparison */}
@@ -196,9 +194,9 @@ export const SocialMonitoringPage: React.FC = () => {
                       {detail.official?.bio || 'The official page bio is not collected, so it is not shown.'}
                     </p>
                     <div className="vs-footer-stats">
-                      {detail.official?.followers != null && <span>Followers: {detail.official.followers}</span>}
-                      {detail.official?.joined != null && <span>Joined: {detail.official.joined}</span>}
-                      {detail.official?.link && <span>Link: {detail.official.link}</span>}
+                      {detail.official?.followers != null && <span>Followers: <strong>{detail.official.followers}</strong></span>}
+                      {detail.official?.joined != null && <span>Joined: <strong>{detail.official.joined}</strong></span>}
+                      {detail.official?.link && <span>Link: <strong>{detail.official.link}</strong></span>}
                     </div>
                   </div>
 
@@ -219,9 +217,9 @@ export const SocialMonitoringPage: React.FC = () => {
                     </div>
                     <p className="vs-bio-text">{detail.suspect?.bio || 'No bio was collected.'}</p>
                     <div className="vs-footer-stats">
-                      {detail.suspect?.followers != null && <span>Followers: {detail.suspect.followers}</span>}
-                      {detail.suspect?.joined != null && <span>Joined: {detail.suspect.joined}</span>}
-                      {(detail.suspect?.link || detail.profile_url) && <span>Link: {detail.suspect?.link || detail.profile_url}</span>}
+                      {detail.suspect?.followers != null && <span>Followers: <strong>{detail.suspect.followers}</strong></span>}
+                      {detail.suspect?.joined != null && <span>Joined: <strong>{detail.suspect.joined}</strong></span>}
+                      {(detail.suspect?.link || detail.profile_url) && <span>Link: <strong className="vs-hot">{detail.suspect?.link || detail.profile_url}</strong></span>}
                     </div>
                   </div>
                 </div>

@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertTriangle, RotateCw } from 'lucide-react';
+import { ScoreRing } from '../components/charts/ScoreRing';
 import { Header } from '../components/layout/Header';
 import { ActionRow, EvidenceBox, ExcludedCard, GuardCard, ReasonsBox, SourcesBar } from '../components/monitor/MonitorParts';
 import { Empty, ErrorBox, Loading, NoBrand, Notice, SampleNote } from '../components/common/States';
@@ -131,7 +132,7 @@ export const AppStoreMonitoringPage: React.FC = () => {
                     </div>
 
                     <div className="detection-row-right">
-                      <span className="score-val">{item.score}</span>
+                      <span className={`score-val band-${item.risk_band}`}>{item.score}</span>
                       <span className={`chip ${statusChip(item.status)}`}>{statusLabel(item.status)}</span>
                     </div>
                   </div>
@@ -168,10 +169,7 @@ export const AppStoreMonitoringPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="big-risk-badge">
-                    <span className="risk-num">{detail.score}</span>
-                    <span className="risk-lbl">Risk</span>
-                  </div>
+                  <ScoreRing score={detail.score} band={detail.risk_band} />
                 </div>
 
                 {/* Warning Alert Banner: only when the publisher really differs */}
@@ -202,11 +200,11 @@ export const AppStoreMonitoringPage: React.FC = () => {
                       </div>
                     </div>
                     <div className="vs-app-specs">
-                      {detail.official?.publisher && <div>Publisher: {detail.official.publisher}</div>}
+                      {detail.official?.publisher && <div>Publisher: <strong>{detail.official.publisher}</strong></div>}
                       {detail.official?.stores && detail.official.stores.length > 0 && (
-                        <div>Stores: {detail.official.stores.map((s) => (SOURCE_LABEL as Record<string, string>)[s] ?? s).join(', ')}</div>
+                        <div>Stores: <strong>{detail.official.stores.map((s) => (SOURCE_LABEL as Record<string, string>)[s] ?? s).join(', ')}</strong></div>
                       )}
-                      {detail.official?.downloads && <div>Downloads: {detail.official.downloads}</div>}
+                      {detail.official?.downloads && <div>Downloads: <strong>{detail.official.downloads}</strong></div>}
                       {!detail.official?.publisher && <div>No official app is on the allowlist yet.</div>}
                     </div>
                   </div>
@@ -227,11 +225,11 @@ export const AppStoreMonitoringPage: React.FC = () => {
                       </div>
                     </div>
                     <div className="vs-app-specs">
-                      <div>Publisher: {detail.publisher || 'Unknown'}</div>
-                      <div>Store: {platformLabel(detail.platform)}</div>
+                      <div>Publisher: <strong className="vs-hot">{detail.publisher || 'Unknown'}</strong></div>
+                      <div>Store: <strong>{platformLabel(detail.platform)}</strong></div>
                       {(suspect?.downloads || suspect?.released) && (
                         <div>
-                          Downloads: {suspect?.downloads ?? 'n/a'}
+                          Downloads: <strong>{suspect?.downloads ?? 'n/a'}</strong>
                           {suspect?.released ? ` · ${suspect.released}` : ''}
                         </div>
                       )}

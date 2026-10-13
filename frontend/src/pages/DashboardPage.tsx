@@ -1,10 +1,13 @@
 import React from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
-  TrendingUp,
   ShieldCheck,
-  Sparkles,
+  Lightbulb,
   ArrowRight,
+  ClipboardCheck,
+  User,
+  Smartphone,
+  Building2,
 } from 'lucide-react';
 import { Header } from '../components/layout/Header';
 import { Sparkline } from '../components/charts/Sparkline';
@@ -111,22 +114,28 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenMobileMenu }
   const signalWords = (d.why_flagged?.reasons ?? []).map((r) => r.label.toLowerCase());
   const uniqueSignals = Array.from(new Set(signalWords)).slice(0, 3);
 
-  const kpiTile = (label: string, kpi: { value: number; delta_week?: number; trend?: number[] }, color: string, textColor: string) => (
+  const kpiTile = (
+    label: string,
+    kpi: { value: number; delta_week?: number; trend?: number[] },
+    tone: 'blue' | 'red' | 'purple',
+    icon: React.ReactNode,
+    color: string,
+  ) => (
     <div className="dash-kpi-card card">
-      <div className="kpi-label-text">{label}</div>
+      <div className="kpi-head-row">
+        <span className={`kpi-icon-chip tone-${tone}`}>{icon}</span>
+        <span className="kpi-label-text">{label}</span>
+      </div>
       <div className="kpi-value-row">
         <span className="kpi-big-num">{kpi.value}</span>
       </div>
       <div className="kpi-footer-row">
         {kpi.delta_week !== undefined && (
-          <div className="kpi-change-text" style={{ color: textColor }}>
-            <TrendingUp size={13} />
-            <span>↑ {kpi.delta_week} this week</span>
-          </div>
+          <span className="kpi-delta-chip">↑ {kpi.delta_week} this week</span>
         )}
         {kpi.trend && kpi.trend.length >= 2 && (
           <div className="kpi-mini-spark">
-            <Sparkline data={kpi.trend} color={color} />
+            <Sparkline data={kpi.trend} color={color} width={120} height={32} />
           </div>
         )}
       </div>
@@ -143,6 +152,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenMobileMenu }
 
           {/* Hero Banner Box */}
           <div className="dash-hero-card">
+            <span className="dash-hero-glow glow-a" aria-hidden="true" />
+            <span className="dash-hero-glow glow-b" aria-hidden="true" />
             <div className="dash-hero-text">
               <h2 className="dash-hero-title">
                 Protect {brandName} across social media and app stores
@@ -182,19 +193,21 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenMobileMenu }
 
           {/* Row 1: 4 KPI Cards */}
           <div className="dash-kpi-row">
-            {kpiTile('Total detections', k.total_detections, '#6366f1', '#8b9bff')}
-            {kpiTile('Social impersonations', k.social_impersonations, '#f0566a', '#f0566a')}
-            {kpiTile('Suspicious apps', k.suspicious_apps, '#f0566a', '#f0566a')}
+            {kpiTile('Total detections', k.total_detections, 'blue', <ClipboardCheck size={17} />, '#5b8def')}
+            {kpiTile('Social impersonations', k.social_impersonations, 'red', <User size={17} />, '#f0566a')}
+            {kpiTile('Suspicious apps', k.suspicious_apps, 'purple', <Smartphone size={17} />, '#a78bfa')}
 
             {/* KPI 4 */}
             <div className="dash-kpi-card card">
-              <div className="kpi-label-text">Official assets protected</div>
+              <div className="kpi-head-row">
+                <span className="kpi-icon-chip tone-green"><ShieldCheck size={17} /></span>
+                <span className="kpi-label-text">Official assets protected</span>
+              </div>
               <div className="kpi-value-row">
                 <span className="kpi-big-num">{k.official_assets.value}</span>
               </div>
               <div className="kpi-footer-row">
                 <div className="kpi-protected-badge">
-                  <ShieldCheck size={14} color="#34d399" />
                   <span>Never flagged</span>
                 </div>
               </div>
@@ -238,23 +251,21 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenMobileMenu }
                 {d.by_platform.length === 0 && <Empty>Nothing found yet.</Empty>}
                 {d.by_platform.map((src, idx) => (
                   <div key={idx} className="source-bar-row">
-                    <div className="source-bar-info">
-                      <span className="source-bar-name">{platformLabel(src.platform)}</span>
-                      <span className="source-bar-count">{src.count}</span>
-                    </div>
+                    <span className="source-bar-name">{platformLabel(src.platform)}</span>
                     <div className="source-bar-track">
                       <div
                         className="source-bar-fill"
                         style={{ width: `${(src.count / maxPlatform) * 100}%` }}
                       />
                     </div>
+                    <span className="source-bar-count">{src.count}</span>
                   </div>
                 ))}
               </div>
             </div>
 
             {/* Card 3: Needs Review */}
-            <div className="card dash-panel-card">
+            <div className="card dash-panel-card review-card">
               <div className="panel-card-head">
                 <h3 className="panel-card-title">Needs review</h3>
                 <Link to="/social" className="head-link">
@@ -269,6 +280,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenMobileMenu }
                     className="review-item-row"
                     onClick={() => open(item.id, item.type)}
                   >
+                    <span className={`review-item-icon tone-${item.type === 'fake_app' ? 'purple' : item.type === 'fake_brand_page' ? 'blue' : 'red'}`}>
+                      {item.type === 'fake_app' ? <Smartphone size={16} /> : item.type === 'fake_brand_page' ? <Building2 size={16} /> : <User size={16} />}
+                    </span>
                     <div className="review-item-text">
                       <span className="review-item-name">{item.name}</span>
                       <span className="review-item-sub">
@@ -338,7 +352,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenMobileMenu }
               {/* Why it was flagged card */}
               <div className="card why-flagged-card">
                 <div className="why-flagged-head">
-                  <Sparkles size={16} className="sparkle-icon" />
+                  <Lightbulb size={16} className="sparkle-icon" />
                   <h3 className="panel-card-title">Why it was flagged</h3>
                 </div>
                 {top ? (

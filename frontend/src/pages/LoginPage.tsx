@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
+import { BrandMark, Wordmark } from '../components/common/BrandMark';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Shield, Eye, Users, Database, Lock, Check } from 'lucide-react';
+import { Target, Users, Database, Lock, Check } from 'lucide-react';
 import { ApiError } from '../api/client';
 import { sm } from '../api/sm';
 import '../components/common/States.css';
@@ -39,10 +40,8 @@ export const LoginPage: React.FC = () => {
       {/* Left Column */}
       <div className="login-hero-pane">
         <div className="login-brand-header">
-          <div className="logo-shield">
-            <Shield size={18} strokeWidth={2.4} />
-          </div>
-          <span className="login-brand-name">SCAMMIND AI</span>
+          <BrandMark />
+          <span className="login-brand-name"><Wordmark upper /></span>
         </div>
 
         <div className="login-hero-copy">
@@ -59,7 +58,7 @@ export const LoginPage: React.FC = () => {
         <div className="login-pillars-grid">
           <div className="login-pillar-card">
             <div className="pillar-icon-box pillar-blue">
-              <Eye size={18} strokeWidth={2} />
+              <Target size={18} strokeWidth={2} />
             </div>
             <div className="pillar-heading">Explainable scores</div>
             <div className="pillar-detail">Every score lists its reasons.</div>

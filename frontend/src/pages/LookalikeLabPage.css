@@ -1,14 +1,18 @@
 .lookalike-page-wrap {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1.8fr) minmax(0, 1.2fr);
+  grid-template-rows: auto 1fr;
   gap: 20px;
+  align-items: start;
 }
 
+/* the tester and the test cases share the left column, the explanations stay in the right one (as in the design) */
 .lookalike-top-grid {
-  display: grid;
-  grid-template-columns: 1.8fr 1.2fr;
-  gap: 20px;
+  display: contents;
 }
+.test-name-card { grid-column: 1; grid-row: 1; }
+.lookalike-side-stack { grid-column: 2; grid-row: 1 / span 2; }
+.test-cases-card { grid-column: 1; grid-row: 2; }
 
 /* Left Interactive Tester */
 .test-name-card {
@@ -26,8 +30,12 @@
 
 .compare-target {
   font-size: 12px;
-  color: #8b9bff;
+  color: #c4ccff;
   font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(79, 99, 240, 0.14);
+  border: 1px solid rgba(79, 99, 240, 0.4);
 }
 
 .test-input-group {
@@ -43,12 +51,12 @@
 }
 
 .test-input-field {
-  height: 44px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.035);
-  border: 1px solid #23232c;
-  padding: 0 14px;
-  font-size: 14px;
+  height: 54px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid #2a2a35;
+  padding: 0 16px;
+  font-size: 18px;
   color: #ffffff;
 }
 
@@ -63,11 +71,11 @@
 }
 
 .preset-pill-btn {
-  padding: 6px 12px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.035);
-  border: 1px solid #23232c;
-  font-size: 12px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid #2a2a35;
+  font-size: 13.5px;
   color: #b1b4c6;
   font-weight: 500;
 }
@@ -89,8 +97,8 @@
   margin-top: 6px;
   padding: 20px;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.015);
-  border: 1px solid #1c1d27;
+  background: rgba(240, 86, 106, 0.1);
+  border: 1px solid rgba(240, 86, 106, 0.32);
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -103,15 +111,15 @@
 }
 
 .match-title {
-  font-size: 15px;
+  font-size: 18px;
   font-weight: 700;
   color: #ff8a98;
 }
 
 .match-desc {
-  font-size: 12.5px;
+  font-size: 13.5px;
   line-height: 1.5;
-  color: #8c8f9f;
+  color: #c4c6d6;
 }
 
 .match-chips-row {
@@ -125,46 +133,52 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
-  padding-top: 14px;
+  padding-top: 4px;
 }
 
 .steps-title {
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 700;
-  color: #c4c6d6;
+  color: #ffffff;
 }
 
 .steps-timeline {
   display: flex;
   flex-direction: column;
-  gap: 8px;
 }
 
 .step-timeline-row {
   display: grid;
-  grid-template-columns: 24px 200px 1fr;
+  grid-template-columns: 44px 216px 1fr;
   align-items: center;
-  font-size: 12.5px;
+  font-size: 13.5px;
+  padding: 11px 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .step-timeline-num {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
   font-weight: 800;
-  color: #4f63f0;
+  color: #ffffff;
+  background: #1a1d36;
+  border: 1px solid #353a68;
 }
 
 .step-timeline-lbl {
-  color: #7b7e92;
+  color: #a3a6b8;
 }
 
 .step-timeline-val {
-  font-family: monospace;
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  font-weight: 700;
+  font-size: 14px;
   color: #ffffff;
-  background: rgba(255, 255, 255, 0.035);
-  padding: 2px 8px;
-  border-radius: 6px;
-  display: inline-block;
-  width: fit-content;
 }
 
 /* Right Side Stack */
@@ -188,15 +202,15 @@
 }
 
 .variation-head {
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 700;
-  color: #d1d3df;
+  color: #ffffff;
 }
 
 .variation-example {
   font-size: 12px;
-  font-family: monospace;
-  color: #8b9bff;
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  color: #a3a6b8;
 }
 
 .avoid-flagging-card {
@@ -216,9 +230,9 @@
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  font-size: 12.5px;
-  line-height: 1.45;
-  color: #9295a8;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: #b1b4c6;
 }
 
 .rule-chk {
@@ -246,11 +260,12 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  gap: 12px;
 }
 
 .test-cases-sub {
   font-size: 13px;
-  color: #7b7e92;
+  color: #a3a6b8;
   margin-top: 2px;
 }
 
@@ -289,7 +304,9 @@
 }
 
 .case-name-cell {
-  font-weight: 600;
+  font-weight: 700;
+  font-size: 12.5px;
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
   color: #ffffff;
 }
 
@@ -300,7 +317,12 @@
 }
 
 @media (max-width: 1050px) {
-  .lookalike-top-grid {
+  .lookalike-page-wrap {
     grid-template-columns: 1fr;
+    grid-template-rows: none;
+  }
+  .test-name-card, .lookalike-side-stack, .test-cases-card {
+    grid-column: 1;
+    grid-row: auto;
   }
 }

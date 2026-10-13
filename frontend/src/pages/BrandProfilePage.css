@@ -48,13 +48,13 @@
 }
 
 .section-title {
-  font-size: 16px;
-  font-weight: 800;
+  font-size: 20px;
+  font-weight: 600;
   color: #ffffff;
 }
 
 .section-desc {
-  font-size: 13px;
+  font-size: 13.5px;
   color: #898c9f;
   line-height: 1.5;
 }
@@ -78,12 +78,12 @@
 }
 
 .field-input, .field-select {
-  height: 42px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.035);
-  border: 1px solid #23232c;
-  padding: 0 12px;
-  font-size: 13.5px;
+  height: 46px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid #2a2a35;
+  padding: 0 14px;
+  font-size: 14.5px;
   color: #ffffff;
 }
 
@@ -92,11 +92,11 @@
 }
 
 .tags-input-container {
-  min-height: 44px;
-  padding: 6px 10px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.035);
-  border: 1px solid #23232c;
+  min-height: 50px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid #2a2a35;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -107,13 +107,19 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 10px;
-  border-radius: 6px;
+  padding: 5px 13px;
+  border-radius: 999px;
   background: rgba(79, 99, 240, 0.15);
   color: #8b9bff;
   border: 1px solid rgba(79, 99, 240, 0.3);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
+}
+
+.interactive-tag-pill.pill-neutral {
+  background: rgba(255, 255, 255, 0.04);
+  color: #d1d3df;
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 .interactive-tag-pill.pill-green {
@@ -204,10 +210,8 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 14px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.025);
-  border: 1px solid #1e1e27;
+  padding: 12px 4px;
+  border-bottom: 1px solid #1e1e27;
 }
 
 .account-item-left {
@@ -217,10 +221,11 @@
 }
 
 .platform-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
   background: rgba(255, 255, 255, 0.06);
+  border: 1px solid #2a2a35;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -235,13 +240,13 @@
 }
 
 .account-handle-title {
-  font-size: 13.5px;
-  font-weight: 700;
-  color: #ffffff;
+  font-size: 14px;
+  font-weight: 400;
+  color: #b1b4c6;
 }
 
 .account-url-sub {
-  font-size: 11.5px;
+  font-size: 12px;
   color: #7b7e92;
 }
 
@@ -252,9 +257,15 @@
 }
 
 .item-delete-btn {
-  color: #7b7e92;
-  padding: 4px;
-  border-radius: 6px;
+  color: #a3a6b8;
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #2a2a35;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
 }
 
 .item-delete-btn:hover {
@@ -364,9 +375,8 @@
 }
 
 .package-id-cell {
-  font-family: monospace;
-  color: #9295a8;
-  font-size: 12px;
+  color: #c4c6d6;
+  font-size: 13px;
 }
 
 .publisher-cell {
@@ -401,7 +411,10 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-top: 10px;
+  padding: 14px 18px;
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-card);
+  background: var(--bg-card);
 }
 
 .save-note-text {
@@ -429,16 +442,23 @@
 }
 
 .side-card-title {
-  font-size: 15px;
-  font-weight: 800;
+  font-size: 16px;
+  font-weight: 700;
   color: #ffffff;
+}
+.side-card-title.with-icon {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .health-gauge-row {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 18px;
 }
+
+.health-gauge-row .score-ring-num { font-size: 20px; }
 
 .health-circle-badge {
   width: 58px;
@@ -467,15 +487,15 @@
 .health-checklist {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 6px;
+  gap: 12px;
+  margin-top: 8px;
 }
 
 .checklist-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 12px;
+  gap: 10px;
+  font-size: 13px;
 }
 
 .checklist-item.ok {
@@ -499,36 +519,38 @@
 /* Allowlist Tri Stats */
 .allowlist-tri-stats {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  text-align: center;
+  grid-template-columns: repeat(3, auto);
+  justify-content: start;
+  gap: 28px;
 }
 
+.allowlist-card {
+  background: linear-gradient(180deg, rgba(52, 211, 153, 0.07), rgba(52, 211, 153, 0.02)), var(--bg-card);
+  border-color: rgba(52, 211, 153, 0.28);
+}
+.allowlist-card .side-card-title svg { color: var(--green-text); }
+
 .allowlist-stat {
-  padding: 10px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.025);
-  border: 1px solid #1c1c24;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
 .allowlist-num {
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 800;
   color: #ffffff;
 }
 
 .allowlist-lbl {
-  font-size: 11px;
-  color: #7b7e92;
+  font-size: 12.5px;
+  color: #a3a6b8;
 }
 
 .allowlist-explanation {
-  font-size: 12px;
-  line-height: 1.5;
-  color: #85889c;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: #a3a6b8;
 }
 
 /* Guide Steps */
@@ -545,10 +567,11 @@
 }
 
 .guide-step-idx {
-  width: 20px;
-  height: 20px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
-  background: #1e2238;
+  background: #1a1d36;
+  border: 1px solid #353a68;
   color: #8b9bff;
   font-size: 11px;
   font-weight: 800;
@@ -560,9 +583,13 @@
 }
 
 .guide-step-text {
-  font-size: 12.5px;
-  line-height: 1.45;
-  color: #9295a8;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #a3a6b8;
+}
+.guide-step-text strong {
+  color: #ffffff;
+  font-weight: 700;
 }
 
 .guide-bottom-link {

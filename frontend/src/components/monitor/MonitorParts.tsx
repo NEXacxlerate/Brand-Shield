@@ -1,7 +1,7 @@
 // Pieces shared by the Social and App Store pages. Markup and class names are the ones of the original screens.
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Check, ShieldCheck } from 'lucide-react';
 import { fmtDayTime, platformLabel } from '../../api/format';
 import type { DetectionDetail, ExcludedItem, FalsePositiveItem, SourceItem } from '../../api/types';
 import { ApiError } from '../../api/client';
@@ -78,7 +78,7 @@ export const SourcesBar: React.FC<{
         {items.map((s) => (
           <span
             key={s.id}
-            className={`source-pill ${s.status === 'slow' ? 'warn' : s.status === 'unavailable' ? (variant === 'apps' ? 'alert-red' : 'warn') : ''}`}
+            className={`source-pill ${s.status === 'slow' ? 'warn' : s.status === 'unavailable' ? (variant === 'apps' ? 'alert-red' : 'warn') : 'ok'}`}
           >
             <span className={`src-dot ${s.status === 'online' ? 'dot-green' : s.status === 'slow' ? 'dot-orange' : 'dot-red'}`} />
             {s.name}
@@ -112,12 +112,24 @@ export const SourcesBar: React.FC<{
 };
 
 // ------------------------------------------------------------- bottom panels
+/** "@acmebank on Instagram": the handle in bold, the platform in regular weight (as in the design). */
+export function renderAccountLabel(text: string): React.ReactNode {
+  const i = text.lastIndexOf(' on ');
+  if (i < 0) return text;
+  return (
+    <>
+      <strong className="excluded-handle">{text.slice(0, i)}</strong>
+      {text.slice(i)}
+    </>
+  );
+}
+
 export const ExcludedCard: React.FC<{ state: Load<{ items: ExcludedItem[] }>; kind: 'account' | 'app'; description: string }> = ({ state, kind, description }) => {
   const items = (state.data?.items ?? []).filter((i) => i.kind === kind);
   return (
     <div className="card bottom-dual-card">
       <div className="dual-card-head">
-        <span className="dual-head-icon">🛡️</span>
+        <ShieldCheck size={17} className="dual-head-icon ok" aria-hidden="true" />
         <h3 className="panel-card-title">Excluded as official</h3>
       </div>
       <p className="dual-card-desc">{description}</p>
@@ -128,7 +140,7 @@ export const ExcludedCard: React.FC<{ state: Load<{ items: ExcludedItem[] }>; ki
         {items.map((it) => (
           <div key={`${it.kind}-${it.id}`} className="excluded-row">
             {kind === 'account' ? (
-              <span>{prettySlugs(it.label)}</span>
+              <span>{renderAccountLabel(prettySlugs(it.label))}</span>
             ) : (
               <div>
                 <div className="guard-entity-title">{it.label}</div>
@@ -149,7 +161,7 @@ export const GuardCard: React.FC<{ state: Load<{ items: FalsePositiveItem[] }>; 
   return (
     <div className="card bottom-dual-card">
       <div className="dual-card-head">
-        <span className="dual-head-icon">✓</span>
+        <Check size={17} className="dual-head-icon" aria-hidden="true" />
         <h3 className="panel-card-title">False-positive guard</h3>
       </div>
       <p className="dual-card-desc">{description}</p>
@@ -181,24 +193,33 @@ export const GuardCard: React.FC<{ state: Load<{ items: FalsePositiveItem[] }>; 
 };
 
 // ------------------------------------------------------------- detail blocks
-export const ReasonsBox: React.FC<{ d: DetectionDetail }> = ({ d }) => (
-  <div className="scored-breakdown-box">
-    <div className="scored-head">
-      <h4 className="scored-title">Why it scored {d.score}</h4>
-      <span className="scored-sub">Points added by each signal</span>
+export const ReasonsBox: React.FC<{ d: DetectionDetail }> = ({ d }) => {
+  // Each bar is that signal's points relative to the strongest signal of this detection (real data, nothing added).
+  const maxPts = Math.max(1, ...d.reasons.map((r) => r.points));
+  return (
+    <div className="scored-breakdown-box">
+      <div className="scored-head">
+        <h4 className="scored-title">Why it scored {d.score}</h4>
+        <span className="scored-sub">Points added by each signal</span>
+      </div>
+      <div className="signals-list">
+        {d.reasons.map((r, i) => (
+          <div key={i} className="signal-item">
+            <div className="signal-line">
+              <span className="signal-label">
+                <strong className="signal-name">{r.label}</strong> · {r.detail}
+              </span>
+              <span className="signal-pts">+{r.points}</span>
+            </div>
+            <div className="signal-bar" aria-hidden="true">
+              <div className="signal-bar-fill" style={{ width: `${Math.max(2, (r.points / maxPts) * 100)}%` }} />
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
-    <div className="signals-list">
-      {d.reasons.map((r, i) => (
-        <div key={i} className="signal-item">
-          <span className="signal-label">
-            <strong className="signal-name">{r.label}</strong> · {r.detail}
-          </span>
-          <span className="signal-pts">+{r.points}</span>
-        </div>
-      ))}
-    </div>
-  </div>
-);
+  );
+};
 
 export const EvidenceBox: React.FC<{ d: DetectionDetail }> = ({ d }) => {
   const href = safeHref(d.evidence.page_url);

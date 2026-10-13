@@ -207,7 +207,7 @@ export const SourceHealthPage: React.FC = () => {
                   <div className="sources-cards-list">
                     {items.length === 0 && <Empty>No sources yet.</Empty>}
                     {items.map((s) => (
-                      <div key={s.id} className="source-detail-row" data-testid={`source-${s.slug}`}>
+                      <div key={s.id} className={`source-detail-row status-${s.status}`} data-testid={`source-${s.slug}`}>
                         <div className="source-row-top">
                           <div className="source-identity-left">
                             <div className="source-logo-avatar">
@@ -286,13 +286,13 @@ export const SourceHealthPage: React.FC = () => {
                       <div className="unavailable-step-item">
                         <span className="step-circle">1</span>
                         <p className="step-msg">
-                          The scan still finishes. Other sources are checked and results are saved.
+                          <strong>The scan still finishes.</strong> Other sources are checked and results are saved.
                         </p>
                       </div>
                       <div className="unavailable-step-item">
                         <span className="step-circle">2</span>
                         <p className="step-msg">
-                          Cached results are labelled. You see the age of the data, never an empty page.
+                          <strong>Cached results are labelled.</strong> You see the age of the data, never an empty page.
                         </p>
                       </div>
                       <div className="unavailable-step-item">
@@ -302,7 +302,7 @@ export const SourceHealthPage: React.FC = () => {
                       <div className="unavailable-step-item">
                         <span className="step-circle">4</span>
                         <p className="step-msg">
-                          You decide. Retry by hand, or pause a source that keeps failing.
+                          <strong>You decide.</strong> Retry by hand, or pause a source that keeps failing.
                         </p>
                       </div>
                     </div>

@@ -273,7 +273,7 @@ export const SettingsPage: React.FC = () => {
                         <h3 className="panel-card-title">Detection sensitivity</h3>
 
                         <div className="sensitivity-threshold-text">
-                          Send to review when risk score is at least {draft.sensitivity}
+                          Send to review when risk score is at least <strong className="sensitivity-value">{draft.sensitivity}</strong>
                         </div>
 
                         <div className="slider-wrapper">
@@ -286,6 +286,7 @@ export const SettingsPage: React.FC = () => {
                             aria-label="Detection sensitivity"
                             onChange={(e) => patch({ sensitivity: Number(e.target.value) })}
                             className="sensitivity-range-slider"
+                            style={{ '--pct': `${((draft.sensitivity - 50) / 45) * 100}%` } as React.CSSProperties}
                           />
                           <div className="slider-labels-row">
                             <span>More detections</span>

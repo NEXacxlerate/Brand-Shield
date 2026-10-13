@@ -448,7 +448,17 @@ The UI (layout, classes, copy, CSS) of the 10 designed pages was kept; only the 
 - Reports use up to 200 detections (API limit per list call). Audit log viewer: only "Export Audit Log" (CSV) is wired; there is no audit screen.
 - Token refresh is single-flight **per browser tab**. Two tabs that refresh at the same instant can present the same rotated refresh token twice; the server treats that as theft and revokes all refresh tokens of that user, so both tabs are signed out. Not mitigated (would need a cross-tab lock).
 - Unverified: live mode with a real Tavily key or real stores (no live calls were made); slow/unavailable source states are covered by unit tests only (the sample collector always reports online); PostgreSQL.
-- Differences between the design PDF and the code that existed before Phase 5 and were NOT changed: KPI card icons, hero glow, the score ring/bars under "Why it scored", default "Google Play" tab on the Apps page.
+
+### Visual parity (design PDF vs the running app)
+
+A side-by-side pass of the 10 screens (1440 px wide) against `ScamMind AI Screens.pdf`. Font is unchanged (Manrope, which the PDF also uses).
+
+- Dashboard: KPI cards have the tinted icon chip, the delta as a pill and a larger sparkline (only when the API sends a trend; the "Official assets" card has none, so none is drawn); hero has the stacked layout with the violet and green glow; "Where we found them" is a name | bar | count row; Needs review has type icons and a warm tint; "Why it was flagged" uses the lightbulb and blue pills.
+- Social / App detail: the header score is a real SVG ring (arc = score/100, colour by `risk_band`, `components/charts/ScoreRing.tsx`); "Why it scored" shows one bar per signal, width = that signal's points relative to the strongest signal of the same detection (the API has no per-signal maximum, so nothing is invented). List scores are coloured by band; source chips are tinted by status; official/suspect cards use bold values and pill tags; Excluded / False-positive guard use icons instead of emoji.
+- App Store Monitoring opens on "Google Play" (a `?detection=` deep link still opens on "All stores" so any store's detection is found).
+- Shell: sidebar is a floating rounded card, no header divider, new brand mark (`components/common/BrandMark.tsx`) and "AI" in the accent colour, Settings and Look-alike icons as in the design.
+- Login, Setup, Brand Profile (health ring from the real percent, allowlist card, neutral keyword pills, bold handles), Look-alike Lab (tester and test cases in the left column, red result panel, numbered steps), Source Health (one-line message + sync for healthy rows, tinted slow/unavailable rows), Reports (stat tiles) and Settings (accent threshold value, styled slider, larger controls) were re-spaced and re-coloured to the PDF.
+- Remaining differences (all deliberate or data-dependent): "Description overlap 88%" with matched-phrase chips (API has points only); official-page bio, followers, joined, downloads are "not collected" texts; the PDF's sample figures (94, 91, ...) differ from the dev data; Reports "Printable report" label; "Run test cases" button and "Not run" results instead of a pre-filled "12 of 12 pass"; Settings/Brand save bars and the header "Sample data" badge; the "Sample data" badge inside the detail panel; the sidebar search placeholder reads "Search detections" (the PDF clips it); Dashboard Source health lists the first six sources; alias, keyword and domain pills keep a remove (x) button.
 
 ### Tests
 

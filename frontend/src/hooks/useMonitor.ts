@@ -15,7 +15,10 @@ const errText = (e: unknown, fallback: string) => (e instanceof ApiError ? e.mes
 
 export function useMonitor(category: Category) {
   const [params, setParams] = useSearchParams();
-  const [filter, setFilter] = useState<string>('all'); // 'all' | detection type (social) | platform slug (apps)
+  const [filter, setFilter] = useState<string>(
+    // The design opens App Store Monitoring on Google Play; a deep link (?detection=) keeps "all" so any store's detection is listed.
+    category === 'apps' && !params.get('detection') ? 'google_play' : 'all'
+  ); // 'all' | detection type (social) | platform slug (apps)
   const [selectedId, setSelectedId] = useState<number | null>(() => {
     const n = Number(params.get('detection'));
     return Number.isInteger(n) && n > 0 ? n : null;

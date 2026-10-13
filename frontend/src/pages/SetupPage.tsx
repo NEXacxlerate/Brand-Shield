@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { BrandMark, Wordmark } from '../components/common/BrandMark';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Shield, ShieldCheck } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 import { ApiError } from '../api/client';
 import { fmtBytes, sourceStatusLabel } from '../api/format';
 import { sm } from '../api/sm';
@@ -112,10 +113,8 @@ export const SetupPage: React.FC = () => {
       {/* Top Bar */}
       <header className="setup-topbar">
         <div className="setup-logo">
-          <div className="logo-shield">
-            <Shield size={18} strokeWidth={2.4} />
-          </div>
-          <span className="setup-logo-text">ScamMind AI</span>
+          <BrandMark />
+          <span className="setup-logo-text"><Wordmark /></span>
         </div>
         <NavLink to="/dashboard" className="skip-link">
           Skip setup for now

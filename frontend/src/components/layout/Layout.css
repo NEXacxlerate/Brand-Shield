@@ -13,15 +13,19 @@
   width: var(--sidebar-width);
   min-width: var(--sidebar-width);
   max-width: var(--sidebar-width);
-  padding: 20px 14px 18px 16px;
+  /* a floating rounded card, as in the design */
+  margin: 16px 0 16px 16px;
+  padding: 22px 16px 18px;
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: calc(100vh - 32px);
   position: sticky;
-  top: 0;
+  top: 16px;
   overflow-y: auto;
   z-index: 50;
-  background-color: var(--bg-page);
+  background-color: var(--bg-shell);
+  border: 1px solid var(--border-shell);
+  border-radius: 24px;
 }
 
 .sidebar-logo {
@@ -55,7 +59,7 @@
 
 /* Search Box */
 .sidebar-search {
-  height: 40px;
+  height: 44px;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.035);
   border: 1px solid var(--border-card);
@@ -95,8 +99,8 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 10px;
-  border-radius: 12px;
+  padding: 14px 12px;
+  border-radius: 14px;
   background: rgba(255, 255, 255, 0.025);
   border: 1px solid var(--border-card);
   margin-bottom: 20px;
@@ -110,10 +114,10 @@
 }
 
 .brand-avatar-badge {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  background: linear-gradient(135deg, #4f63f0, #6d5ce8);
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #4f63f0, #8b5cf6);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -143,11 +147,8 @@
 .brand-sub {
   font-size: 11px;
   color: var(--text-dim);
-  line-height: 1.2;
+  line-height: 1.3;
   margin-top: 2px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .brand-chevron {
@@ -172,13 +173,13 @@
 }
 
 .nav-item {
-  height: 42px;
+  height: 44px;
   border-radius: 10px;
   padding: 0 12px;
   display: flex;
   align-items: center;
   gap: 12px;
-  font-size: 13.5px;
+  font-size: 14.25px;
   font-weight: 500;
   color: var(--text-muted);
   text-decoration: none;
@@ -219,7 +220,7 @@
 /* Main Panel Shell */
 .main-panel {
   flex: 1;
-  margin: 12px 14px 12px 0;
+  margin: 16px;
   border: 1px solid var(--border-shell);
   border-radius: var(--radius-shell);
   background-color: var(--bg-shell);
@@ -232,8 +233,7 @@
 
 /* Topbar Header */
 .panel-header {
-  padding: 18px 28px;
-  border-bottom: 1px solid var(--border-shell);
+  padding: 20px 28px 8px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -256,7 +256,7 @@
 }
 
 .header-title {
-  font-size: 22px;
+  font-size: 23px;
   font-weight: 800;
   color: var(--text-main);
   line-height: 1.2;
@@ -402,7 +402,7 @@
 
 /* Panel Content */
 .panel-content {
-  padding: 24px 28px 40px;
+  padding: 16px 28px 40px;
   overflow-y: auto;
   flex: 1;
 }
@@ -427,6 +427,9 @@
     left: 0;
     bottom: 0;
     background-color: var(--bg-page);
+    margin: 0;
+    height: auto;
+    border-radius: 0;
     transform: translateX(-100%);
     transition: transform 0.25s ease;
     box-shadow: 10px 0 30px rgba(0, 0, 0, 0.8);
@@ -453,3 +456,6 @@
     padding: 16px 14px 32px;
   }
 }
+
+.sidebar-logo .brand-mark { width: 30px; height: 30px; }
+.logo-text .wordmark-ai, .setup-logo-text .wordmark-ai { font-weight: 600; }

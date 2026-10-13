@@ -250,3 +250,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   border-top: 1px solid rgba(255, 255, 255, 0.05);
   text-align: center;
 }
+
+/* Wordmark: "AI" in the accent colour, regular weight */
+.wordmark-ai { color: var(--accent); font-weight: 600; }
