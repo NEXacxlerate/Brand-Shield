@@ -98,3 +98,34 @@ If a hard guarantee is required, someone who has the ZIP should run a similarity
 6. Login rate limiter is in memory per process; the evaluation cache is per process; one brand per organisation; no PDF export; notifications not delivered.
 7. Redis image licensing (7.2 pinned for BSD licensing; 7.4+/8.x licensing is from memory, unverified) and `psycopg` LGPL-3.0 need a legal look (`docs/DEPENDENCIES.md`).
 8. Reference-ZIP similarity: process evidence only, no diff (g).
+
+
+---
+
+# DigitalTrust extension: definition-of-done audit (final pass, 2026-10-15)
+
+Run on the authoring machine (Windows, SQLite only; no live network, no user keys).
+
+| Check | Result |
+|---|---|
+| Server `python -m pytest -q` | 1010 passed, 5 skipped (PostgreSQL-only; PostgreSQL not run in this pass). The suite ran twice: first run 3 failures in `test_synthetic_evaluate.py` caused by the new fan-page / authorized-reseller negatives, fixed by updating those tests (see below); re-run of that file green, rest of the suite unchanged |
+| `python -m ruff check .` | All checks passed |
+| Frontend `tsc --noEmit`, `npm run build` | OK |
+| Frontend `npm test` (Vitest) | 68 passed (2 new for Investigations) |
+| `npm run test:e2e` | 14 passed (nav labels and one chip selector updated) |
+
+## Met
+- Risk engine v1/v2 with severity, per-signal present / clean / unavailable and provenance (E2), shown in the detail panel.
+- Web category (look-alike domains, optional Safe Browsing), brand registry v2 (domains, logos, publishers, description, verification), manual entry and CSV/JSON import with dry run and per-row errors (E7), now with UI.
+- Investigations workflow with `resolution` (migration 0007), audited, persisted, filterable.
+- Settings shows provider status (never keys) and Safe Browsing configured yes/no; admin can choose the text provider.
+- Evaluation: confusion matrix, FPR, per-group and per-category numbers, dataset name/version/size, algorithm version, SYNTHETIC banner, hard negatives (fan pages, authorized resellers, unrelated).
+- Security: general rate limiter (in memory), restrictive CORS (tested), `docs/SECURITY.md`.
+
+## Not met or caveats
+- **Authorized resellers are flagged** by the name matcher (15 of 15 synthetic cases; FPR 3.5% overall). Only the allowlist clears them. The old test asserted precision 1.0; it now asserts only authorized-reseller names may be false positives.
+- ML classifier: not built (deferred until labelled analyst data exists). Evaluation numbers are synthetic and optimistic; there is no real-world precision/recall.
+- Rate limiter is per process and in memory. No tenant isolation (single tenant), no SSO/MFA.
+- Not exercised with real keys: Gemini, Hugging Face, Google Safe Browsing, Tavily. Not run: PostgreSQL this pass (the 0007 migration is a plain nullable column), Docker, CI.
+- No visual comparison against the PDF was redone; new pages reuse existing styles and were only smoke-tested through unit tests and the e2e walk (which does not open `/web` or `/investigations`).
+- Web Threats and Investigations have no dedicated e2e test; Investigations has Vitest coverage, the resolution API has pytest coverage.

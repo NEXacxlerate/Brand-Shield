@@ -1,6 +1,6 @@
 # Extension plan: DigitalTrust AI brief on top of ScamMind AI
 
-Status: E1-E7 IMPLEMENTED 2026-10-14 (see the progress table below); E8-E10 not started. Originally written as a plan only. Written 2026-10-13 from a read of `server/app`, `frontend/src`, `docs/`.
+Status: E1-E7 IMPLEMENTED 2026-10-14 (see the progress table below); E8-E10 IMPLEMENTED 2026-10-15 (see DONE_AUDIT.md for what is not met). Originally written as a plan only. Written 2026-10-13 from a read of `server/app`, `frontend/src`, `docs/`.
 Provider facts in section 3 were read from official docs/PyPI on this date; anything not confirmed is marked UNVERIFIED.
 
 ## 1. Gap analysis (requirement by requirement)
@@ -116,7 +116,7 @@ Rules for every package: all existing tests stay green; `pytest -q` and `npm tes
 | E5 Text providers | DONE (mocked only) | `app/providers/text/`: local baseline, Gemini (google-genai), Hugging Face (optional), cache, retries, injection-safe prompt, `/api/providers`. Anthropic removed. Embeddings: class exists, OFF, not wired into scans. Not run live (needs keys). |
 | E6 Images | DONE | `engine/image_hashes.py` (local hashes, optional ImageHash), multi-logo, safe upload. Default scoring backend unchanged. |
 | E7 Registry v2 + intake | DONE (API only) | Migration 0006, description, archive, publishers, verification, manual entry, CSV/JSON import. UI for these NOT built. |
-| E8-E10 | NOT STARTED | Manual entry and import (planned in E8) were delivered with E7. |
+| E8-E10 | DONE (ML classifier deferred) | Manual entry and import (planned in E8) were delivered with E7. |
 
 ## 5. What the user must provide, and when
 

@@ -1029,3 +1029,10 @@ Writers = analyst or admin. Viewers get 403 on every write.
 
 ### 21.5 Migration 0006
 `brands.description/archived_at`, `detections.origin` (back-filled: sample rows `synthetic`), tables `brand_logos`, `brand_publishers`, `asset_verifications`, `candidate_images`, `text_analysis_cache`.
+
+
+## 22. Final pass (E8-E10)
+
+- **Resolution.** Migration 0007 adds `detections.resolution` (nullable). `POST /api/detections/{id}/resolution` (writer) `{resolution: true_positive|false_positive|resolved|monitoring, note}` returns the detail plus `audit_id`. It does not change `status`, adds an event (`kind: resolution`) to `history`, and is audited as `detection.resolution_set`. `GET /api/detections?resolution=` filters; rows and detail carry `resolution`. `severity` is already on every row and detail.
+- **Evaluation.** `GET /api/evaluation` -> `synthetic` also has `confusion {matrix{tp,fp,fn,tn}, false_positive_rate, false_negative_rate, accuracy, total_cases, negative_groups[{group,n,flagged,false_positive_rate}]}`, `dataset {name, version, size, synthetic: true, banner, split}`, `algorithm_version {social_app, web}` and `ml_classifier` ("deferred until labelled analyst data exists"). The top level adds `by_category[{category,total,confirmed,dismissed,precision}]` from reviewer decisions. Negative groups: `hard_negative`, `fan_page`, `authorized_reseller`, `unrelated`. There is no train/test split (nothing is trained), so no variants can leak. Authorized-reseller names are flagged by a name-only matcher (known limit; the allowlist clears real ones).
+- **Rate limit.** Every `/api/*` request counts against `API_RATE_LIMIT_PER_MINUTE` (default 600; 0 = off) per client IP and per token; over the limit -> `429 {detail}` with `Retry-After: 60`. In memory, single process. `/health*` is exempt. See `docs/SECURITY.md`.

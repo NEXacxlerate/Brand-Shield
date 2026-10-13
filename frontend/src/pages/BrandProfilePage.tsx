@@ -36,6 +36,7 @@ export const BrandProfilePage: React.FC = () => {
 
   const [companyName, setCompanyName] = useState('');
   const [industry, setIndustry] = useState('');
+  const [description, setDescription] = useState('');
   const [aliases, setAliases] = useState<string[]>([]);
   const [newAlias, setNewAlias] = useState('');
   const [keywords, setKeywords] = useState<string[]>([]);
@@ -72,6 +73,7 @@ export const BrandProfilePage: React.FC = () => {
   const fill = (b: Brand) => {
     setCompanyName(b.name);
     setIndustry(b.industry);
+    setDescription(b.description ?? '');
     setAliases(b.aliases);
     setKeywords(b.keywords);
     setDomains(b.domains);
@@ -109,6 +111,7 @@ export const BrandProfilePage: React.FC = () => {
       const saved = await sm.updateBrand(brand.id, {
         name: companyName,
         industry,
+        description,
         aliases: withPending(aliases, newAlias),
         keywords: withPending(keywords, newKeyword),
         domains: withPending(domains, newDomain),
@@ -273,6 +276,18 @@ export const BrandProfilePage: React.FC = () => {
                       onChange={(e) => setIndustry(e.target.value)}
                     />
                   </div>
+                </div>
+
+                <div className="form-field">
+                  <label className="field-lbl" htmlFor="bp-description">Brand description (what you publicly say about yourself)</label>
+                  <textarea
+                    id="bp-description"
+                    className="field-input"
+                    rows={3}
+                    maxLength={2000}
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                  />
                 </div>
 
                 {/* Aliases */}
@@ -706,6 +721,9 @@ export const BrandProfilePage: React.FC = () => {
                 </div>
               </div>
 
+              {/* Verification status: an attestation by a person, not an automatic check */}
+              <VerificationCard brand={brand} canWrite={canWrite} onChanged={() => void refreshBrand()} />
+
               {/* Allowlist: never flagged */}
               <div className="card side-panel-card allowlist-card">
                 <h3 className="side-card-title with-icon"><ShieldCheck size={17} aria-hidden="true" />Allowlist: never flagged</h3>
@@ -767,5 +785,67 @@ export const BrandProfilePage: React.FC = () => {
         </div>
       </div>
     </>
+  );
+};
+
+// Verification status of official identifiers. An attestation by a person (how, when, by whom); nothing is checked automatically.
+const METHODS = ['dns_txt', 'website_link', 'store_listing', 'platform_badge', 'manual_review', 'other'];
+
+const VerificationCard: React.FC<{ brand: Brand; canWrite: boolean; onChanged: () => void }> = ({ brand, canWrite, onChanged }) => {
+  const [method, setMethod] = useState('manual_review');
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const assets = [
+    ...brand.domains.map((d) => ({ type: 'domain', key: d.toLowerCase(), label: d })),
+    ...brand.official_accounts.map((a) => ({ type: 'account', key: `${a.platform}:${a.handle.replace(/^@/, '').toLowerCase()}`, label: `${a.handle} (${platformLabel(a.platform)})` })),
+    ...brand.official_apps.map((a) => ({ type: 'app', key: a.package_id.toLowerCase(), label: a.name })),
+  ];
+  const status = (type: string, key: string) => (brand.verifications ?? []).find((v) => v.asset_type === type && v.asset_key === key);
+
+  const toggle = async (type: string, key: string, verified: boolean) => {
+    setBusy(`${type}:${key}`);
+    setError(null);
+    try {
+      await sm.setVerification(brand.id, { asset_type: type, asset_key: key, status: verified ? 'unverified' : 'verified', method: verified ? undefined : method });
+      onChanged();
+    } catch (e) {
+      setError(message(e, 'Could not save the verification status.'));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="card side-panel-card" data-testid="verification-card">
+      <h3 className="side-card-title">Verification status</h3>
+      {assets.length === 0 && <p className="allowlist-explanation">Add official domains, accounts or apps to record whether each one was verified.</p>}
+      {assets.length > 0 && (
+        <label className="field-lbl" style={{ display: 'block', marginBottom: 6 }}>
+          Method used when verifying
+          <select className="field-input" value={method} onChange={(e) => setMethod(e.target.value)} disabled={!canWrite}>
+            {METHODS.map((m) => (
+              <option key={m} value={m}>{m.replace(/_/g, ' ')}</option>
+            ))}
+          </select>
+        </label>
+      )}
+      {assets.map((a) => {
+        const v = status(a.type, a.key);
+        const verified = v?.status === 'verified';
+        return (
+          <div key={`${a.type}:${a.key}`} className="checklist-item" style={{ justifyContent: 'space-between', gap: 8 }}>
+            <span title={verified && v ? `${v.method ?? ''} by ${v.verified_by ?? ''}` : undefined}>
+              {a.label}: <strong>{verified ? 'verified' : 'unverified'}</strong>
+            </span>
+            <button type="button" className="btn-secondary btn-sm" disabled={!canWrite || busy === `${a.type}:${a.key}`} onClick={() => void toggle(a.type, a.key, verified)}>
+              {verified ? 'Unverify' : 'Mark verified'}
+            </button>
+          </div>
+        );
+      })}
+      {error && <Notice onClose={() => setError(null)}>{error}</Notice>}
+      <p className="allowlist-explanation">This is a record of a person's check. The app does not verify DNS or stores itself.</p>
+    </div>
   );
 };

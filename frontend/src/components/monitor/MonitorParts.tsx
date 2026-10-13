@@ -2,7 +2,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, Check, ShieldCheck } from 'lucide-react';
-import { fmtDayTime, platformLabel } from '../../api/format';
+import { fmtDayTime, humanize, platformLabel } from '../../api/format';
 import type { DetectionDetail, ExcludedItem, FalsePositiveItem, SourceItem } from '../../api/types';
 import { ApiError } from '../../api/client';
 import { sm } from '../../api/sm';
@@ -216,6 +216,22 @@ export const GuardCard: React.FC<{ state: Load<{ items: FalsePositiveItem[] }>; 
 };
 
 // ------------------------------------------------------------- detail blocks
+const SEVERITY_CHIP: Record<string, string> = { CRITICAL: 'chip-red', HIGH: 'chip-orange', MEDIUM: 'chip-blue', LOW: 'chip-neutral' };
+
+/** Severity (LOW..CRITICAL) from the risk engine, shown beside the risk band. */
+export const SeverityChip: React.FC<{ severity?: string | null }> = ({ severity }) =>
+  severity ? (
+    <span className={`chip ${SEVERITY_CHIP[severity] ?? 'chip-neutral'}`} data-testid="severity-chip" title="Severity from the risk engine">
+      {severity.charAt(0) + severity.slice(1).toLowerCase()}
+    </span>
+  ) : null;
+
+const SIGNAL_STATE: Record<string, { label: string; chip: string }> = {
+  present: { label: 'Present', chip: 'chip-red' },
+  clean: { label: 'Clean', chip: 'chip-green' },
+  unavailable: { label: 'Unavailable', chip: 'chip-neutral' },
+};
+
 export const ReasonsBox: React.FC<{ d: DetectionDetail }> = ({ d }) => {
   // Each bar is that signal's points relative to the strongest signal of this detection (real data, nothing added).
   const maxPts = Math.max(1, ...d.reasons.map((r) => r.points));
@@ -240,6 +256,25 @@ export const ReasonsBox: React.FC<{ d: DetectionDetail }> = ({ d }) => {
           </div>
         ))}
       </div>
+      {d.signals && d.signals.length > 0 && (
+        <div className="signals-availability" data-testid="signal-availability">
+          <div className="scored-sub" style={{ margin: '12px 0 6px' }}>
+            Signal availability{d.algorithm_version ? ` (algorithm ${d.algorithm_version})` : ''}. Unavailable means it could not be checked, not that it is safe.
+          </div>
+          {d.signals.map((sg) => {
+            const st = SIGNAL_STATE[sg.status] ?? SIGNAL_STATE.unavailable;
+            return (
+              <div key={sg.id} className="signal-line" style={{ gap: 8, alignItems: 'center', marginBottom: 4 }}>
+                <span className="signal-label">
+                  <strong className="signal-name">{humanize(sg.id)}</strong> · source: {humanize(sg.provenance)}
+                  {sg.note ? ` · ${sg.note}` : ''}
+                </span>
+                <span className={`chip ${st.chip}`}>{st.label}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };

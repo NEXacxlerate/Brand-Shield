@@ -96,7 +96,7 @@ test('setup: admin signs in, creates the brand, pre-checks and uploads a logo, s
 test('brand profile: logo from the server, accounts (duplicate, bad handle, unreachable warning), apps, save, health', async ({ page }) => {
   const errors = watch(page);
   await login(page);
-  await nav(page, 'Brand Profile', /\/brand$/);
+  await nav(page, 'Brand Registry', /\/brand$/);
   await expect(page.getByTestId('logo-specs')).toContainText('PNG');
   await expect(page.getByTestId('logo-specs')).toContainText('512 × 512 px');
   const pctBefore = await page.getByTestId('health-pct').innerText();
@@ -176,7 +176,7 @@ test('dashboard: scan in sample mode (progress, result), sample badge, real numb
 test('social: sample-badged detections, review actions persist on the server, rollback on failure, mark as official', async ({ page }) => {
   const errors = watch(page);
   await login(page);
-  await nav(page, 'Social Monitoring', /\/social$/);
+  await nav(page, 'Social Threats', /\/social$/);
   await expect(page.getByTestId('detection-row').first()).toBeVisible();
   await expect(page.getByTestId('detail-sample-badge')).toBeVisible();
   await expect(page.getByTestId('sample-badge')).toBeVisible();
@@ -198,9 +198,9 @@ test('social: sample-badged detections, review actions persist on the server, ro
   // the real confirm
   await page.getByRole('button', { name: 'Confirm impersonation' }).click();
   await expect(page.getByTestId('detail-status')).toHaveText('Confirmed');
-  await expect(page.locator('.detection-row-card.active .chip')).toHaveText('Confirmed');
+  await expect(page.locator('.detection-row-card.active .chip:not([data-testid="severity-chip"])')).toHaveText('Confirmed');
   await page.reload();
-  await expect(page.locator('.detection-row-card.active .chip')).toHaveText('Confirmed'); // persisted by the server, not the browser
+  await expect(page.locator('.detection-row-card.active .chip:not([data-testid="severity-chip"])')).toHaveText('Confirmed'); // persisted by the server, not the browser
 
   // keep reviewing the second row, dismiss the third
   await page.getByTestId('detection-row').nth(1).click();
@@ -238,7 +238,7 @@ test('social: sample-badged detections, review actions persist on the server, ro
 test('apps: store tabs with counts, publisher banner, confirm, retry banner absent when all sources are online', async ({ page }) => {
   const errors = watch(page);
   await login(page);
-  await nav(page, 'App Store Monitoring', /\/apps$/);
+  await nav(page, 'App Threats', /\/apps$/);
   await expect(page.getByTestId('detection-row').first()).toBeVisible();
   await expect(page.getByTestId('detail-sample-badge')).toBeVisible();
   await expect(page.getByRole('button', { name: /^All stores \d+$/ })).toBeVisible();

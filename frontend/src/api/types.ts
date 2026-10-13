@@ -6,7 +6,9 @@ export type DetectionStatus = 'new' | 'reviewing' | 'confirmed' | 'dismissed' | 
 export type RiskBand = 'high' | 'medium' | 'low';
 export type SourceStatus = 'online' | 'slow' | 'unavailable';
 export type DataMode = 'live' | 'sample' | 'auto';
-export type Category = 'social' | 'apps';
+export type Category = 'social' | 'apps' | 'web';
+export type Severity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+export type Resolution = 'true_positive' | 'false_positive' | 'resolved' | 'monitoring';
 export type ScanScope = 'all' | 'social' | 'apps';
 
 export interface SampleFlags {
@@ -53,9 +55,20 @@ export interface HealthCheck {
   points: number;
   why: string | null;
 }
+export interface Verification {
+  asset_type: string;
+  asset_key: string;
+  status: 'unverified' | 'verified';
+  method: string | null;
+  note: string;
+  verified_at: string | null;
+  verified_by: string | null;
+}
 export interface Brand {
   id: number;
   name: string;
+  description?: string | null;
+  verifications?: Verification[];
   industry: string;
   aliases: string[];
   keywords: string[];
@@ -71,6 +84,7 @@ export interface Brand {
 }
 export interface BrandIdentityInput {
   name: string;
+  description?: string;
   industry: string;
   aliases: string[];
   keywords: string[];
@@ -90,6 +104,9 @@ export interface DetectionRow {
   profile_url: string | null;
   score: number;
   risk_band: RiskBand;
+  severity?: Severity;
+  resolution?: Resolution | null;
+  origin?: string;
   status: DetectionStatus;
   summary: string;
   tags: string[];
@@ -119,7 +136,18 @@ export interface Reason {
   points: number;
   max_points?: number;
 }
+export interface Signal {
+  id: string;
+  status: 'present' | 'clean' | 'unavailable';
+  value?: unknown;
+  points: number;
+  max_points: number;
+  provenance: string;
+  note?: string | null;
+}
 export interface DetectionDetail extends DetectionRow, SampleFlags {
+  signals?: Signal[];
+  algorithm_version?: string | null;
   brand_id: number;
   first_seen_at: string;
   raw_total: number;
@@ -322,6 +350,7 @@ export interface SourceList {
   requested_data_mode: DataMode;
   summary: { online: number; slow: number; unavailable: number; total: number; next_scan_at: string | null; schedule: string | null; last_full_sync_at: string | null; retry_policy: string };
   items: SourceItem[];
+  reputation?: { provider: string; configured: boolean; note: string } | null;
   tavily_credits: TavilyCredits | null;
 }
 export interface RetryResult {
@@ -469,7 +498,19 @@ export interface Evaluation extends SampleFlags {
     by_technique: (TechniqueScore & { technique: string })[];
     overall: TechniqueScore;
     false_positives: unknown[];
+    confusion?: {
+      matrix: { tp: number; fp: number; fn: number; tn: number };
+      false_positive_rate: number;
+      false_negative_rate: number;
+      accuracy: number;
+      total_cases: number;
+      negative_groups: { group: string; n: number; flagged: number; false_positive_rate: number }[];
+    };
+    dataset?: { name: string; version: string; size: number; synthetic: boolean; brands: string[]; split: string; banner: string };
+    algorithm_version?: { social_app: string; web: string };
+    ml_classifier?: string;
   };
+  by_category?: { category: string; total: number; confirmed: number; dismissed: number; precision: number | null }[];
   lookalike_tests: TestCaseRun & {
     true_positives: number;
     false_negatives: number;
@@ -494,4 +535,41 @@ interface ApiMe {
   role: 'admin' | 'analyst' | 'viewer';
   active?: boolean;
   default_brand_id?: number | null;
+}
+
+// ---- providers / import ----------------------------------------------------------
+export interface ProviderInfo {
+  name: string;
+  label: string;
+  configured: boolean;
+  model: string | null;
+  needs_key: boolean;
+  reason: string | null;
+  active: boolean;
+}
+export interface Providers {
+  active_text_provider: string;
+  hosted_text_analysis_enabled: boolean;
+  text_providers: ProviderInfo[];
+  image_similarity_backend: string;
+  note: string;
+}
+export interface ImportRow {
+  row: number;
+  status: string;
+  detection_id: number | null;
+  score?: number | null;
+  severity?: string | null;
+  message: string | null;
+}
+export interface ImportReport {
+  dry_run: boolean;
+  total: number;
+  accepted: number;
+  rejected: number;
+  duplicates: number;
+  created: number;
+  updated: number;
+  official: number;
+  results: ImportRow[];
 }

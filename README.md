@@ -98,6 +98,7 @@ Server (`server/app/core/config.py`; names are case-insensitive, blank = not set
 | `CORS_ORIGINS` | yes in production | `http://localhost:5173` | Comma-separated browser origins allowed to call the API (your frontend's https origin). |
 | `ACCESS_TOKEN_MINUTES` / `REFRESH_TOKEN_DAYS` | no | `15` / `7` | Token lifetimes. `JWT_ALGORITHM` (default `HS256`) also exists. |
 | `LOGIN_MAX_FAILURES` / `LOGIN_WINDOW_SECONDS` | no | `5` / `900` | Login rate limit per email+IP (in-memory, see Security). |
+| `API_RATE_LIMIT_PER_MINUTE` | no | `600` | General API rate limit per IP and token (0 = off; in-memory, single process; see `docs/SECURITY.md`). |
 | `LOGO_MAX_BYTES` | no | `2097152` | Max brand logo upload. |
 | `URL_CHECK_TIMEOUT_SECONDS`, `URL_CHECK_MAX_REDIRECTS`, `URL_CHECK_MAX_BYTES` | no | `5`, `3`, `65536` | SSRF-safe reachability checker for official accounts. |
 | `REDIS_URL` | no | unset | Enables the RQ queue (`redis://:password@host:6379/0`). Unset = in-process thread runner. Treated as a secret. |
@@ -203,4 +204,4 @@ cd server;   .\.venv\Scripts\python -m pytest -q          # SQLite, no network
 cd frontend; npm run lint; npm test; npm run build; npm run e2e:install; npm run test:e2e
 ```
 
-More: `server/README.md`, `frontend/README.md`, `docs/API.md`, `docs/COLLECTORS.md`, `docs/DECISIONS.md`, `docs/DEPENDENCIES.md`, `docs/DONE_AUDIT.md`.
+More: `server/README.md`, `frontend/README.md`, `docs/API.md`, `docs/COLLECTORS.md`, `docs/DECISIONS.md`, `docs/DEPENDENCIES.md`, `docs/DONE_AUDIT.md`, `docs/SECURITY.md`.

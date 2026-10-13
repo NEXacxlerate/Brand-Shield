@@ -1,10 +1,9 @@
+import hashlib
 from contextlib import asynccontextmanager
 
-import hashlib
-
 from fastapi import APIRouter, FastAPI, Request
-from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy import Engine
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -109,7 +108,9 @@ def create_app(
             if auth:
                 keys.append("tok:" + hashlib.sha256(auth.encode()).hexdigest()[:16])
             if not all([lim.allow(k) for k in keys]):
-                return JSONResponse({"detail": "Too many requests. Slow down and retry shortly."}, status_code=429, headers={"Retry-After": "60"})
+                return JSONResponse(
+                    {"detail": "Too many requests. Slow down and retry shortly."}, status_code=429, headers={"Retry-After": "60"}
+                )
         return await call_next(request)
 
     app.add_middleware(

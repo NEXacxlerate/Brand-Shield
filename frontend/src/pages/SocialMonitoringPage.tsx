@@ -2,7 +2,8 @@ import React from 'react';
 import { RotateCw } from 'lucide-react';
 import { ScoreRing } from '../components/charts/ScoreRing';
 import { Header } from '../components/layout/Header';
-import { ActionRow, EvidenceBox, ExcludedCard, GuardCard, ReasonsBox, SourcesBar } from '../components/monitor/MonitorParts';
+import { ActionRow, EvidenceBox, ExcludedCard, GuardCard, ReasonsBox, SeverityChip, SourcesBar } from '../components/monitor/MonitorParts';
+import { CandidateTools } from '../components/monitor/CandidateTools';
 import { Empty, ErrorBox, Loading, NoBrand, Notice, SampleNote } from '../components/common/States';
 import { fmtDayTime, platformLabel, statusChip, statusLabel, typeLabel } from '../api/format';
 import { useBrand } from '../hooks/useBrand';
@@ -87,6 +88,7 @@ export const SocialMonitoringPage: React.FC = () => {
               <span>{scan.scanning ? `Scanning… ${scan.progress}%` : 'Scan social platforms now'}</span>
             </button>
           </div>
+          <CandidateTools kind="social" canWrite={canWrite} onChanged={m.reloadAll} />
           {scan.error && <Notice>{scan.error}</Notice>}
           {scan.last && !scan.error && (
             <Notice kind="info">
@@ -134,6 +136,7 @@ export const SocialMonitoringPage: React.FC = () => {
 
                     <div className="detection-row-right">
                       <span className={`score-val band-${item.risk_band}`}>{item.score}</span>
+                      <SeverityChip severity={item.severity} />
                       <span className={`chip ${statusChip(item.status)}`}>{statusLabel(item.status)}</span>
                     </div>
                   </div>
@@ -167,6 +170,7 @@ export const SocialMonitoringPage: React.FC = () => {
                       <span className={`chip ${statusChip(detail.status)}`} data-testid="detail-status">
                         {statusLabel(detail.status)}
                       </span>
+                      <SeverityChip severity={detail.severity} />
                     </div>
                   </div>
 

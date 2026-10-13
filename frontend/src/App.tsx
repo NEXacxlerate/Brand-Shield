@@ -15,6 +15,8 @@ import { LookalikeLabPage } from './pages/LookalikeLabPage';
 import { SourceHealthPage } from './pages/SourceHealthPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { WebThreatsPage } from './pages/WebThreatsPage';
+import { InvestigationsPage } from './pages/InvestigationsPage';
 import { EvaluationPage } from './pages/EvaluationPage';
 
 function RequireAuth() {
@@ -82,6 +84,23 @@ function App() {
             element={
               <AppLayout>
                 <AppStoreMonitoringPage />
+              </AppLayout>
+            }
+          />
+
+          <Route
+            path="/web"
+            element={
+              <AppLayout>
+                <WebThreatsPage />
+              </AppLayout>
+            }
+          />
+          <Route
+            path="/investigations"
+            element={
+              <AppLayout>
+                <InvestigationsPage />
               </AppLayout>
             }
           />

@@ -13,6 +13,9 @@ import {
   Headphones,
   Search,
   ChevronsUpDown,
+  Globe,
+  SearchCheck,
+  FlaskConical,
 } from 'lucide-react';
 import { useBrand } from '../../hooks/useBrand';
 import './Layout.css';
@@ -72,7 +75,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
           onClick={onClose}
         >
           <LayoutGrid size={19} strokeWidth={1.8} />
-          <span>Dashboard</span>
+          <span>Overview</span>
         </NavLink>
 
         <NavLink
@@ -81,7 +84,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
           onClick={onClose}
         >
           <ShieldCheck size={19} strokeWidth={1.8} />
-          <span>Brand Profile</span>
+          <span>Brand Registry</span>
         </NavLink>
 
         <NavLink
@@ -90,7 +93,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
           onClick={onClose}
         >
           <Users size={19} strokeWidth={1.8} />
-          <span>Social Monitoring</span>
+          <span>Social Threats</span>
         </NavLink>
 
         <NavLink
@@ -99,7 +102,25 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
           onClick={onClose}
         >
           <Smartphone size={19} strokeWidth={1.8} />
-          <span>App Store Monitoring</span>
+          <span>App Threats</span>
+        </NavLink>
+
+        <NavLink
+          to="/web"
+          className={`nav-item ${isNavActive('/web') ? 'active' : ''}`}
+          onClick={onClose}
+        >
+          <Globe size={19} strokeWidth={1.8} />
+          <span>Web Threats</span>
+        </NavLink>
+
+        <NavLink
+          to="/investigations"
+          className={`nav-item ${isNavActive('/investigations') ? 'active' : ''}`}
+          onClick={onClose}
+        >
+          <SearchCheck size={19} strokeWidth={1.8} />
+          <span>Investigations</span>
         </NavLink>
 
         <NavLink
@@ -127,6 +148,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
         >
           <FileText size={19} strokeWidth={1.8} />
           <span>Reports</span>
+        </NavLink>
+        <NavLink
+          to="/evaluation"
+          className={`nav-item ${isNavActive('/evaluation') ? 'active' : ''}`}
+          onClick={onClose}
+        >
+          <FlaskConical size={19} strokeWidth={1.8} />
+          <span>Model Evaluation</span>
         </NavLink>
       </nav>
 

@@ -430,6 +430,66 @@ export const SettingsPage: React.FC = () => {
   );
 };
 
+// ---------------------------------------------------------------- Providers ---
+const ProvidersPanel: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => {
+  const providers = useApi((signal) => sm.providers(signal), []);
+  const sources = useApi((signal) => sm.sources(signal), []);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const choose = async (name: string) => {
+    setBusy(true);
+    setError(null);
+    try {
+      providers.setData(await sm.setProvider(name));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Could not change the provider.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const p = providers.data;
+  const sb = sources.data?.reputation;
+  return (
+    <div data-testid="providers-panel">
+      <h3 className="panel-card-title" style={{ margin: '28px 0 10px' }}>Analysis providers</h3>
+      {providers.loading && <Loading what="Loading providers" />}
+      {providers.error && <ErrorBox error={providers.error} onRetry={providers.reload} compact />}
+      {p && (
+        <>
+          <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: 8 }}>
+            Hosted text analysis is {p.hosted_text_analysis_enabled ? 'enabled' : 'off'} (SCAM_LLM_ENABLED). Active text provider: <strong>{p.active_text_provider}</strong>. Keys are never shown.
+          </p>
+          <div className="format-toggle-row" role="radiogroup" aria-label="Active text provider">
+            {['off', ...p.text_providers.map((t) => t.name)].map((name) => (
+              <button
+                key={name}
+                type="button"
+                role="radio"
+                aria-checked={p.active_text_provider === name}
+                className={`format-toggle-btn ${p.active_text_provider === name ? 'active' : ''}`}
+                disabled={!isAdmin || busy}
+                onClick={() => void choose(name)}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+          {!isAdmin && <div className="helper-note">Read only: only administrators can choose the active provider.</div>}
+          <div className="helper-note">
+            {p.text_providers.map((t) => `${t.label}: ${t.configured ? 'configured' : 'not configured'}${t.reason && !t.configured ? ` (${t.reason})` : ''}`).join(' · ')}
+          </div>
+        </>
+      )}
+      {error && <Notice onClose={() => setError(null)}>{error}</Notice>}
+      <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginTop: 8 }} data-testid="safe-browsing-status">
+        Google Safe Browsing: <strong>{sources.loading ? 'checking…' : sb ? (sb.configured ? 'configured: yes' : 'configured: no') : 'status unavailable'}</strong>
+      </p>
+    </div>
+  );
+};
+
 // ---------------------------------------------------------------- Account tab ---
 const MODES: { value: DataMode; label: string; hint: string }[] = [
   { value: 'live', label: 'Live', hint: 'Only real collectors are used. A source that cannot be reached shows as unavailable, never as sample data.' },
@@ -513,6 +573,8 @@ const AccountTab: React.FC<{ settings: Settings; user: ReturnType<typeof useMe>[
         </div>
       )}
       {error && <Notice onClose={() => setError(null)}>{error}</Notice>}
+
+      <ProvidersPanel isAdmin={isAdmin} />
 
       <h3 className="panel-card-title" style={{ margin: '28px 0 10px' }}>Accuracy</h3>
       <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: 10 }}>

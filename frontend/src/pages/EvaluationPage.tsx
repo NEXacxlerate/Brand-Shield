@@ -57,6 +57,13 @@ export const EvaluationPage: React.FC = () => {
 
           {d && (
             <>
+              {d.synthetic.dataset && (
+                <div className="eval-caveat" role="note" data-testid="eval-dataset">
+                  <strong>{d.synthetic.dataset.banner}</strong> Dataset {d.synthetic.dataset.name} v{d.synthetic.dataset.version}, {d.synthetic.dataset.size} cases.
+                  {d.synthetic.algorithm_version && ` Algorithm: social and app ${d.synthetic.algorithm_version.social_app}, web ${d.synthetic.algorithm_version.web}.`}{' '}
+                  {d.synthetic.dataset.split}. ML classifier: {d.synthetic.ml_classifier}.
+                </div>
+              )}
               <div className="eval-caveat" role="note" data-testid="eval-label">
                 <strong>Read this first.</strong> {d.label}
               </div>
@@ -86,6 +93,56 @@ export const EvaluationPage: React.FC = () => {
                   </div>
                 </div>
               </div>
+
+              {d.synthetic.confusion && (
+                <div className="card eval-card" data-testid="eval-confusion">
+                  <h3 className="panel-card-title">Confusion matrix (synthetic, flagged vs not flagged)</h3>
+                  <p className="eval-sub">
+                    False positive rate {pct(d.synthetic.confusion.false_positive_rate)} · false negative rate {pct(d.synthetic.confusion.false_negative_rate)} · accuracy {pct(d.synthetic.confusion.accuracy)}
+                  </p>
+                  <div className="test-cases-table-wrap">
+                    <table className="test-cases-table">
+                      <thead>
+                        <tr><th />
+                          <th>Flagged</th>
+                          <th>Not flagged</th></tr>
+                      </thead>
+                      <tbody>
+                        <tr><td className="case-name-cell">Real impersonation</td><td>{d.synthetic.confusion.matrix.tp} (TP)</td><td>{d.synthetic.confusion.matrix.fn} (FN)</td></tr>
+                        <tr><td className="case-name-cell">Not impersonation</td><td>{d.synthetic.confusion.matrix.fp} (FP)</td><td>{d.synthetic.confusion.matrix.tn} (TN)</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <h4 className="scored-title" style={{ marginTop: 14 }}>Hard negatives by group</h4>
+                  <div className="test-cases-table-wrap">
+                    <table className="test-cases-table">
+                      <thead><tr><th>Group</th><th>Cases</th><th>Wrongly flagged</th><th>False positive rate</th></tr></thead>
+                      <tbody>
+                        {d.synthetic.confusion.negative_groups.map((g) => (
+                          <tr key={g.group}><td className="case-name-cell">{humanize(g.group)}</td><td>{g.n}</td><td>{g.flagged}</td><td>{pct(g.false_positive_rate)}</td></tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="eval-sub">Authorized resellers carry the brand name, so a name-only matcher flags them; they are cleared by the allowlist once marked official, not by scoring.</p>
+                </div>
+              )}
+
+              {d.by_category && (
+                <div className="card eval-card" data-testid="eval-by-category">
+                  <h3 className="panel-card-title">Per class: reviewer decisions by category</h3>
+                  <div className="test-cases-table-wrap">
+                    <table className="test-cases-table">
+                      <thead><tr><th>Category</th><th>Detections</th><th>Confirmed</th><th>Dismissed</th><th>Precision</th></tr></thead>
+                      <tbody>
+                        {d.by_category.map((c) => (
+                          <tr key={c.category}><td className="case-name-cell">{humanize(c.category)}</td><td>{c.total}</td><td>{c.confirmed}</td><td>{c.dismissed}</td><td>{pct(c.precision)}</td></tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
 
               {/* Per technique */}
               <div className="card eval-card">

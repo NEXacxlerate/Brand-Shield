@@ -662,3 +662,15 @@ Web CSV columns are `url,title,note`. To compare a picture, first `POST /api/can
 
 ### Registry additions
 Brand description (`PUT /api/brands/{id}` with `description`), extra official logos (`POST /api/brands/{id}/logos`), publisher ids (`POST /api/brands/{id}/publishers`), verification status (`PUT /api/brands/{id}/verification`) and archiving (`DELETE /api/brands/{id}?confirm=<exact name>`, admin; nothing is erased).
+
+
+## 16. New pages and screens (final pass)
+
+- **Sidebar names.** Overview (the dashboard), Brand Registry (brand profile), Social Threats, App Threats, Web Threats, Investigations, Look-alike Lab, Source Health, Reports, Model Evaluation, Settings. The routes (`/dashboard`, `/brand`, `/social`, `/apps`) are unchanged.
+- **Severity.** Next to the risk band, every detection shows a severity chip (Low, Medium, High, Critical) from the risk engine. In the detail panel, "Signal availability" lists each signal as Present, Clean or Unavailable and where it came from. **Unavailable means it could not be checked, not that it is safe.**
+- **Web Threats.** Look-alike domains and links with a severity filter. URLs are never opened; Safe Browsing runs only if a key is set.
+- **Investigations.** Every detection as a case. Filter by status, severity and resolution. Set the status, pick a resolution (true positive, false positive, resolved, monitoring) with an optional note, and Save. It is stored on the server, audited, and shown in the timeline after a refresh. Viewers see it read-only.
+- **Add candidate / Import.** On the Social, App and Web pages: "Add candidate" scores one entry typed by hand; "Import CSV / JSON" first runs a dry run (nothing saved) with a per-row error list, then "Import valid rows".
+- **Brand Registry.** A brand description field and a Verification status card: mark an official domain, account or app as verified (and by which method). This is your own record; the app does not check DNS or stores.
+- **Settings.** Analysis providers (which text provider is active, configured yes or no, never a key; admins can switch) and whether Google Safe Browsing is configured.
+- **Model Evaluation.** A prominent SYNTHETIC DATA banner, dataset name, version and size, algorithm version, a confusion matrix, the false positive rate and hard-negative groups (fan pages, authorized resellers, unrelated names).

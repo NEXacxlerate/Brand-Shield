@@ -12,6 +12,11 @@ import type {
   DetectionDetail,
   DetectionList,
   Evaluation,
+  ImportReport,
+  Providers,
+  Resolution,
+  Severity,
+  Verification,
   ExcludedItem,
   FalsePositiveItem,
   LogoInfo,
@@ -82,17 +87,38 @@ export const sm = {
   scans: (limit = 5, signal?: Sig) => request<{ total: number; items: Scan[] }>(`/api/scans${qs({ limit })}`, { signal }),
 
   // ---- detections
-  detections: (q: { category?: Category; type?: string; platform?: string; status?: string[]; sort?: string; limit?: number; q?: string }, signal?: Sig) =>
+  detections: (q: { category?: Category; type?: string; platform?: string; status?: string[]; severity?: Severity; resolution?: Resolution; source?: string; sort?: string; limit?: number; q?: string }, signal?: Sig) =>
     request<DetectionList>(`/api/detections${qs({ sort: 'score_desc', limit: 200, ...q })}`, { signal }),
   detection: (id: number, signal?: Sig) => request<DetectionDetail>(`/api/detections/${id}`, { signal }),
   setStatus: (id: number, status: 'reviewing' | 'confirmed' | 'dismissed') =>
     request<DetectionDetail & { audit_id: number }>(`/api/detections/${id}/status`, { method: 'POST', json: { status } }),
   markOfficial: (id: number) =>
     request<{ detection: DetectionDetail; allowlist_entry: { kind: string; id: number }; official_assets: number }>(`/api/detections/${id}/mark-official`, { method: 'POST', json: {} }),
+  setResolution: (id: number, resolution: Resolution, note: string) =>
+    request<DetectionDetail & { audit_id: number }>(`/api/detections/${id}/resolution`, { method: 'POST', json: { resolution, note } }),
+  setReview: (id: number, status: 'reviewing' | 'confirmed' | 'dismissed', note: string) =>
+    request<DetectionDetail & { audit_id: number }>(`/api/detections/${id}/status`, { method: 'POST', json: { status, note } }),
   excluded: (category: Category, signal?: Sig) => request<{ total: number; items: ExcludedItem[] }>(`/api/detections/excluded${qs({ category })}`, { signal }),
   falsePositives: (category: Category, signal?: Sig) =>
     request<{ total: number; items: FalsePositiveItem[] }>(`/api/detections/false-positives${qs({ category })}`, { signal }),
   evidenceBlob: (id: number, signal?: Sig) => request<Blob>(`/api/detections/${id}/evidence/screenshot`, { blob: true, signal }),
+
+  // ---- candidates (manual entry and import)
+  addCandidate: (kind: 'social' | 'app' | 'web', body: Record<string, unknown>) =>
+    request<{ status: string; detection_id: number | null; message: string | null }>(`/api/candidates/${kind}`, { method: 'POST', json: body }),
+  importCandidates: (kind: 'social' | 'app' | 'web', format: 'csv' | 'json', file: File, dryRun: boolean) => {
+    const form = new FormData();
+    form.append('file', file);
+    return request<ImportReport>(`/api/candidates/import${qs({ kind, format, dry_run: dryRun })}`, { method: 'POST', form });
+  },
+
+  // ---- providers
+  providers: (signal?: Sig) => request<Providers>('/api/providers', { signal }),
+  setProvider: (provider: string) => request<Providers>('/api/providers/active', { method: 'PUT', json: { provider } }),
+
+  // ---- brand verification
+  setVerification: (id: number, body: { asset_type: string; asset_key: string; status: 'verified' | 'unverified'; method?: string; note?: string }) =>
+    request<Verification>(`/api/brands/${id}/verification`, { method: 'PUT', json: body }),
 
   // ---- sources
   sources: (signal?: Sig) => request<SourceList>('/api/sources', { signal }),
