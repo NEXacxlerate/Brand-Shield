@@ -17,6 +17,23 @@ Direct dependencies are listed in `server/requirements.txt` / `requirements-dev.
 
 No GPL or AGPL packages were found.
 
+## Added for the extension (work packages E1-E4), read from installed metadata on 2026-10-14
+
+| Package | Version | License | Direct? | Notes |
+|---|---|---|---|---|
+| tldextract | 5.4.0 | BSD-3-Clause | yes (`requirements.txt`) | Used with `suffix_list_urls=()` and `cache_dir=None`: only the Public Suffix List snapshot shipped inside the package, no download, no cache file. The snapshot goes stale; refresh by upgrading the package. A TLD missing from it (`.test`, a very new gTLD) is treated as a one-label suffix by `engine/domain_match.py`. |
+| RapidFuzz | 3.14.6 | MIT | yes (`requirements.txt`) | Additional similarity signal for domains only; the home-grown name matcher is unchanged. |
+| idna | 3.20 | BSD-3-Clause | yes (`requirements.txt`) | Already installed through httpx; now a declared direct dependency (IDN/punycode). |
+| requests | 2.34.2 | Apache-2.0 | no (tldextract) | Pulled in by tldextract. NOT used by this app and never called by tldextract here (no list download). |
+| requests-file | 3.0.1 | Apache-2.0 ("Apache 2.0") | no (tldextract) | Same. |
+| filelock | 4.1.1 | MIT | no (tldextract) | Same. |
+| ImageHash | 4.3.2 | BSD-2-Clause ("2-clause BSD License") | yes, OPTIONAL (`requirements-extra.txt`) | Installed in the dev venv for the later image work (E6); nothing imports it yet. |
+| numpy | 2.5.4 | BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 | no (ImageHash) | Optional chain only. |
+| scipy | 1.18.1 | BSD-3-Clause (classifier; the License field holds the long text) | no (ImageHash) | Optional chain only (large wheel). |
+| PyWavelets | 1.10.0 | MIT AND BSD-3-Clause | no (ImageHash) | Optional chain only. |
+
+No GPL or AGPL packages were added. Google Safe Browsing is called with plain `httpx` (no Google client library).
+
 ## All installed packages
 
 | Package | Version | License | Direct? |
