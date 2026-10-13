@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
 from app.core.time import UtcDatetime
 from app.services import validators as v
@@ -37,7 +37,7 @@ class BrandIdentity(BaseModel):
 
 class AccountCreate(BaseModel):
     platform: str
-    handle: str = Field(min_length=1, max_length=64)
+    handle: str = Field(min_length=1, max_length=100)
 
     @field_validator("platform")
     @classmethod
@@ -49,8 +49,8 @@ class AccountCreate(BaseModel):
 
     @field_validator("handle")
     @classmethod
-    def _handle(cls, h: str) -> str:
-        return v.normalize_handle(h)
+    def _handle(cls, h: str, info: ValidationInfo) -> str:
+        return v.normalize_handle(h, info.data.get("platform"))
 
 
 class AppCreate(BaseModel):

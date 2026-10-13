@@ -113,3 +113,22 @@ def test_normalize_handle_unit():
     assert v.normalize_handle("  abc  ") == "abc"
     with pytest.raises(ValueError):
         v.normalize_handle("@@abc")
+
+
+@pytest.mark.parametrize(
+    "platform,handle,url",
+    [
+        ("linkedin", "acme-bank", "linkedin.com/company/acme-bank"),
+        ("linkedin", "acme-bank-india-private-limited", "linkedin.com/company/acme-bank-india-private-limited"),
+        ("youtube", "acme-bank", "youtube.com/@acme-bank"),
+    ],
+)
+def test_hyphen_allowed_for_linkedin_and_youtube(client, admin_h, brand, platform, handle, url):
+    r = add(client, admin_h, brand, platform, handle)
+    assert r.status_code == 201, r.text
+    assert r.json()["url"] == url
+
+
+@pytest.mark.parametrize("platform", ["instagram", "x", "facebook"])
+def test_hyphen_still_rejected_elsewhere(client, admin_h, brand, platform):
+    assert add(client, admin_h, brand, platform, "acme-bank").status_code == 422

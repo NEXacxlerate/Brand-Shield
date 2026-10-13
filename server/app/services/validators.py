@@ -5,6 +5,8 @@ ACCOUNT_PLATFORMS = ("instagram", "x", "facebook", "linkedin", "youtube")
 APP_STORES = ("google_play", "app_store")
 
 _HANDLE_RE = re.compile(r"^[A-Za-z0-9._]{3,30}$")
+_HANDLE_HYPHEN_RE = re.compile(r"^[A-Za-z0-9._-]{3,100}$")  # LinkedIn company slugs and YouTube handles may contain hyphens
+_HYPHEN_PLATFORMS = {"linkedin", "youtube"}
 _LABEL_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 _TLD_RE = re.compile(r"^(?:[a-z]{2,63}|xn--[a-z0-9-]{1,59})$")
 # Google Play application ID: 2+ dot separated segments, each starting with a letter.
@@ -22,11 +24,17 @@ URL_PREFIX = {
 _AT_PLATFORMS = {"instagram", "x", "youtube"}  # display handle with a leading @ (API.md 5.3)
 
 
-def normalize_handle(raw: str) -> str:
-    """Strip whitespace and leading @; raise ValueError if not 3-30 of letters/digits/dot/underscore."""
+def normalize_handle(raw: str, platform: str | None = None) -> str:
+    """Strip whitespace and leading @; raise ValueError if not 3-30 of letters/digits/dot/underscore.
+
+    LinkedIn slugs and YouTube handles may also contain hyphens (LinkedIn up to 100 characters)."""
     handle = raw.strip()
     if handle.startswith("@"):
         handle = handle[1:]
+    if platform in _HYPHEN_PLATFORMS:
+        if not _HANDLE_HYPHEN_RE.fullmatch(handle) or (platform == "youtube" and len(handle) > 30):
+            raise ValueError("Handle must be 3 to 30 characters: letters, digits, dot, underscore or hyphen")
+        return handle
     if not _HANDLE_RE.fullmatch(handle):
         raise ValueError("Handle must be 3 to 30 characters: letters, digits, dot or underscore")
     return handle
