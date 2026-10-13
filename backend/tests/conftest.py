@@ -67,11 +67,26 @@ def _no_live_network(monkeypatch):
     """Safety net: any real outbound HTTP or DNS lookup in a test is a bug. MockTransport is unaffected."""
     import socket
 
+    real_getaddrinfo = socket.getaddrinfo
+
     def blocked(*_a, **_k):
         raise AssertionError("live network access attempted in a test")
 
+    def guarded_getaddrinfo(host, *a, **k):
+        # The PostgreSQL test database (CI service container, TEST_DATABASE_URL) is reached by the name "localhost"; loopback is not the network.
+        if host in ("localhost", "127.0.0.1", "::1"):
+            return real_getaddrinfo(host, *a, **k)
+        return blocked()
+
     monkeypatch.setattr(httpx.HTTPTransport, "handle_request", blocked)
-    monkeypatch.setattr(socket, "getaddrinfo", blocked)
+    monkeypatch.setattr(socket, "getaddrinfo", guarded_getaddrinfo)
+
+
+@pytest.fixture(autouse=True)
+def _optional_packages_absent(monkeypatch):
+    """Tests assume the optional scraper is NOT installed (the CI default); installing requirements-extra locally must not change results."""
+    monkeypatch.setattr("app.core.collectors.selection.package_installed", lambda: False)
+    monkeypatch.setattr("app.core.collectors.google_play.package_installed", lambda: False)
 
 
 @pytest.fixture

@@ -35,6 +35,11 @@ from app.main import create_app  # noqa: E402
 
 security.BCRYPT_ROUNDS = 4  # faster hashing for a throwaway database
 
+# An installed optional scraper must not flip data mode "auto" to live: the browser tests are sample-only and make no network calls.
+import app.core.collectors.selection as _selection  # noqa: E402
+
+_selection.package_installed = lambda: False
+
 
 class OfflineChecker:
     """No network: handles containing 'unreachable' report an unreachable URL, everything else is reachable."""

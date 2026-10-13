@@ -70,7 +70,7 @@ def select_collectors(
     data_mode: str = "auto",
     *,
     env: Mapping[str, str] | None = None,
-    google_play_installed: Callable[[], bool] = package_installed,
+    google_play_installed: Callable[[], bool] | None = None,
 ) -> Selection:
     """Choose the chain. `env` (optional) overrides TAVILY_API_KEY / SEARXNG_BASE_URL from the Settings object.
 
@@ -82,7 +82,7 @@ def select_collectors(
         raise ValueError(f"data_mode must be one of {DATA_MODES}")
     key = _cfg(settings, env, "TAVILY_API_KEY", "tavily_api_key")
     base = _cfg(settings, env, "SEARXNG_BASE_URL", "searxng_base_url")
-    gp = bool(google_play_installed())
+    gp = bool((google_play_installed or package_installed)())
     has_key, has_base = bool(key), bool(base)
 
     if data_mode == "sample":

@@ -317,11 +317,15 @@ test('reports: draft from detections, preview, CSV and HTML downloads with auth,
   expect(await page.locator('.preview-table').innerText()).not.toMatch(/fake brand_page/);
 
   // filters change the selection
+  const previewRows = page.locator('.preview-table tbody tr');
+  const allRows = await previewRows.count();
   await page.locator('#rp-status').selectOption('confirmed');
-  await expect(page.locator('.preview-table tbody tr').first()).toBeVisible();
-  const confirmedRows = await page.locator('.preview-table tbody tr').count();
+  // wait for the filtered list to replace the old rows (reading the count straight away would still see the unfiltered table)
+  await expect.poll(async () => previewRows.count()).toBeLessThan(allRows);
+  await expect(previewRows.first()).toBeVisible();
+  const confirmedRows = await previewRows.count();
   await page.locator('#rp-status').selectOption('all');
-  await expect.poll(async () => page.locator('.preview-table tbody tr').count()).toBeGreaterThan(confirmedRows);
+  await expect.poll(async () => previewRows.count()).toBeGreaterThan(confirmedRows);
 
   await page.getByRole('button', { name: 'CSV data' }).click();
   await page.getByRole('button', { name: 'Generate report' }).click();

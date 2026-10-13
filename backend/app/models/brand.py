@@ -46,8 +46,8 @@ class OfficialAccount(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     brand_id: Mapped[int] = mapped_column(ForeignKey("brands.id", ondelete="CASCADE"), index=True)
     platform: Mapped[str] = mapped_column(String(20))
-    handle: Mapped[str] = mapped_column(String(30))  # bare handle, no leading @
-    handle_key: Mapped[str] = mapped_column(String(30))  # lower-case, used for duplicate detection
+    handle: Mapped[str] = mapped_column(String(100))  # bare handle, no leading @
+    handle_key: Mapped[str] = mapped_column(String(100))  # lower-case, used for duplicate detection
     url: Mapped[str] = mapped_column(String(300))
     status: Mapped[str] = mapped_column(String(20), default="unreachable")  # verified | unreachable
     check_message: Mapped[str | None] = mapped_column(String(300), nullable=True)

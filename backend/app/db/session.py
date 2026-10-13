@@ -9,8 +9,10 @@ from sqlalchemy.pool import StaticPool
 def make_engine(url: str) -> Engine:
     kwargs: dict = {}
     if url.startswith("sqlite"):
-        kwargs["connect_args"] = {"check_same_thread": False}
-        if ":memory:" in url or url in ("sqlite://", "sqlite:///"):
+        # wait up to 30 s for a writer instead of failing with "database is locked" (a scan thread and a page request can write together)
+        kwargs["connect_args"] = {"check_same_thread": False, "timeout": 30}
+        in_memory = ":memory:" in url or url in ("sqlite://", "sqlite:///")
+        if in_memory:
             kwargs["poolclass"] = StaticPool
     elif url.startswith("postgresql"):
         kwargs["pool_pre_ping"] = True
@@ -21,6 +23,9 @@ def make_engine(url: str) -> Engine:
         def _fk_pragma(dbapi_conn, _):  # noqa: ANN001
             cur = dbapi_conn.cursor()
             cur.execute("PRAGMA foreign_keys=ON")
+            cur.execute("PRAGMA busy_timeout=30000")
+            if not in_memory:
+                cur.execute("PRAGMA journal_mode=WAL")  # readers no longer block the writer
             cur.close()
 
     return engine
