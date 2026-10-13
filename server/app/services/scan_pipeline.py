@@ -35,15 +35,16 @@ from app.core.config import Settings
 from app.core.logging import Redactor
 from app.core.time import as_utc, iso_z
 from app.engine.domain_match import DomainAnalysis, analyze_domain, make_domain_matcher
-from app.engine.llm import LLMIntentResult, ScamIntentLLM, build_scam_llm
-from app.engine.logo_similarity import best_logo_similarity, load_image
+from app.engine.image_hashes import ImageHashSimilarity, MultiHashSimilarity, best_match
+from app.engine.llm import LLMIntentResult, ScamIntentLLM
+from app.engine.logo_similarity import HashSimilarity, NotAvailable, load_image
 from app.engine.models import BrandProfileInput
 from app.engine.name_match import SAFE, NameMatchResult
 from app.engine.pipeline import _package_name_text, best_name_match
 from app.engine.risk_engine import RiskAssessment, RiskConfig, RiskEngine
 from app.engine.scoring import ScoreResult, handle_from_url
 from app.engine.urls import parse_url
-from app.models import Brand, Detection, DetectionEvent, OfficialMatch, Scan, Source, User
+from app.models import Brand, CandidateImage, Detection, DetectionEvent, OfficialMatch, Scan, Source, User
 from app.providers.base import ReputationResult
 from app.services import app_settings, audit, data_mode, evidence
 from app.services.image_fetch import FetchError, SafeFetcher
@@ -60,6 +61,7 @@ from app.services.matching import (
     technique_labels,
 )
 from app.services.screenshot import ScreenshotProvider
+from app.services.text_analysis import TextResult, build_text_service
 from app.services.validators import display_handle
 
 log = logging.getLogger("app.scan")
@@ -69,6 +71,11 @@ ACTIVE_STATES = ("queued", "running")
 FINISHED_STATES = ("completed", "partial", "failed")
 MATERIAL_DELTA = 10  # points; a re-scan score change at least this big on a decided detection adds a note
 NEAR_NAME_PCT = 25
+INTAKE_SOURCES = frozenset({"manual", "import"})  # typed-in / imported candidates: never fetched, prefilter off
+
+
+def origin_of(c: Candidate) -> str:
+    return "synthetic" if c.source == "sample" else (c.source if c.source in INTAKE_SOURCES else "scan")
 
 
 class ScanAlreadyRunning(Exception):
@@ -93,29 +100,10 @@ class ScanContext:
     llm: ScamIntentLLM | None = None
     dispatcher: Any = None  # JobDispatcher, set by whoever builds the context
     perf: Callable[[], float] = time.perf_counter
-    _llm_built: bool = field(default=False, repr=False)
+    text_providers: dict = field(default_factory=dict, repr=False)  # provider name -> provider (keeps its quota cool-down)
 
     def now(self) -> datetime:
         return self.runtime.now()
-
-    def get_llm(self) -> tuple[ScamIntentLLM | None, str | None]:
-        """(llm, note). Only when SCAM_LLM_ENABLED=true AND a key is present; otherwise (None, why-not or None)."""
-        if self.llm is not None:
-            return self.llm, None
-        s = self.settings
-        if not s.scam_llm_enabled:
-            return None, None
-        key = s.anthropic_api_key.get_secret_value() if s.anthropic_api_key else None
-        if not key:
-            return None, "Optional AI text check is enabled but ANTHROPIC_API_KEY is not set: skipped."
-        if not self._llm_built:
-            self._llm_built = True
-            try:
-                self.llm = build_scam_llm(True, s.scam_llm_model, key)
-            except Exception:  # noqa: BLE001 - optional package missing etc.
-                log.warning("optional AI text check could not be started")
-                return None, "Optional AI text check could not be started (is the anthropic package installed?): skipped."
-        return self.llm, None
 
 
 # ---------------------------------------------------------------------------------------------------------
@@ -139,8 +127,8 @@ def running_scan(db: Session, brand_id: int) -> Scan | None:
 
 def request_scan(ctx: ScanContext, db: Session, *, brand_id: int | None, scope: str, user: User | None) -> Scan:
     """Create a queued scan (audited) and hand it to the job dispatcher. Raises ScanAlreadyRunning / NoBrand."""
-    brand = db.get(Brand, brand_id) if brand_id else db.scalars(select(Brand).order_by(Brand.id)).first()
-    if brand is None:
+    brand = db.get(Brand, brand_id) if brand_id else db.scalars(select(Brand).where(Brand.archived_at.is_(None)).order_by(Brand.id)).first()
+    if brand is None or brand.archived_at is not None:
         raise NoBrand()
     now = ctx.now()
     fail_stale_scans(db, brand.id, ctx.settings.scan_stale_minutes, now)
@@ -261,6 +249,16 @@ class Outcome:
     assessment: RiskAssessment | None = None
     analysis: DomainAnalysis | None = None  # web candidates
     reputation: ReputationResult | None = None
+    text: TextResult | None = None
+
+
+def _count_text(text: TextResult, counts: dict) -> None:
+    if text.api is None:
+        return
+    if text.api.ok:
+        counts["llm_checked"] += 1
+    elif text.api.reason not in ("no_key", "no_model", "no_text", "disabled", "not_installed"):
+        counts["llm_errors"] += 1
 
 
 class _Env:
@@ -273,7 +271,7 @@ class _Env:
         self.matcher = build_matcher(brand, words=mon["impersonation_words"])
         self.allow = BrandAllowlist(brand)
         self.assets = official_assets(brand)
-        self.brand_profile = BrandProfileInput(name=brand.name, aliases=list(brand.aliases or []),
+        self.brand_profile = BrandProfileInput(name=brand.name, aliases=list(brand.aliases or []), description=brand.description,
                                                extra_impersonation_words=list(mon["impersonation_words"]))
         st = ctx.settings
         self.engine = RiskEngine(RiskConfig(st.severity_medium_min, st.severity_high_min, st.severity_critical_min), now=ctx.now)
@@ -282,19 +280,58 @@ class _Env:
         self.aliases = list(brand.aliases or [])
         self.reputation: dict[str, ReputationResult] = {}  # canonical URL -> Safe Browsing result (web candidates, live only)
         self.reputation_note: dict[str, str] = {}  # canonical URL -> why it was not checked
-        self.official_logo = _load_brand_logo(ctx.settings, brand)
+        self.official_logos = _load_brand_logos(ctx.settings, brand)  # [(label, image)]: the primary logo and every extra one
+        self.image_impl, self.image_backend = _image_impl(ctx.settings)
+        self.db = db
+        self.data_dir = ctx.settings.data_dir
         self.logo_fetches = 0
-        self.llm, self.llm_note = ctx.get_llm()
+        self.text = build_text_service(ctx, db)
+        self.llm_note = self.text.note
+        self.brand_description = brand.description
         self.today = ctx.now().date()
 
 
-def _load_brand_logo(settings: Settings, brand: Brand):
-    path = evidence.safe_path(settings.data_dir, brand.logo_path)
+def _load_brand_logos(settings: Settings, brand: Brand) -> list[tuple[str, Any]]:
+    out: list[tuple[str, Any]] = []
+    rows = [("primary logo", brand.logo_path), *[(lg.label or f"logo {lg.id}", lg.path) for lg in brand.logos]]
+    for label, rel in rows:
+        path = evidence.safe_path(settings.data_dir, rel)
+        if path is None:
+            continue
+        try:
+            out.append((label, load_image(path.read_bytes())))
+        except Exception:  # noqa: BLE001 - a broken logo file just means "logo unavailable"
+            continue
+    return out
+
+
+def _image_impl(settings: Settings):
+    """Backend for logo scoring. Default `hash` = the original pHash + dHash (scores unchanged)."""
+    name = settings.image_similarity_backend
+    if name == "multihash":
+        return MultiHashSimilarity(), "image-2"
+    if name == "imagehash":
+        try:
+            return ImageHashSimilarity(), "image-2-imagehash"
+        except NotAvailable:
+            log.warning("IMAGE_SIMILARITY_BACKEND=imagehash but ImageHash is not installed: using the default hashes")
+    return HashSimilarity(), "image-1"
+
+
+def _compare(env: "_Env", img) -> tuple[float, str | None]:
+    return best_match(img, env.official_logos, env.image_impl)
+
+
+def _intake_image(env: "_Env", c: Candidate):
+    """The uploaded image of a manual / imported candidate (by id), or None."""
+    image_id = c.extras.get("image_id")
+    row = env.db.get(CandidateImage, image_id) if isinstance(image_id, int) else None
+    path = evidence.safe_path(env.data_dir, row.path) if row is not None else None
     if path is None:
         return None
     try:
         return load_image(path.read_bytes())
-    except Exception:  # noqa: BLE001 - a broken logo file just means "logo unavailable"
+    except Exception:  # noqa: BLE001
         return None
 
 
@@ -319,21 +356,35 @@ def _logo_step(ctx: ScanContext, env: _Env, c: Candidate, counts: dict) -> tuple
         # own uploaded logo); without them the honest answer stays "unavailable". Non-sample candidates never get here.
         if not c.inline_image:
             return unavailable("this sample candidate has no generated image (no brand logo has been uploaded)")
-        if env.official_logo is None:
+        if not env.official_logos:
             return unavailable("no official logo has been uploaded for the brand")
         try:
-            sim = best_logo_similarity(load_image(c.inline_image), [env.official_logo])
+            sim, _who = _compare(env, load_image(c.inline_image))
         except Exception:  # noqa: BLE001
             return unavailable(f"the generated sample {what} could not be compared")
         counts["logo_compared"] += 1
         return float(sim), {
             "status": "compared", "similarity": round(float(sim), 1), "reason": None,
             "origin": "generated_sample", "variant": c.extras.get("logo_variant"),
-            "note": "Compared against a generated sample image, not a real downloaded picture.",
+            "note": "Compared against a generated sample image, not a real downloaded picture.", "matched_logo": _who, "algorithm": env.image_backend,
         }
+    if c.source in INTAKE_SOURCES:
+        # Typed-in / imported rows: URLs are never visited. Only an image the analyst uploaded can be compared.
+        if not env.official_logos:
+            return unavailable("no official logo has been uploaded for the brand")
+        img = _intake_image(env, c)
+        if img is None:
+            return unavailable(f"no {what} was uploaded for this {c.source} candidate (its URLs are never fetched)")
+        try:
+            sim, who = _compare(env, img)
+        except Exception:  # noqa: BLE001
+            return unavailable(f"the uploaded {what} could not be compared")
+        counts["logo_compared"] += 1
+        return float(sim), {"status": "compared", "similarity": round(float(sim), 1), "reason": None, "origin": "uploaded", "matched_logo": who,
+                            "algorithm": env.image_backend, "note": "Hash similarity is a hint that two pictures look alike, not proof of reuse."}
     if not ctx.settings.scan_logo_fetch:
         return unavailable("logo fetching is switched off")
-    if env.official_logo is None:
+    if not env.official_logos:
         return unavailable("no official logo has been uploaded for the brand")
     if not c.icon_url:
         return unavailable(f"the source gave no {what} URL")
@@ -344,13 +395,14 @@ def _logo_step(ctx: ScanContext, env: _Env, c: Candidate, counts: dict) -> tuple
     env.logo_fetches += 1
     try:
         img = ctx.fetcher.fetch_image(c.icon_url)
-        sim = best_logo_similarity(img, [env.official_logo])
+        sim, who = _compare(env, img)
     except FetchError as exc:
         return unavailable(f"{what} could not be fetched ({exc})")
     except Exception:  # noqa: BLE001
         return unavailable(f"{what} could not be compared")
     counts["logo_compared"] += 1
-    return float(sim), {"status": "compared", "similarity": round(float(sim), 1), "reason": None, "origin": "fetched"}
+    return float(sim), {"status": "compared", "similarity": round(float(sim), 1), "reason": None, "origin": "fetched", "matched_logo": who,
+                        "algorithm": env.image_backend, "note": "Hash similarity is a hint that two pictures look alike, not proof of reuse."}
 
 
 def _reputation_pass(ctx: ScanContext, env: _Env, cands: list[Candidate], counts: dict) -> None:
@@ -434,31 +486,35 @@ def evaluate(ctx: ScanContext, env: _Env, brand: Brand, c: Candidate, counts: di
     name, matched = best_name_match(env.matcher, texts)
     name = apply_rules(name, env.rules)
     near = _near_name(name)
-    if ctx.settings.scan_prefilter and not near and not _kw_hit(brand, c):
+    if ctx.settings.scan_prefilter and not near and not _kw_hit(brand, c) and c.source not in INTAKE_SOURCES:
         counts["prefiltered"] += 1
         return Outcome(c, "ignored", name=name)
 
     sim, logo = _logo_step(ctx, env, c, counts)
     llm_result: LLMIntentResult | None = None
+    text: TextResult | None = None
     synthetic = c.data_source == "sample"
     if c.kind == "social":
         eng.logo_similarity = sim  # type: ignore[union-attr]
-        if env.llm is not None and c.bio and len(c.bio) >= 20 and c.data_source != "sample" and not c.stale:
-            try:
-                llm_result = env.llm.assess(c.bio)
-                counts["llm_checked"] += 1
-            except Exception:  # noqa: BLE001 - optional check must never fail a candidate
-                counts["llm_errors"] += 1
+        if c.bio:
+            text = env.text.analyze("bio", c.bio, env.brand_description, synthetic=synthetic, stale=c.stale)
+            llm_result = text.llm if len(c.bio) >= 20 else None
+            _count_text(text, counts)
         assessment = env.engine.assess_social(eng, env.assets, name, today=env.today, llm=llm_result, synthetic=synthetic)  # type: ignore[arg-type]
     else:
         eng.icon_similarity = sim  # type: ignore[union-attr]
+        if c.bio:  # informational only: the app scorer has no AI input, so this adds no points
+            text = env.text.analyze("app_description", c.bio, env.brand_description, synthetic=synthetic, stale=c.stale)
+            _count_text(text, counts)
         assessment = env.engine.assess_app(eng, env.brand_profile, env.assets, name, today=env.today, publisher_matcher=env.matcher, synthetic=synthetic)  # type: ignore[arg-type]
     score = assessment.score_result
     counts["evaluated"] += 1
     reasons = reason_dicts(score.reasons)
     summary, tags = summary_and_tags(name, reasons, sim)
     kind = "hit" if is_hit(score.score, env.threshold, reasons, name.verdict) else ("cleared" if near else "ignored")
-    return Outcome(c, kind, score, name, matched, reasons, logo, summary, tags, env.threshold, llm_result is not None, assessment)
+    oc = Outcome(c, kind, score, name, matched, reasons, logo, summary, tags, env.threshold, llm_result is not None, assessment)
+    oc.text = text
+    return oc
 
 
 def _clear_reason(oc: Outcome) -> str:
@@ -529,8 +585,10 @@ def _details(oc: Outcome) -> dict:
         "ai_text_check": oc.llm_used,
     }
     if oc.assessment is not None:
-        d["signals"] = [sg.to_dict() for sg in oc.assessment.signals]
+        d["signals"] = [sg.to_dict() for sg in oc.assessment.signals] + (oc.text.signals if oc.text else [])
         d["weights"] = oc.assessment.weights
+    if oc.text is not None:
+        d["text_analysis"] = oc.text.details()
     if oc.analysis is not None:
         d["domain"] = oc.analysis.to_dict()
         d["reputation"] = oc.reputation.to_dict() if oc.reputation is not None else {
@@ -545,10 +603,10 @@ def _event(db: Session, det: Detection, now: datetime, *, kind: str, to: str | N
     db.add(DetectionEvent(detection_id=det.id, at=now, actor=actor, actor_id=actor_id, kind=kind, from_status=frm, to_status=to, note=note))
 
 
-def _push_history(det: Detection, score: int, scan: Scan, now: datetime) -> None:
+def _push_history(det: Detection, score: int, scan: Scan | None, now: datetime) -> None:
     hist = list(det.score_history or [])
-    if not any(h.get("scan_id") == scan.id for h in hist):
-        hist.append({"at": iso_z(now), "score": score, "scan_id": scan.id})
+    if scan is None or not any(h.get("scan_id") == scan.id for h in hist):
+        hist.append({"at": iso_z(now), "score": score, "scan_id": scan.id if scan else None})
         det.score_history = hist[-50:]
 
 
@@ -558,6 +616,7 @@ def _add_note(det: Detection, text: str, now: datetime, kind: str = "system") ->
 
 def _apply_fields(det: Detection, oc: Outcome, now: datetime, status: str) -> None:
     c = oc.candidate
+    prev_origins = (det.details or {}).get("origins", [])
     assert oc.score is not None
     det.type = _detection_type(c, oc.reasons)
     det.category = {"app": "apps", "web": "web"}.get(c.kind, "social")
@@ -573,12 +632,13 @@ def _apply_fields(det: Detection, oc: Outcome, now: datetime, status: str) -> No
     det.severity, det.algorithm_version, det.scored_at = oc.assessment.severity, oc.assessment.algorithm_version, oc.assessment.scored_at
     det.reasons = oc.reasons
     det.details = _details(oc)
+    det.details = {**det.details, "origins": sorted({*(prev_origins), origin_of(c)})}
     det.stale = c.stale
     det.source = c.data_source
     det.status = status
 
 
-def upsert_detection(ctx: ScanContext, db: Session, scan: Scan, brand: Brand, oc: Outcome, existing: dict[str, Detection], counts: dict) -> None:
+def upsert_detection(ctx: ScanContext, db: Session, scan: Scan | None, brand: Brand, oc: Outcome, existing: dict[str, Detection], counts: dict) -> None:
     now = ctx.now()
     c = oc.candidate
     assert oc.score is not None and oc.name is not None
@@ -588,7 +648,7 @@ def upsert_detection(ctx: ScanContext, db: Session, scan: Scan, brand: Brand, oc
     if det is None:
         if oc.kind == "cleared" and not _near_name(oc.name):
             return
-        det = Detection(brand_id=brand.id, canonical_key=key, found_at=now, first_seen_at=now, last_seen_at=now, last_scan_id=scan.id,
+        det = Detection(brand_id=brand.id, canonical_key=key, found_at=now, first_seen_at=now, last_seen_at=now, last_scan_id=scan.id if scan else None, origin=origin_of(c),
                         score=oc.score.score, band=oc.score.band, type="", category="", platform=c.platform, status=new_status)
         _apply_fields(det, oc, now, new_status)
         det.evidence = _evidence_for(ctx, c, now, None)
@@ -597,13 +657,13 @@ def upsert_detection(ctx: ScanContext, db: Session, scan: Scan, brand: Brand, oc
         _push_history(det, oc.score.score, scan, now)
         db.add(det)
         db.flush()
-        _event(db, det, now, kind="scan", to=new_status, note=f"Found by scan {scan.job_id}.")
+        _event(db, det, now, kind="scan", to=new_status, note=f"Found by scan {scan.job_id}." if scan else f"Added by {origin_of(c)} entry.")
         existing[key] = det
         counts["detections_new" if oc.kind == "hit" else "cleared_new"] += 1
         return
 
     old_score, old_status = det.score, det.status
-    det.last_seen_at, det.last_scan_id = now, scan.id
+    det.last_seen_at, det.last_scan_id = now, (scan.id if scan else det.last_scan_id)
     prev_evidence = det.evidence
     det.evidence = _evidence_for(ctx, c, now, prev_evidence)
     if det.evidence.get("sha256") != (prev_evidence or {}).get("sha256"):

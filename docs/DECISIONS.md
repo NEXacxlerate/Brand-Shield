@@ -33,7 +33,7 @@
 - A leading `@` is treated as a handle prefix and stripped, so `@cmebank` reads as "missing letter", not "a" via symbol swap.
 - Logo thresholds (synthetic shape logos, not real brands): >= 80 likely copy, >= 55 similar, below 55 no points. Colour-inverted logos score ~0. Re-tune on real labelled data.
 - Score model: reasons sum to `raw_total`; per-category caps are applied inside the reasons; the 100 cap is applied last (`capped` flag). Publisher-difference counts only with another brand signal; 22 when the publisher name resembles the brand, else 20.
-- LLM scam-intent check: setting `scam_llm_enabled` (default false) and `scam_llm_model` (default `claude-haiku-4-5`, please confirm the model id you want). Not wired into any endpoint yet.
+- LLM scam-intent check: setting `scam_llm_enabled` (default false); the Anthropic option was removed in E5. Not wired into any endpoint yet.
 - Ruff: `E501` is ignored in `app/engine/*` and `scripts/*` (regex and word tables).
 
 
@@ -68,7 +68,7 @@
 - **One scan per brand:** the second start returns 409 with the running scan (`job_id`, `scan`). Enforced in the application (check then insert), not by a database constraint: two requests in the same millisecond on different servers could both pass. Acceptable for one brand/one API process; revisit with a partial unique index on Postgres.
 - **Evidence:** snapshot = canonical JSON of the candidate (fetch time excluded), stored at `DATA_DIR/evidence/<sha[:2]>/<sha>.json`, so identical content is stored once. The endpoint re-hashes the file and reports `hash_verified`. Screenshots: hook only (`SCREENSHOTS_ENABLED`, Playwright not installed, not tested live).
 - **Logo fetch:** result URLs go through the new `services/image_fetch.py` (same SSRF rules as `url_safety`, plus size/type/magic checks, 25 downloads per scan). Only for live candidates with an icon URL; sample data never triggers a download. Any failure is recorded as "Logo unavailable: <why>" and the candidate continues. Result pages are NOT fetched (no og:image scraping): only the image URL a source supplies.
-- **Optional AI text check** runs only when `SCAM_LLM_ENABLED=true` AND `ANTHROPIC_API_KEY` is set; never for sample data; failures are skipped silently (counted). When enabled without a key the scan records a note.
+- **Optional AI text check** runs only when `SCAM_LLM_ENABLED=true` AND the active provider has a key; never for sample data; failures are skipped silently (counted). When enabled without a key the scan records a note.
 
 **Jobs and scheduler**
 - `REDIS_URL` set: RQ queue `scans` (`python -m app.worker`, SimpleWorker on Windows). Unset: in-process thread. If Redis is unreachable when queuing, the scan falls back to a thread (logged). `SCAN_EXECUTOR=inline` runs synchronously (tests).

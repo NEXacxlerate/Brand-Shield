@@ -1,9 +1,7 @@
 """Optional LLM scam-intent assessment. OFF by default; never used unless explicitly enabled.
 
 * `ScamIntentLLM` is a Protocol, so tests use a fake and other providers can be added.
-* `AnthropicScamIntentLLM` lazily imports the `anthropic` package and reads ANTHROPIC_API_KEY from the
-  environment (or an explicit argument). The text to assess is untrusted: it is sent as data with an
-  instruction not to follow anything inside it.
+* Hosted providers (Gemini, Hugging Face) live in app/providers/text; this module keeps the result type and the protocol.
 * `CachedScamIntentLLM` adds an in-memory LRU keyed by SHA-256 of the text.
 """
 
@@ -11,13 +9,11 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import re
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from typing import Any, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
-DEFAULT_MODEL = "claude-haiku-4-5"
 MAX_TEXT_CHARS = 2000
 
 SYSTEM_PROMPT = (
@@ -72,33 +68,6 @@ class CachedScamIntentLLM:
         return result
 
 
-class AnthropicScamIntentLLM:
-    def __init__(self, api_key: str | None = None, model: str = DEFAULT_MODEL, client: Any = None, max_tokens: int = 300) -> None:
-        self.model = model
-        self.max_tokens = max_tokens
-        if client is not None:
-            self._client = client
-            return
-        key = api_key or os.environ.get("ANTHROPIC_API_KEY")
-        if not key:
-            raise LLMUnavailable("ANTHROPIC_API_KEY is not set.")
-        try:
-            import anthropic  # type: ignore[import-not-found]  # lazy: optional dependency
-        except ImportError as exc:
-            raise LLMUnavailable("The 'anthropic' package is not installed.") from exc
-        self._client = anthropic.Anthropic(api_key=key)
-
-    def assess(self, text: str) -> LLMIntentResult:
-        resp = self._client.messages.create(
-            model=self.model,
-            max_tokens=self.max_tokens,
-            system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": text[:MAX_TEXT_CHARS]}],
-        )
-        raw = "".join(getattr(b, "text", "") for b in getattr(resp, "content", []))
-        return parse_llm_json(raw)
-
-
 def parse_llm_json(raw: str) -> LLMIntentResult:
     m = re.search(r"\{.*\}", raw, re.S)
     if not m:
@@ -110,10 +79,3 @@ def parse_llm_json(raw: str) -> LLMIntentResult:
         raise LLMUnavailable("LLM returned unusable JSON.") from exc
     cats = [str(c)[:40] for c in data.get("categories", []) if isinstance(c, str)][:6]
     return LLMIntentResult(max(0.0, min(1.0, likelihood)), cats, str(data.get("rationale", ""))[:300])
-
-
-def build_scam_llm(enabled: bool, model: str = DEFAULT_MODEL, api_key: str | None = None) -> ScamIntentLLM | None:
-    """Return a cached Anthropic-backed LLM when enabled, else None (the default)."""
-    if not enabled:
-        return None
-    return CachedScamIntentLLM(AnthropicScamIntentLLM(api_key=api_key, model=model))

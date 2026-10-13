@@ -1,15 +1,10 @@
-import json
-from types import SimpleNamespace
-
 import pytest
 
 from app.engine.llm import (
-    AnthropicScamIntentLLM,
     CachedScamIntentLLM,
     LLMIntentResult,
     LLMUnavailable,
     ScamIntentLLM,
-    build_scam_llm,
     parse_llm_json,
     text_key,
 )
@@ -108,42 +103,6 @@ def test_cache_hits_by_text_hash_and_lru_eviction():
     c.assess("a")
     assert inner.calls == 4
     assert text_key("a") == text_key("a") != text_key("b") and len(text_key("a")) == 64
-
-
-def test_llm_off_by_default():
-    assert build_scam_llm(False) is None
-    assert build_scam_llm(enabled=False, api_key="x") is None
-
-
-def test_anthropic_requires_key(monkeypatch):
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    with pytest.raises(LLMUnavailable, match="ANTHROPIC_API_KEY"):
-        AnthropicScamIntentLLM()
-
-
-def test_anthropic_package_missing_is_reported(monkeypatch):
-    import sys
-
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-not-real")
-    monkeypatch.setitem(sys.modules, "anthropic", None)
-    with pytest.raises(LLMUnavailable, match="not installed"):
-        AnthropicScamIntentLLM()
-
-
-def test_anthropic_with_fake_client_no_network():
-    seen = {}
-
-    class FakeMessages:
-        def create(self, **kw):
-            seen.update(kw)
-            payload = {"scam_likelihood": 1.4, "categories": ["fake_support", 5], "rationale": "x" * 500}
-            return SimpleNamespace(content=[SimpleNamespace(text="Sure: " + json.dumps(payload))])
-
-    llm = AnthropicScamIntentLLM(client=SimpleNamespace(messages=FakeMessages()), model="m1")
-    r = llm.assess("A" * 5000)
-    assert r.scam_likelihood == 1.0 and r.categories == ["fake_support"] and len(r.rationale) == 300
-    assert seen["model"] == "m1" and len(seen["messages"][0]["content"]) == 2000
-    assert "untrusted" in seen["system"]
 
 
 def test_parse_llm_json_errors():

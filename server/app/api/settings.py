@@ -97,7 +97,7 @@ def _view(db: Session, request: Request, ctx: ScanContext, user: User) -> dict:
     notif = app_settings.get_notifications(db)
     rows = ensure_sources(db)
     row = db.scalar(select(Setting).where(Setting.key.in_(("monitoring", "notifications"))).order_by(Setting.updated_at.desc()))
-    brand = db.scalars(select(Brand).order_by(Brand.id)).first()
+    brand = db.scalars(select(Brand).where(Brand.archived_at.is_(None)).order_by(Brand.id)).first()
     sched = schedule_status(ctx, db)
     sel_mode = mode_of(db, request)
     webhook = notif["webhook_url"]

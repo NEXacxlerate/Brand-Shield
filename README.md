@@ -115,7 +115,7 @@ Server (`server/app/core/config.py`; names are case-insensitive, blank = not set
 | `ITUNES_COUNTRY`, `ITUNES_CALLS_PER_MINUTE`, `ITUNES_CACHE_TTL_SECONDS`, `ITUNES_MAX_QUERIES_PER_SCAN` | no | `in`, `20`, `3600`, `8` | App Store search (no key). |
 | `GOOGLE_PLAY_COUNTRY`, `GOOGLE_PLAY_MAX_QUERIES_PER_SCAN` | no | `in`, `6` | Optional `google-play-scraper` package (not installed by default; license/terms unverified). |
 | `SOURCE_SLOW_THRESHOLD_MS`, `COLLECTOR_TIMEOUT_SECONDS`, `REACHABILITY_CHECKS_PER_SCAN` | no | `4000`, `15`, `0` | Collector timing and optional reachability checks of result URLs. |
-| `SCAM_LLM_ENABLED`, `SCAM_LLM_MODEL`, `ANTHROPIC_API_KEY` | no | `false`, `claude-haiku-4-5`, unset | Optional AI text check (never for sample data). Key is a secret. Confirm the model id you want. |
+| `SCAM_LLM_ENABLED`, `SCAM_LLM_PROVIDER`, `GEMINI_API_KEY`, `GEMINI_MODEL`, `HUGGINGFACE_API_TOKEN`, `HUGGINGFACE_MODEL` | no | `false`, `gemini`, unset, `gemini-3.5-flash-lite`, unset, unset | Optional hosted AI text check (never for sample data). Keys are secrets. See docs/USER_GUIDE.md. |
 | `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `SENTRY_TRACES_SAMPLE_RATE` | no | unset, `APP_ENV`, `0.0` | Optional error reporting; needs `pip install -r server/requirements-extra.txt`. DSN is a secret. |
 
 Container-only (docker-compose.yml / entrypoint / frontend image):

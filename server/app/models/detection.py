@@ -44,6 +44,8 @@ class Detection(Base):
     details: Mapped[dict] = mapped_column(JSON, default=dict)  # per-type extras (followers, downloads, ...)
     stale: Mapped[bool] = mapped_column(Boolean, default=False)
     source: Mapped[str] = mapped_column(String(10), default="live")  # live | sample
+    # Where the candidate came from: scan (a collector) | manual (typed in) | import (CSV/JSON) | synthetic (sample data)
+    origin: Mapped[str] = mapped_column(String(12), default="scan", server_default="scan")
     found_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
@@ -91,3 +93,24 @@ class DetectionEvent(Base):
     from_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
     to_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
     note: Mapped[str] = mapped_column(Text, default="")
+
+
+class CandidateImage(Base):
+    """An image a person uploaded for a manual / imported candidate or an app icon. Re-encoded, hashed, stored under a hash-derived name.
+    Hash similarity to an official logo is a hint, not proof of reuse."""
+
+    __tablename__ = "candidate_images"
+    __table_args__ = (UniqueConstraint("brand_id", "sha256"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    brand_id: Mapped[int] = mapped_column(ForeignKey("brands.id", ondelete="CASCADE"), index=True)
+    purpose: Mapped[str] = mapped_column(String(20), default="candidate_image")  # candidate_image | app_icon
+    path: Mapped[str] = mapped_column(String(300))
+    format: Mapped[str] = mapped_column(String(10))
+    width: Mapped[int] = mapped_column(Integer)
+    height: Mapped[int] = mapped_column(Integer)
+    size_bytes: Mapped[int] = mapped_column(Integer)
+    sha256: Mapped[str] = mapped_column(String(64))
+    hashes: Mapped[dict] = mapped_column(JSON, default=dict)  # {"phash": hex, "dhash": hex, "whash": hex, "colorhash": hex}
+    created_by: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

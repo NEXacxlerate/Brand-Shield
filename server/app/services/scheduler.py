@@ -98,7 +98,7 @@ def schedule_inputs(ctx: ScanContext, db) -> dict:
     """Read everything `decide_schedule` needs from settings, scans and the credit ledger."""
     mon = app_settings.get_monitoring(db)
     minutes, source = app_settings.interval_minutes(ctx.settings.scan_interval_minutes, mon)
-    brand = db.scalars(select(Brand).order_by(Brand.id)).first()
+    brand = db.scalars(select(Brand).where(Brand.archived_at.is_(None)).order_by(Brand.id)).first()
     last = running = None
     if brand is not None:
         last = db.scalar(select(Scan.created_at).where(Scan.brand_id == brand.id).order_by(Scan.id.desc()).limit(1))

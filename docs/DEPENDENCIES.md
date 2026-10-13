@@ -97,7 +97,6 @@ Optional packages, lazily imported, NOT installed and NOT in requirements (the e
 
 | Package | License (from package metadata) | Used by | Notes |
 |---|---|---|---|
-| anthropic | MIT (wheel METADATA: `License: MIT`, classifier MIT) | `engine/llm.py` `AnthropicScamIntentLLM`, only when `SCAM_LLM_ENABLED=true` and `ANTHROPIC_API_KEY` is set | Metadata of the wheel downloaded 2026-10-13 (version string 1.13.0 as shown by pip). Sends bio text to a third party when enabled; off by default. Pin a version when it is first installed. |
 | open_clip_torch + torch | MIT (open_clip) / BSD-3-Clause (torch), from upstream project pages, NOT verified from metadata because not downloaded | `engine/logo_similarity.py` `ClipSimilarity` (optional CLIP embedder) | Heavy (hundreds of MB). Each pretrained model weight set has its own license; check before use. Unverified, do not install without a metadata check. |
 
 

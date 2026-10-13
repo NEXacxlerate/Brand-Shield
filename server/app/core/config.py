@@ -40,9 +40,26 @@ class Settings(BaseSettings):
     url_check_max_redirects: int = 3
     url_check_max_bytes: int = 65536
 
-    # Detection engine: optional LLM scam-intent check. OFF by default; key comes from ANTHROPIC_API_KEY.
+    # Master switch for hosted text analysis (OFF by default: no candidate text leaves the server). `scam_llm_provider` is the default
+    # active provider (gemini | huggingface | local | off); an admin can change it in Settings (stored in the database).
     scam_llm_enabled: bool = False
-    scam_llm_model: str = "claude-haiku-4-5"
+    scam_llm_provider: str = "gemini"
+    # Google Gemini via the official google-genai SDK. Key ONLY from GEMINI_API_KEY. The model id is configuration, not code.
+    gemini_api_key: SecretStr | None = None
+    gemini_model: str = "gemini-3.5-flash-lite"
+    # Hugging Face Inference Providers (optional). No default model: unavailable until you choose one a provider serves.
+    huggingface_api_token: SecretStr | None = None
+    huggingface_model: str | None = None
+    # Embeddings are OFF; the Gemini embedding model id is unverified (docs/EXTENSION_PLAN.md), so there is no default.
+    text_embeddings_enabled: bool = False
+    gemini_embedding_model: str | None = None
+    # Logo / icon scoring backend: hash (default, the original pHash+dHash) | multihash (image-2, pHash+dHash+wHash) | imagehash (needs the ImageHash package)
+    image_similarity_backend: str = "hash"
+    candidate_image_max_bytes: int = 2 * 1024 * 1024
+    import_max_bytes: int = 1024 * 1024
+    import_max_rows: int = 500
+    text_provider_timeout_seconds: float = 10.0
+    text_provider_max_retries: int = 2  # retries after the first attempt (5xx / timeout only; 429 and bad keys are never retried)
 
     # Collectors (Phase 3). The Tavily key comes ONLY from the environment (TAVILY_API_KEY); never log it.
     tavily_api_key: SecretStr | None = None
@@ -80,7 +97,6 @@ class Settings(BaseSettings):
     scan_interval_minutes: int | None = None  # env SCAN_INTERVAL_MINUTES; overrides the Settings page; 0 = off
     scheduler_poll_seconds: int = 60
     scheduler_max_queries_per_scan: int | None = None  # credit estimate; default = tavily_max_queries_per_scan
-    anthropic_api_key: SecretStr | None = None  # only used when SCAM_LLM_ENABLED=true; never logged
 
     # URL reputation: Google Safe Browsing Lookup API v4. The key comes ONLY from GOOGLE_SAFE_BROWSING_API_KEY
     # (optional: no key = reputation is "unavailable"). Non-commercial use only; see docs/DECISIONS.md.
@@ -108,7 +124,8 @@ class Settings(BaseSettings):
     @property
     def secret_values(self) -> list[str]:
         key = self.tavily_api_key.get_secret_value() if self.tavily_api_key else None
-        secrets = (self.redis_url, self.anthropic_api_key, self.sentry_dsn, self.google_safe_browsing_api_key)
+        secrets = (self.redis_url, self.sentry_dsn, self.google_safe_browsing_api_key, self.gemini_api_key,
+                   self.huggingface_api_token)
         extra = [x.get_secret_value() for x in secrets if x]
         return [v for v in (self.jwt_secret, self.admin_password, key, *extra) if v]
 

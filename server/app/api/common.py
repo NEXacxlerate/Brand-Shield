@@ -13,7 +13,7 @@ def get_ctx(request: Request) -> ScanContext:
 
 def resolve_brand(db: Session, brand_id: int | None) -> Brand:
     """`brand_id` is optional everywhere: it defaults to the organisation's (single) brand."""
-    brand = db.get(Brand, brand_id) if brand_id else db.scalars(select(Brand).order_by(Brand.id)).first()
+    brand = db.get(Brand, brand_id) if brand_id else db.scalars(select(Brand).where(Brand.archived_at.is_(None)).order_by(Brand.id)).first()
     if brand is None:
         raise HTTPException(404, "Brand not found" if brand_id else "No brand profile yet. Create one first.")
     return brand

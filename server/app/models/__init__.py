@@ -1,12 +1,16 @@
-from app.models.brand import Brand, OfficialAccount, OfficialApp
-from app.models.detection import Detection, DetectionEvent, OfficialMatch
-from app.models.ops import ApiUsage, AuditLog, CollectorState, LookalikeCase, Report, Scan, Setting, Source
+from app.models.brand import AssetVerification, Brand, BrandLogo, BrandPublisher, OfficialAccount, OfficialApp
+from app.models.detection import CandidateImage, Detection, DetectionEvent, OfficialMatch
+from app.models.ops import ApiUsage, AuditLog, CollectorState, LookalikeCase, Report, Scan, Setting, Source, TextAnalysisCache
 from app.models.user import RefreshToken, User
 
 __all__ = [
     "ApiUsage",
+    "AssetVerification",
     "AuditLog",
     "Brand",
+    "BrandLogo",
+    "BrandPublisher",
+    "CandidateImage",
     "CollectorState",
     "Detection",
     "DetectionEvent",
@@ -19,5 +23,6 @@ __all__ = [
     "Scan",
     "Setting",
     "Source",
+    "TextAnalysisCache",
     "User",
 ]

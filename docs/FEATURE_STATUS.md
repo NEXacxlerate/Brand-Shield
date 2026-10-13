@@ -96,7 +96,7 @@ what was exercised, with which kind of data, and what was not.
 | 10.4 | Audit export button | PASS | n/a | Account tab > Export Audit Log downloads `audit-log.csv`. | |
 | **11. Evaluation and LLM** | | | | | |
 | 11.1 | Evaluation page | PASS | synthetic | Per-technique precision/recall/F1 on generated names (753 true positives, 45 missed, overall recall 94.4%), the labelled look-alike tests and reviewer precision. A banner says synthetic numbers are optimistic. | Real precision only comes from reviewer decisions. |
-| 11.2 | Optional AI scam check | PASS (off) | n/a | Off by default: no setting in the UI, `llm_checked: 0` on every scan, `ANTHROPIC_API_KEY` absent, app works normally. | Enabling it (`SCAM_LLM_ENABLED=true` plus a key) is MOCK-ONLY. |
+| 11.2 | Optional AI scam check | PASS (off) | n/a | Off by default: no setting in the UI, `llm_checked: 0` on every scan, no AI key set, app works normally. | Enabling it (`SCAM_LLM_ENABLED=true` plus a Gemini key) is MOCK-ONLY. |
 | **12. Audit log** | | | | | |
 | 12.1 | Entries for mutations | PASS | n/a | 21 action types recorded (logins and failures, brand, logo, account, app, scan, detection decisions, report, settings, data mode, source toggle, canary, Look-alike cases). | |
 | 12.2 | CSV export and filters | PASS | n/a | `GET /api/audit/export.csv`, `GET /api/audit` with actor/action/date filters; viewers 403. | No audit screen: only the CSV button and the API. Analysts can read it. |

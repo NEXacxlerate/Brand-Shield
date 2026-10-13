@@ -2,7 +2,7 @@
 
 Safety properties (all asserted below):
 - never reads server/.env or ../.env (Settings(_env_file=None)); every value comes from the process environment
-- no Tavily / SearXNG / Anthropic / Redis settings are honoured, so data mode `auto` resolves to `sample`
+- no Tavily / SearXNG / Gemini / Redis settings are honoured, so data mode `auto` resolves to `sample`
 - the reachability check for official accounts is a stub: no outbound HTTP at all
 - a temporary SQLite database and data directory are created by the caller (E2E_DB_PATH / E2E_DATA_DIR)
 
@@ -16,7 +16,7 @@ from pathlib import Path
 SERVER_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SERVER_DIR))
 
-for name in ("TAVILY_API_KEY", "SEARXNG_BASE_URL", "ANTHROPIC_API_KEY", "REDIS_URL", "SCAN_INTERVAL_MINUTES"):
+for name in ("TAVILY_API_KEY", "SEARXNG_BASE_URL", "GEMINI_API_KEY", "REDIS_URL", "SCAN_INTERVAL_MINUTES"):
     os.environ.pop(name, None)  # a developer's shell must never reach the e2e run
 os.environ["APP_ENV"] = "test"  # also keeps the in-process scheduler off
 os.environ["SCHEDULER_ENABLED"] = "false"

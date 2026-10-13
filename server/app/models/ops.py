@@ -157,3 +157,14 @@ class LookalikeCase(Base):
     source: Mapped[str] = mapped_column(String(10), default="live")
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class TextAnalysisCache(Base):
+    """Persistent cache of validated hosted-model answers (providers/text/cache.py). Key = hash of model + prompt version + context + text."""
+
+    __tablename__ = "text_analysis_cache"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    provider: Mapped[str] = mapped_column(String(20))
+    value: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

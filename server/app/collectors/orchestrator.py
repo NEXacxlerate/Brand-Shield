@@ -122,7 +122,7 @@ class RunResult:
 
 
 def load_brand_query(db: Session, brand_id: int | None = None, *, logo_bytes: Callable[[Brand], bytes | None] | None = None) -> BrandQuery | None:
-    brand = db.get(Brand, brand_id) if brand_id else db.scalars(select(Brand).order_by(Brand.id)).first()
+    brand = db.get(Brand, brand_id) if brand_id else db.scalars(select(Brand).where(Brand.archived_at.is_(None)).order_by(Brand.id)).first()
     if brand is None:
         return None
     handles: dict[str, list[str]] = {}

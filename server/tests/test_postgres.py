@@ -44,7 +44,7 @@ def test_migrations_apply_match_models_and_downgrade(pg):
     assert EXPECTED_TABLES <= set(inspect(eng).get_table_names())
     with eng.connect() as conn:
         assert compare_metadata(MigrationContext.configure(conn), Base.metadata) == []
-        assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0005"
+        assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0006"
     command.downgrade(cfg, "base")
     assert set(inspect(eng).get_table_names()) <= {"alembic_version"}
 
@@ -133,4 +133,4 @@ def test_concurrent_migrate_runs_are_serialised_by_the_advisory_lock(pg):
         t.join(timeout=120)
     assert not errors, errors
     with eng.connect() as c:
-        assert c.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0005"
+        assert c.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0006"

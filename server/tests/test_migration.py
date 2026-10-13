@@ -14,7 +14,7 @@ SERVER = Path(__file__).resolve().parents[1]
 EXPECTED_TABLES = {
     "users", "refresh_tokens", "brands", "official_accounts", "official_apps", "detections",
     "official_matches", "sources", "scans", "settings", "reports", "api_usage", "audit_log", "collector_state",
-    "detection_events", "lookalike_cases",
+    "detection_events", "lookalike_cases", "brand_logos", "brand_publishers", "asset_verifications", "candidate_images", "text_analysis_cache",
 }
 
 

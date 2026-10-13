@@ -106,7 +106,7 @@ def _settings(data_dir: Path) -> Settings:
     # Explicit values beat the environment: a developer's real keys can never reach the canary.
     return Settings(  # type: ignore[call-arg]
         _env_file=None, jwt_secret="canary-not-a-secret-000000", database_url="sqlite://", data_dir=data_dir, app_env="canary",
-        tavily_api_key=None, searxng_base_url=None, redis_url=None, anthropic_api_key=None, scam_llm_enabled=False,
+        tavily_api_key=None, searxng_base_url=None, redis_url=None, scam_llm_enabled=False,
         scan_executor="inline", scheduler_enabled=False, scan_logo_fetch=False, screenshots_enabled=False,
         reachability_checks_per_scan=0, scan_interval_minutes=0,
     )

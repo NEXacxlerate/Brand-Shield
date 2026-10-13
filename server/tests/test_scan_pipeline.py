@@ -311,7 +311,7 @@ def test_llm_only_when_enabled_and_key_present(settings, checker):
         set_mode(c, h, "live")
         setup_brand(c, h, accounts=(), apps=())
         scan = run_scan(c, h)
-        assert scan["counts"]["llm_checked"] == 0 and any("ANTHROPIC_API_KEY is not set" in e for e in scan["errors"])
+        assert scan["counts"]["llm_checked"] == 0 and any("is not usable" in e for e in scan["errors"])
     # setting on + fake LLM: called, adds to the bio signal
     fake = FakeLLM()
     with make_client(on, checker, [StaticCollector(cands)]) as c:

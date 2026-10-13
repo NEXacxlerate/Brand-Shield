@@ -420,7 +420,7 @@ Three switches (e-mail alerts, weekly digest, Slack or other webhook). The page 
 
 **Re-run evaluation** recomputes it.
 
-There is also an optional "AI text check" for scam wording in bios. It is **off** by default and has no switch in the website: it needs `SCAM_LLM_ENABLED=true` and an `ANTHROPIC_API_KEY` in `server\.env`, is never used on sample data, and the app works fully without it.
+There is also an optional "AI text check" for scam wording in bios. It is **off** by default and has no switch in the website: it needs `SCAM_LLM_ENABLED=true` and a `GEMINI_API_KEY` in `server\.env` (see the AI text providers section), is never used on sample data, and the app works fully without it.
 
 ---
 
