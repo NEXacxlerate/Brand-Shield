@@ -22,10 +22,15 @@
   position: sticky;
   top: 16px;
   overflow-y: auto;
+  scrollbar-width: none; /* no scrollbar track in the sidebar; it still scrolls with the wheel or touch */
   z-index: 50;
   background-color: var(--bg-shell);
   border: 1px solid var(--border-shell);
   border-radius: 24px;
+}
+
+.app-sidebar::-webkit-scrollbar {
+  display: none;
 }
 
 .sidebar-logo {

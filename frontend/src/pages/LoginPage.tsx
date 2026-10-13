@@ -15,6 +15,9 @@ export const LoginPage: React.FC = () => {
   const [keepSignedIn, setKeepSignedIn] = useState(true);
   const [busy, setBusy] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // Demo sign-in is opt-in: it only shows when VITE_DEMO_EMAIL and VITE_DEMO_PASSWORD are set (local .env.local, never committed).
+  const demoEmail = (import.meta.env.VITE_DEMO_EMAIL as string | undefined) || '';
+  const demoPassword = (import.meta.env.VITE_DEMO_PASSWORD as string | undefined) || '';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -157,6 +160,21 @@ export const LoginPage: React.FC = () => {
               </div>
               <span className="checkbox-text">Keep me signed in on this device</span>
             </div>
+
+            {demoEmail && demoPassword && (
+              <button
+                type="button"
+                className="demo-credentials-btn"
+                data-testid="demo-credentials"
+                onClick={() => {
+                  setEmail(demoEmail);
+                  setPassword(demoPassword);
+                  setErrorMsg(null);
+                }}
+              >
+                Use demo credentials
+              </button>
+            )}
 
             <button type="submit" className="btn-primary auth-submit-btn" disabled={busy}>
               {busy ? 'Signing in…' : 'Sign in →'}
