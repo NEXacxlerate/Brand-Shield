@@ -267,6 +267,10 @@ def _run_one(session_factory, brand, col: Collector, covered, ctx, force, slow_m
             db.commit()
             return report, cands
 
+        # Release the write lock taken when the state row was created or changed. A collector may write to the
+        # database through its own session (Tavily's credit ledger does); on SQLite that would otherwise fail with
+        # "database is locked" and the whole source would be reported as an internal error.
+        db.commit()
         started = perf()
         failure: SourceUnavailable | None = None
         cands: list[Candidate] = []
