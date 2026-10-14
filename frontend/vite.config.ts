@@ -15,6 +15,7 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    testTimeout: 20_000, // form tests type long passwords key by key: the 5 s default flakes on busy CI and laptops
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.test.{ts,tsx}'],
     css: false,
