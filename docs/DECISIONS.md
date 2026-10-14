@@ -218,3 +218,6 @@ Decisions D1 to D13 of `docs/EXTENSION_PLAN.md` as answered by the owner, and wh
 - **Sign-up form** mirrors the server's password policy in the browser for live hints only; the server stays the authority (its 422 messages are shown per field). 409, 429 (with Retry-After) and 403 (form hidden) have their own messages.
 - **CSP unchanged:** Studio only needs Google Fonts (already allowed); `connect-src 'self'` is kept.
 - **Docker:** the frontend nginx also proxies `/api/` to the `api` container because Studio uses relative `/api` URLs. Docker and Vercel configs were not run here (no Docker, nothing deployed): UNVERIFIED.
+
+## Demo credentials on the login page (Oct 2026)
+- Server-driven: `DEMO_EMAIL` / `DEMO_PASSWORD` seed a normal `analyst` account (kept in sync at every start; refused when equal to `ADMIN_EMAIL`; an existing non-analyst account is never touched). `GET /api/auth/demo` is public on purpose and returns the credentials only when both are set. The frontend asks the server, so no password is bundled; the older `VITE_DEMO_*` fallback remains for local use. The demo account owns its own brand like any account, so visitors share that one workspace (documented in the login note).

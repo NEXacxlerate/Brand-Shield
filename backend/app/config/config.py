@@ -44,6 +44,8 @@ class Settings(BaseSettings):
 
     admin_email: str | None = None
     admin_password: str | None = None
+    demo_email: str | None = None  # env DEMO_EMAIL / DEMO_PASSWORD: a PUBLIC demo account (role analyst) advertised on the login page; both unset = no demo
+    demo_password: str | None = None
     admin_name: str = "Administrator"
 
     login_max_failures: int = 5
@@ -189,7 +191,7 @@ class Settings(BaseSettings):
         secrets = (self.redis_url, self.sentry_dsn, self.google_safe_browsing_api_key, self.gemini_api_key,
                    self.huggingface_api_token)
         extra = [x.get_secret_value() for x in secrets if x]
-        return [v for v in (self.jwt_secret, self.admin_password, key, *extra) if v]
+        return [v for v in (self.jwt_secret, self.admin_password, self.demo_password, key, *extra) if v]
 
 
 @lru_cache

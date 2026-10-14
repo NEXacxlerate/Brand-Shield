@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 import jwt
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -20,6 +20,7 @@ from app.db.session import get_db
 from app.models import Brand, RefreshToken, User
 from app.schemas.auth import LoginRequest, OkResponse, RefreshRequest, RegisterRequest, TokenResponse, UserOut
 from app.services import audit
+from app.services.seed import demo_enabled
 
 router = APIRouter()
 _DUMMY_HASH = hash_password("not-a-real-password")  # equalises timing for unknown emails
@@ -73,6 +74,16 @@ def login(
     audit.record(db, user, "auth.login", user.email)
     db.commit()
     return tokens
+
+
+@router.get("/auth/demo")
+def demo_credentials(response: Response, settings: Settings = Depends(get_settings_dep)) -> dict:
+    """The login page's "Use demo credentials" button. Deliberately PUBLIC: it hands out the credentials of the shared demo account
+    (role analyst, never admin) when DEMO_EMAIL and DEMO_PASSWORD are set, and nothing otherwise."""
+    response.headers["Cache-Control"] = "no-store"
+    if not demo_enabled(settings):
+        return {"enabled": False}
+    return {"enabled": True, "email": settings.demo_email, "password": settings.demo_password}
 
 
 @router.post("/auth/register", response_model=TokenResponse, status_code=201)

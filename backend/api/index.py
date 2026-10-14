@@ -16,7 +16,7 @@ if _ROOT not in sys.path:  # `app` lives next to this folder; do not rely on the
     sys.path.insert(0, _ROOT)
 
 from app.main import create_app  # noqa: E402
-from app.services.seed import seed_admin  # noqa: E402
+from app.services.seed import seed_admin, seed_demo  # noqa: E402
 
 log = logging.getLogger("app")
 
@@ -28,7 +28,9 @@ def cold_start() -> bool:
     not migrated yet (or briefly unreachable) cannot break the import: /health reports the problem and the next cold start retries."""
     try:
         with app.state.session_factory() as db:
-            return seed_admin(db, app.state.settings)
+            created = seed_admin(db, app.state.settings)
+            seed_demo(db, app.state.settings)
+            return created
     except Exception as exc:  # noqa: BLE001 - missing table, connection error, anything: report, never crash the import
         log.warning("admin seed skipped at cold start (%s): run alembic upgrade head and check DATABASE_URL", type(exc).__name__)
         return False

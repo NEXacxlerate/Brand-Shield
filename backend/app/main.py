@@ -41,7 +41,7 @@ from app.core.storage import build_store
 from app.db.session import make_engine, make_session_factory
 from app.services.context import build_context
 from app.services.scheduler import SchedulerLoop
-from app.services.seed import seed_admin
+from app.services.seed import seed_admin, seed_demo
 from app.services.studio_ai import StudioAI
 
 
@@ -74,6 +74,7 @@ def create_app(
         try:
             with app.state.session_factory() as db:
                 seed_admin(db, settings)
+                seed_demo(db, settings)
         except SQLAlchemyError:
             # Tables may not exist yet (migrations not applied). /health will report the problem.
             logging.getLogger("app").warning("admin seed skipped: database not ready (run alembic upgrade head)")

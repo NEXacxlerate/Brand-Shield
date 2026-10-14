@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { BrandMark, Wordmark } from '../components/common/BrandMark';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Target, Users, Database, Lock, Check } from 'lucide-react';
@@ -19,8 +19,21 @@ export const LoginPage: React.FC = () => {
   const [busy, setBusy] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   // Demo sign-in is opt-in: it only shows when VITE_DEMO_EMAIL and VITE_DEMO_PASSWORD are set (local .env.local, never committed).
-  const demoEmail = (import.meta.env.VITE_DEMO_EMAIL as string | undefined) || '';
-  const demoPassword = (import.meta.env.VITE_DEMO_PASSWORD as string | undefined) || '';
+  const envDemoEmail = (import.meta.env.VITE_DEMO_EMAIL as string | undefined) || '';
+  const envDemoPassword = (import.meta.env.VITE_DEMO_PASSWORD as string | undefined) || '';
+  // The server advertises its shared demo account (DEMO_EMAIL / DEMO_PASSWORD on the backend); no password lives in the frontend bundle.
+  const [serverDemo, setServerDemo] = useState<{ email: string; password: string } | null>(null);
+  useEffect(() => {
+    const ctl = new AbortController();
+    sm.demo(ctl.signal)
+      .then((d) => {
+        if (!ctl.signal.aborted && d.enabled && d.email && d.password) setServerDemo({ email: d.email, password: d.password });
+      })
+      .catch(() => undefined); // no demo (or the server is unreachable): the button simply does not show
+    return () => ctl.abort();
+  }, []);
+  const demoEmail = serverDemo?.email || envDemoEmail;
+  const demoPassword = serverDemo?.password || envDemoPassword;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -179,6 +192,11 @@ export const LoginPage: React.FC = () => {
               >
                 Use demo credentials
               </button>
+            )}
+            {demoEmail && demoPassword && (
+              <p className="demo-credentials-note" data-testid="demo-note">
+                Shared demo account: anything created with it can be seen by other visitors and may be reset at any time.
+              </p>
             )}
 
             <button type="submit" className="btn-primary auth-submit-btn" disabled={busy}>

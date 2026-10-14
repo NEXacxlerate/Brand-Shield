@@ -709,3 +709,7 @@ Brand description (`PUT /api/brands/{id}` with `description`), extra official lo
 - **Brand Registry.** A brand description field and a Verification status card: mark an official domain, account or app as verified (and by which method). This is your own record; the app does not check DNS or stores.
 - **Settings.** Analysis providers (which text provider is active, configured yes or no, never a key; admins can switch) and whether Google Safe Browsing is configured.
 - **Model Evaluation.** A prominent SYNTHETIC DATA banner, dataset name, version and size, algorithm version, a confusion matrix, the false positive rate and hard-negative groups (fan pages, authorized resellers, unrelated names).
+
+## Demo credentials on the login page
+
+If the operator sets `DEMO_EMAIL` and `DEMO_PASSWORD` on the backend, the login page shows **Use demo credentials**: it fills in a shared demo account (an ordinary account, not an administrator) so anyone can try the product without signing up. Because the account is shared, anything created with it can be seen by other visitors and may be reset. Without those two settings no button is shown. The credentials come from the server, not from the website's code.

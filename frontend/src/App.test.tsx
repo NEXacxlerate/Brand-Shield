@@ -19,7 +19,8 @@ describe('route guard', () => {
     render(<App />);
     expect(await screen.findByText('Welcome back')).toBeInTheDocument();
     expect(localStorage.getItem('scammind.offline-session')).toBeNull();
-    expect(calls).toHaveLength(0); // nothing is requested without a session
+    // nothing is requested without a session, except the login page asking whether the server has a public demo account
+    expect(calls.filter((c) => !c.url.endsWith('/api/auth/demo'))).toHaveLength(0);
   });
 
   it('protects /setup too: the admin must be signed in first', async () => {

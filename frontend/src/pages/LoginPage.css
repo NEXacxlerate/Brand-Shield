@@ -448,3 +448,10 @@
 .demo-credentials-btn:hover {
   background: rgba(139, 155, 255, 0.1);
 }
+
+.demo-credentials-note {
+  margin: -8px 0 14px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-dim);
+}

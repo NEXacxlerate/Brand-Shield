@@ -64,6 +64,7 @@ export const sm = {
   // ---- auth / me
   login: authApi.login,
   register: authApi.register,
+  demo: authApi.demo,
   logout: authApi.logout,
   me: (signal?: Sig) => request<Me>('/api/me', { signal }),
 

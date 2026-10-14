@@ -81,7 +81,8 @@ describe('LoginPage', () => {
     renderLogin();
     await fillAndSubmit('me@example.test', 'pw-12345');
     await waitFor(() => expect(screen.getByText('PROTECT BRAND PAGE')).toBeInTheDocument());
-    expect(JSON.parse(calls[0].init.body as string)).toEqual({ email: 'me@example.test', password: 'pw-12345' });
+    const login = calls.find((c) => c.url.endsWith('/api/auth/login'));
+    expect(JSON.parse(login!.init.body as string)).toEqual({ email: 'me@example.test', password: 'pw-12345' });
     expect(JSON.parse(localStorage.getItem('scammind.auth') as string)).toEqual({ access: 'acc', refresh: 'ref' });
   });
 
