@@ -11,6 +11,8 @@
 //   422 item joined by "; "). Network failures have status 0 and `network === true`; cancelled calls rethrow the AbortError.
 // - There is no offline/sample session: nothing is ever shown unless the server answered.
 
+import { clearQueryCache } from './queryCache';
+
 declare global {
   interface Window {
     /** Written at container start from API_URL (see frontend/nginx/40-runtime-config.sh); empty in development. */
@@ -115,6 +117,7 @@ export const session = {
   },
   /** Remove the session from both storages (and the keys older builds used). */
   clear() {
+    clearQueryCache(); // the next person to sign in must never see this session's pages
     write(TOKEN_KEY, null);
     write(USER_KEY, null);
     for (const k of LEGACY_KEYS) write(k, null);

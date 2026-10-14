@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ApiError, isAbortError } from '../api/client';
+import { ApiError, isAbortError, session } from '../api/client';
+import { cacheGet, cacheHas, cacheSet } from '../api/queryCache';
 
 export interface ApiState<T> {
   data: T | null;
@@ -22,14 +23,18 @@ function toApiError(e: unknown): ApiError {
  * `enabled=false` skips the call (for dependent loads).
  */
 export function useApi<T>(fn: (signal: AbortSignal) => Promise<T>, deps: unknown[] = [], enabled = true): ApiState<T> {
-  const [data, setDataState] = useState<T | null>(null);
-  const [loading, setLoading] = useState(enabled);
+  // Same request (same code, same inputs, same signed-in user) = same cache entry, shared by every visit to the page.
+  const key = `${session.user()?.id ?? ''}|${fn.toString()}|${JSON.stringify(deps)}`;
+  const keyRef = useRef(key);
+  keyRef.current = key;
+  const [data, setDataState] = useState<T | null>(() => (cacheHas(key) ? (cacheGet<T>(key) as T) : null));
+  const [loading, setLoading] = useState(enabled && !cacheHas(key));
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
   const [tick, setTick] = useState(0);
   const fnRef = useRef(fn);
   fnRef.current = fn;
-  const hasData = useRef(false);
+  const hasData = useRef(cacheHas(key));
 
   useEffect(() => {
     if (!enabled) {
@@ -37,6 +42,12 @@ export function useApi<T>(fn: (signal: AbortSignal) => Promise<T>, deps: unknown
       return;
     }
     const ctl = new AbortController();
+    if (cacheHas(key)) {
+      // shown at once; the request below only refreshes it
+      setDataState(cacheGet<T>(key) as T);
+      hasData.current = true;
+      setLoading(false);
+    }
     if (hasData.current) setRefreshing(true);
     else setLoading(true);
     setError(null);
@@ -45,6 +56,7 @@ export function useApi<T>(fn: (signal: AbortSignal) => Promise<T>, deps: unknown
       .then((d) => {
         if (ctl.signal.aborted) return;
         hasData.current = true;
+        cacheSet(key, d);
         setDataState(d);
       })
       .catch((e: unknown) => {
@@ -65,6 +77,7 @@ export function useApi<T>(fn: (signal: AbortSignal) => Promise<T>, deps: unknown
     setDataState((prev) => {
       const next = typeof u === 'function' ? (u as (p: T | null) => T | null)(prev) : u;
       hasData.current = next !== null;
+      cacheSet(keyRef.current, next); // optimistic edits and mutation answers stay in the cache too
       return next;
     });
   }, []);
