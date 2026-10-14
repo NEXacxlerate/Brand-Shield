@@ -1136,7 +1136,7 @@ Limits: `label` 1..200 characters (422); `data` at most 64 KB as compact JSON (4
 
 ### 23.5 Studio AI proxy (the provider keys stay on the server)
 
-Signed-in users only (any role). The browser never needs `VITE_GROQ_API_KEY` / `VITE_HF_API_KEY` again.
+Signed-in users only (any role). The browser never needs `VITE_GROQ_API_KEY` / `VITE_HF_API_KEY` again (those names no longer exist anywhere).
 
 `POST /api/studio/ai/chat`
 ```json
@@ -1148,10 +1148,10 @@ Signed-in users only (any role). The browser never needs `VITE_GROQ_API_KEY` / `
 - Provider: Groq (`STUDIO_GROQ_MODEL`, default `openai/gpt-oss-120b`, the model the Studio used); **Gemini (`GEMINI_MODEL`) is used when `GROQ_API_KEY` is missing or the Groq call fails** (401/402/429/5xx/timeout/unreadable answer).
 
 `POST /api/studio/ai/image` `{"prompt": "...", "size": "1024x1024"}` (sizes: `512x512 768x768 1024x1024 1024x768 768x1024 1280x720 720x1280`)
-- Response `200 {"image_base64", "data_url": "data:image/png;base64,...", "media_type": "image/png", "width", "height", "provider": "huggingface", "model"}`. `?format=png` returns the PNG bytes instead. The picture is decoded, size checked and **re-encoded as PNG** on the server. `data_url` is a drop-in for the Studio's old `hfGenerateImage` result.
-- Provider: the Hugging Face router (`https://router.huggingface.co/{STUDIO_IMAGE_ROUTE}`, default `fal-ai/fal-ai/qwen-image`, i.e. the `Qwen/Qwen-Image` model the Studio used, not FLUX). It needs Hugging Face Inference Providers credits; a result URL is only downloaded over https from `*.fal.media`, `*.fal.run`, `*.huggingface.co`, `*.hf.co`.
+- Response `200 {"image_base64", "data_url": "data:image/png;base64,...", "media_type": "image/png", "width", "height", "provider": "pollinations", "model"}`. `?format=png` returns the PNG bytes instead. The picture is decoded, size checked and **re-encoded as PNG** on the server. `data_url` is a drop-in for the Studio's old image result.
+- Provider: Pollinations, `GET https://gen.pollinations.ai/image/{prompt}?model=&width=&height=&seed=-1` with `Authorization: Bearer POLLINATIONS_API_KEY` (server side only). `STUDIO_IMAGE_MODEL` defaults to `black-forest-labs/flux.1-schnell` (not paid-only). Only `image/png|jpeg|webp` answers are accepted (SVG and anything else is `502`). It spends the account's Pollinations credits ("pollen"); see `docs/STUDIO.md`.
 
-`GET /api/studio/ai/status` -> `{chat: {configured, providers, used_today, daily_limit}, image: {configured, used_today, daily_limit, sizes}, limits: {...}}` (no secrets).
+`GET /api/studio/ai/status` -> `{chat: {configured, providers, used_today, daily_limit}, image: {configured, provider: "pollinations", used_today, daily_limit, sizes}, limits: {...}}` (no secrets).
 
 | Safety | Detail |
 |---|---|
@@ -1161,8 +1161,8 @@ Signed-in users only (any role). The browser never needs `VITE_GROQ_API_KEY` / `
 | daily quota | `STUDIO_DAILY_TEXT_QUOTA` (200) and `STUDIO_DAILY_IMAGE_QUOTA` (50) per user per UTC day, kept in `api_usage` (survives restarts); `0` = unlimited; `429`. A call that fails at the provider gives its unit back |
 | timeouts and retries | `STUDIO_AI_TIMEOUT_SECONDS` (45) chat, `STUDIO_IMAGE_TIMEOUT_SECONDS` (120) image; up to `STUDIO_AI_MAX_RETRIES` (2) retries for timeouts, connection errors and 5xx only (never 401, 402, 429) |
 | response caps | provider answers are streamed and cut off at 512 KB (text) / 12 MB (image): `502` |
-| missing keys | `503 {"detail": "AI chat is not set up on the server."}` / `"Image generation is not set up on the server."`; placeholder values (`hf_xxx...`, `your_...`) count as missing |
+| missing keys | `503 {"detail": "AI chat is not set up on the server."}` / `"Image generation is not set up on the server."`; placeholder values (`your_...`, `changeme`) count as missing |
 | provider errors | mapped, the provider's own text is never forwarded: 401/403 -> `503` "its key was rejected", 402 -> `503` "has run out of credits", 429 -> `429` "busy" (with its `Retry-After`), 400/422 -> `422`, 5xx/timeout -> `502` |
 | logging | only provider, status and duration; never prompts, answers or keys |
 
-Env names (values only in `backend/.env`): `GROQ_API_KEY`, `STUDIO_HF_API_KEY`, `GEMINI_API_KEY`, `STUDIO_GROQ_MODEL`, `STUDIO_IMAGE_MODEL`, `STUDIO_IMAGE_ROUTE`, and the limits above. Manual key check (not part of the tests): `python -m scripts.studio_ai_check`.
+Env names (values only in `backend/.env`): `GROQ_API_KEY`, `GEMINI_API_KEY`, `POLLINATIONS_API_KEY`, `STUDIO_GROQ_MODEL`, `STUDIO_IMAGE_MODEL`, and the limits above. Manual key check (not part of the tests): `python -m scripts.studio_ai_check`.

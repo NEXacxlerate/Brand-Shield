@@ -54,7 +54,7 @@ Overview (dashboard) · Brand Registry · Social Threats · App Threats · Web T
 - **Backend:** Python 3.12, FastAPI, SQLAlchemy 2, Alembic, PostgreSQL (Supabase) / SQLite, JWT auth, RQ worker (optional).
 - **Frontend:** React 19 + TypeScript + Vite (BrandShield); React + Tailwind (Brand Studio).
 - **AI / ML:** CLIP ViT-B/32 image embeddings (ONNX, runs locally), RapidFuzz, tldextract, perceptual hashes, Groq / Gemini for Studio
-  text and optional bio analysis, Hugging Face image route for logo generation.
+  text and optional bio analysis, Pollinations for logo generation.
 - **Sources:** Tavily web search, Apple iTunes Search API, Google Play (optional package), SearXNG (optional), Google Safe Browsing.
 - **Quality:** pytest, Vitest, Playwright, GitHub Actions CI, Docker, Vercel (multi-service) deployment files.
 

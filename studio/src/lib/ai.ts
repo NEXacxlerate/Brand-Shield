@@ -35,7 +35,7 @@ export function friendlyAiError(e: unknown, kind: 'chat' | 'image' = 'chat'): Ai
     if (e.status === 402 || /out of credits/i.test(detail)) {
       return new AiError(
         kind === 'image'
-          ? 'Image generation is paused because the AI service has run out of credits. You can upload your own logo instead; everything else keeps working.'
+          ? 'Image generation is unavailable because the image service (Pollinations) has run out of credits. You can upload your own logo instead; everything else keeps working.'
           : 'The AI service has run out of credits. Please tell the administrator.',
         e.status,
         kind === 'image',

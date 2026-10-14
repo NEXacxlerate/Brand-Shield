@@ -22,8 +22,8 @@ from tests.scan_helpers import png_bytes
 
 GROQ = "api.groq.com"
 GEMINI = "generativelanguage.googleapis.com"
-HF = "router.huggingface.co"
-KEY_GROQ, KEY_GEMINI, KEY_HF = "gsk_test_key_123", "gem_test_key_456", "hf_test_key_789"
+POLL = "gen.pollinations.ai"
+KEY_GROQ, KEY_GEMINI, KEY_POLL = "gsk_test_key_123", "gem_test_key_456", "sk_poll_test_789"
 
 
 def groq_ok(text='{"names": []}'):
@@ -34,8 +34,8 @@ def gemini_ok(text="hello from gemini"):
     return httpx.Response(200, json={"candidates": [{"content": {"parts": [{"text": text}]}}]})
 
 
-def fal_ok(png: bytes | None = None, url="https://v3.fal.media/files/abc/out.png"):
-    return httpx.Response(200, json={"images": [{"url": url}]})
+def poll_ok():
+    return lambda request: httpx.Response(200, content=png_bytes((20, 120, 220), size=64), headers={"content-type": "image/png"})
 
 
 class Wire:
@@ -49,8 +49,6 @@ class Wire:
     def __call__(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
         h = self.handlers.get(request.url.host)
-        if h is None and request.url.host.endswith("fal.media"):
-            return httpx.Response(200, content=self.png, headers={"content-type": "image/png"})
         assert h is not None, f"unexpected host {request.url.host}"
         return h(request) if callable(h) else h
 
@@ -60,7 +58,7 @@ class Wire:
 
 @contextmanager
 def studio_client(settings, wire: Wire, **updates):
-    base = {"groq_api_key": SecretStr(KEY_GROQ), "gemini_api_key": SecretStr(KEY_GEMINI), "studio_hf_api_key": SecretStr(KEY_HF),
+    base = {"groq_api_key": SecretStr(KEY_GROQ), "gemini_api_key": SecretStr(KEY_GEMINI), "pollinations_api_key": SecretStr(KEY_POLL),
             "studio_ai_retry_backoff_seconds": 0.0}
     s = settings.model_copy(update={**base, **updates})
     engine = make_engine("sqlite://")
@@ -159,7 +157,7 @@ def test_default_max_tokens_is_the_cap(settings, wire):
 
 
 def test_image_prompt_and_size_caps(settings, wire):
-    wire.handlers[HF] = fal_ok()
+    wire.handlers[POLL] = poll_ok()
     with studio_client(settings, wire, studio_max_prompt_chars=50) as c:
         assert c.post("/api/studio/ai/image", json={"prompt": "x" * 51}, headers=c.h).status_code == 413
         assert c.post("/api/studio/ai/image", json={"prompt": "   "}, headers=c.h).status_code == 422
@@ -185,7 +183,7 @@ def test_rate_limit_per_user(settings, wire):
 
 def test_daily_quota_text_and_image_are_separate_and_per_user(settings, wire):
     wire.handlers[GROQ] = groq_ok("ok")
-    wire.handlers[HF] = fal_ok()
+    wire.handlers[POLL] = poll_ok()
     with studio_client(settings, wire, studio_daily_text_quota=2, studio_daily_image_quota=1, studio_ai_rate_per_minute=100) as c:
         assert [chat(c).status_code for _ in range(3)] == [200, 200, 429]
         assert "allowance" in chat(c).json()["detail"]
@@ -218,7 +216,7 @@ def test_quota_zero_means_unlimited(settings, wire):
 
 
 def test_no_keys_is_a_plain_503(settings, wire):
-    with studio_client(settings, wire, groq_api_key=None, gemini_api_key=None, studio_hf_api_key=None) as c:
+    with studio_client(settings, wire, groq_api_key=None, gemini_api_key=None, pollinations_api_key=None) as c:
         r = chat(c)
         assert r.status_code == 503 and "not set up" in r.json()["detail"]
         i = c.post("/api/studio/ai/image", json={"prompt": "a logo"}, headers=c.h)
@@ -230,7 +228,7 @@ def test_no_keys_is_a_plain_503(settings, wire):
 
 
 def test_placeholder_keys_count_as_missing(settings, wire):
-    with studio_client(settings, wire, groq_api_key=SecretStr("your_groq_key"), gemini_api_key=None, studio_hf_api_key=SecretStr("hf_xxx_replace")) as c:
+    with studio_client(settings, wire, groq_api_key=SecretStr("your_groq_key"), gemini_api_key=None, pollinations_api_key=SecretStr("your_pollinations_key")) as c:
         assert chat(c).status_code == 503
         assert c.post("/api/studio/ai/image", json={"prompt": "a logo"}, headers=c.h).status_code == 503
 
@@ -339,74 +337,126 @@ def test_prompts_and_keys_are_never_logged(settings, wire, caplog):
         c.post("/api/studio/ai/chat", json={"messages": [{"role": "user", "content": "SUPER-SECRET-PROMPT-TEXT"}]}, headers=c.h)
     text = caplog.text
     assert "SUPER-SECRET-PROMPT-TEXT" not in text
-    for key in (KEY_GROQ, KEY_GEMINI, KEY_HF):
+    for key in (KEY_GROQ, KEY_GEMINI, KEY_POLL):
         assert key not in text
 
 
 # ---------------------------------------------------------------- images
 
 
-def test_image_json_response_is_a_re_encoded_png(settings, wire):
-    wire.handlers[HF] = fal_ok()
+def test_image_json_response_is_a_re_encoded_png(settings, wire, caplog):
+    caplog.set_level("DEBUG")
     wire.png = png_bytes((20, 120, 220), size=64) + b"TRAILING-GARBAGE"  # an appended payload must not survive
+    wire.handlers[POLL] = lambda request: httpx.Response(200, content=wire.png, headers={"content-type": "image/png"})
     with studio_client(settings, wire) as c:
         r = c.post("/api/studio/ai/image", json={"prompt": "  a   minimal logo ", "size": "512x512"}, headers=c.h)
     assert r.status_code == 200, r.text
     j = r.json()
-    assert j["media_type"] == "image/png" and (j["width"], j["height"]) == (64, 64) and j["model"] == "Qwen/Qwen-Image"
+    assert j["media_type"] == "image/png" and (j["width"], j["height"]) == (64, 64) and j["provider"] == "pollinations"
+    assert j["model"] == "black-forest-labs/flux.1-schnell"
     png = base64.b64decode(j["image_base64"])
     assert png[:8] == b"\x89PNG\r\n\x1a\n" and b"TRAILING-GARBAGE" not in png
     assert j["data_url"] == "data:image/png;base64," + j["image_base64"]
-    sent = wire.to(HF)[0]
-    assert sent.url.path == "/fal-ai/fal-ai/qwen-image" and sent.headers["authorization"] == f"Bearer {KEY_HF}"
-    assert json.loads(sent.content) == {"prompt": "a minimal logo", "image_size": {"width": 512, "height": 512}}
-    assert len(wire.to("v3.fal.media")) == 1
+    sent = wire.to(POLL)[0]
+    assert sent.method == "GET" and sent.url.raw_path.decode().startswith("/image/a%20minimal%20logo?") and sent.headers["authorization"] == f"Bearer {KEY_POLL}"
+    assert dict(sent.url.params) == {"model": "black-forest-labs/flux.1-schnell", "width": "512", "height": "512", "seed": "-1"}
+    assert KEY_POLL not in str(sent.url)
+    assert "minimal" not in caplog.text and KEY_POLL not in caplog.text  # neither the prompt (it is in the URL) nor the key is logged
+
+
+def test_image_prompt_is_url_encoded_not_injected(settings, wire):
+    wire.handlers[POLL] = poll_ok()
+    with studio_client(settings, wire) as c:
+        assert c.post("/api/studio/ai/image", json={"prompt": "a/b?c=d&key=evil #x"}, headers=c.h).status_code == 200
+    sent = wire.to(POLL)[0]
+    assert "key" not in dict(sent.url.params) and set(dict(sent.url.params)) == {"model", "width", "height", "seed"}
+    assert "%2F" in sent.url.raw_path.decode() and "%3F" in sent.url.raw_path.decode()
 
 
 def test_image_can_come_back_as_raw_png_bytes(settings, wire):
-    wire.handlers[HF] = lambda request: httpx.Response(200, content=wire.png, headers={"content-type": "image/png"})
+    wire.handlers[POLL] = poll_ok()
     with studio_client(settings, wire) as c:
         r = c.post("/api/studio/ai/image?format=png", json={"prompt": "logo"}, headers=c.h)
     assert r.status_code == 200 and r.headers["content-type"] == "image/png" and r.content[:8] == b"\x89PNG\r\n\x1a\n"
     assert Image.open(io.BytesIO(r.content)).size == (64, 64)
 
 
-def test_image_returned_as_a_data_url_or_base64(settings, wire):
-    b64 = base64.b64encode(wire.png).decode()
+def test_jpeg_from_the_provider_is_re_encoded_as_png(settings, wire):
+    buf = io.BytesIO()
+    Image.new("RGB", (64, 48), (200, 30, 30)).save(buf, format="JPEG")
+    wire.handlers[POLL] = httpx.Response(200, content=buf.getvalue(), headers={"content-type": "image/jpeg"})
     with studio_client(settings, wire) as c:
-        wire.handlers[HF] = httpx.Response(200, json={"images": [{"url": "data:image/png;base64," + b64}]})
-        assert c.post("/api/studio/ai/image", json={"prompt": "logo"}, headers=c.h).status_code == 200
-        wire.handlers[HF] = httpx.Response(200, json={"data": [{"b64_json": b64}]})
-        assert c.post("/api/studio/ai/image", json={"prompt": "logo"}, headers=c.h).status_code == 200
-
-
-def test_untrusted_image_hosts_and_schemes_are_refused(settings, wire):
-    with studio_client(settings, wire) as c:
-        for url in ("https://evil.example/x.png", "http://v3.fal.media/x.png", "https://169.254.169.254/latest", "https://fal.media.evil.example/x.png",
-                    "file:///etc/passwd"):
-            wire.handlers[HF] = httpx.Response(200, json={"images": [{"url": url}]})
-            r = c.post("/api/studio/ai/image", json={"prompt": "logo"}, headers=c.h)
-            assert r.status_code == 502 and "not trusted" in r.json()["detail"], url
-    assert all(rq.url.host in (HF,) for rq in wire.requests)  # nothing was fetched from the refused addresses
+        r = c.post("/api/studio/ai/image", json={"prompt": "logo"}, headers=c.h)
+    assert r.status_code == 200 and r.json()["media_type"] == "image/png" and (r.json()["width"], r.json()["height"]) == (64, 48)
+    assert base64.b64decode(r.json()["image_base64"])[:8] == b"\x89PNG\r\n\x1a\n"
 
 
 def test_non_image_and_hostile_pictures_are_refused(settings, wire):
     with studio_client(settings, wire) as c:
-        for content in (b"<svg onload=alert(1)/>", b"not a picture", b"\x89PNG\r\n\x1a\n" + b"x" * 50, b""):
-            wire.handlers[HF] = httpx.Response(200, content=content, headers={"content-type": "image/png"})
+        for content, ctype in ((b"<svg onload=alert(1)/>", "image/svg+xml"), (b"not a picture", "image/png"), (b"\x89PNG\r\n\x1a\n" + b"x" * 50, "image/png"),
+                               (b"", "image/png"), (b'{"url": "https://evil.example/x.png"}', "application/json"), (b"<html></html>", "text/html")):
+            wire.handlers[POLL] = httpx.Response(200, content=content, headers={"content-type": ctype})
             assert c.post("/api/studio/ai/image", json={"prompt": "logo"}, headers=c.h).status_code == 502
+    assert all(rq.url.host == POLL for rq in wire.requests)  # nothing else is ever fetched
 
 
-def test_image_error_mapping_and_quota_refund(settings, wire):
+def test_oversized_picture_is_refused(settings, wire):
+    big = io.BytesIO()
+    Image.new("RGB", (5000, 20), (1, 2, 3)).save(big, format="PNG")
+    wire.handlers[POLL] = httpx.Response(200, content=big.getvalue(), headers={"content-type": "image/png"})
+    with studio_client(settings, wire) as c:
+        assert c.post("/api/studio/ai/image", json={"prompt": "logo"}, headers=c.h).status_code == 502
+
+
+@pytest.mark.parametrize("status,expected,needle", [(401, 503, "key was rejected"), (403, 503, "key was rejected"), (402, 503, "run out of credits"),
+                                                    (429, 429, "busy"), (400, 422, "could not use"), (500, 502, "not answering"),
+                                                    (502, 502, "not answering"), (503, 502, "not answering")])
+def test_image_error_mapping_and_quota_refund(settings, wire, status, expected, needle):
     with studio_client(settings, wire, studio_daily_image_quota=1) as c:
-        wire.handlers[HF] = httpx.Response(402, text="You have no remaining credits PRIVATE")
+        wire.handlers[POLL] = httpx.Response(status, text="provider said PRIVATE detail", headers={"retry-after": "7"} if status == 429 else {})
         r = c.post("/api/studio/ai/image", json={"prompt": "logo"}, headers=c.h)
-        assert r.status_code == 503 and "run out of credits" in r.json()["detail"] and "PRIVATE" not in r.text
-        assert c.get("/api/studio/ai/status", headers=c.h).json()["image"]["used_today"] == 0
-        wire.handlers[HF] = httpx.Response(429)
-        assert c.post("/api/studio/ai/image", json={"prompt": "logo"}, headers=c.h).status_code == 429
-        wire.handlers[HF] = fal_ok()
+        assert r.status_code == expected and needle in r.json()["detail"] and "PRIVATE" not in r.text
+        if status == 429:
+            assert r.headers["retry-after"] == "7"
+        assert c.get("/api/studio/ai/status", headers=c.h).json()["image"]["used_today"] == 0  # refunded
+        wire.handlers[POLL] = poll_ok()
         assert c.post("/api/studio/ai/image", json={"prompt": "logo"}, headers=c.h).status_code == 200
+
+
+def test_image_retries_5xx_then_succeeds_but_not_401(settings, wire):
+    calls = {"n": 0}
+
+    def flaky(request):
+        calls["n"] += 1
+        return httpx.Response(502) if calls["n"] < 3 else httpx.Response(200, content=wire.png, headers={"content-type": "image/png"})
+
+    wire.handlers[POLL] = flaky
+    with studio_client(settings, wire) as c:
+        assert c.post("/api/studio/ai/image", json={"prompt": "logo"}, headers=c.h).status_code == 200
+        assert calls["n"] == 3
+        wire.handlers[POLL] = httpx.Response(401)
+        before = len(wire.to(POLL))
+        assert c.post("/api/studio/ai/image", json={"prompt": "logo"}, headers=c.h).status_code == 503
+        assert len(wire.to(POLL)) == before + 1
+
+
+def test_image_timeout_maps_to_502_and_refunds(settings, wire):
+    def boom(request):
+        raise httpx.ReadTimeout("slow", request=request)
+
+    wire.handlers[POLL] = boom
+    with studio_client(settings, wire, studio_daily_image_quota=1) as c:
+        r = c.post("/api/studio/ai/image", json={"prompt": "logo"}, headers=c.h)
+        assert r.status_code == 502 and "in time" in r.json()["detail"]
+        assert c.get("/api/studio/ai/status", headers=c.h).json()["image"]["used_today"] == 0
+    assert len(wire.to(POLL)) == 1 + settings.studio_ai_max_retries
+
+
+def test_image_status_names_pollinations_only(settings, wire):
+    with studio_client(settings, wire) as c:
+        st = c.get("/api/studio/ai/status", headers=c.h).json()
+    assert st["image"]["configured"] is True and st["image"]["provider"] == "pollinations"
+    assert KEY_POLL not in json.dumps(st) and "hugging" not in json.dumps(st).lower()
 
 
 def test_reencode_png_limits():
@@ -426,7 +476,7 @@ def test_reencode_png_limits():
 def test_status_endpoint_has_no_secrets(settings, wire):
     with studio_client(settings, wire) as c:
         text = c.get("/api/studio/ai/status", headers=c.h).text
-    for key in (KEY_GROQ, KEY_GEMINI, KEY_HF):
+    for key in (KEY_GROQ, KEY_GEMINI, KEY_POLL):
         assert key not in text
     assert json.loads(text)["chat"]["providers"] == ["groq", "gemini"]
 

@@ -62,12 +62,30 @@ Dashboard card (and the sidebar item "Protect in BrandShield") opens the wizard.
 
 ## Manual logo fallback
 
-Logo generation needs Hugging Face credits. When they are exhausted (the backend answers `503` "out of credits") or image generation is not configured, the Logo Designer shows a plain message and the **"Upload your own logo"** button is highlighted; an uploaded picture can be saved to Collections and used in the protect-brand wizard exactly like a generated one. The wizard has its own upload button. The status banner (`GET /api/studio/ai/status`) warns on the dashboard and Logo Designer when a feature is not configured or today's allowance is used.
+Logo generation needs Pollinations credits ("pollen"). When they are exhausted (the backend answers `503` "out of credits") or image generation is not configured, the Logo Designer shows a plain message and the **"Upload your own logo"** button is highlighted; an uploaded picture can be saved to Collections and used in the protect-brand wizard exactly like a generated one. The wizard has its own upload button. The status banner (`GET /api/studio/ai/status`) warns on the dashboard and Logo Designer when a feature is not configured or today's allowance is used.
 
 ## Limits
 
 - Per user: 20 AI requests a minute, 200 text and 50 image calls a day (UTC); `429` is shown as a friendly wait message.
-- Image generation can take up to two minutes, and produces nothing while the provider credits are exhausted.
+- Image generation can take up to two minutes, and produces nothing while the Pollinations credits are exhausted.
 - Saved items: 500 per user, picture at most 2 MB, data at most 64 KB.
 - Brand: one active brand per account; `viewer` accounts cannot register one.
 - Analytics counters are per browser (localStorage), not per account.
+
+## Image provider: Pollinations
+
+Images come from Pollinations through the backend proxy (`POST /api/studio/ai/image`); the Hugging Face image route and its settings (`STUDIO_HF_API_KEY`, `STUDIO_IMAGE_ROUTE`) are gone. No new package: it is plain `httpx` plus Pillow. The optional Hugging Face TEXT provider of the scanner (`HUGGINGFACE_*`) is a separate feature and is untouched.
+
+Docs read on 2026-10-14: https://gen.pollinations.ai/docs (OpenAPI reference; `enter.pollinations.ai/api/docs` redirects there), https://github.com/pollinations/pollinations/blob/main/APIDOCS.md, live model list https://gen.pollinations.ai/image/models.
+
+Facts relied on (from those docs):
+- Endpoint `GET https://gen.pollinations.ai/image/{prompt}` (prompt URL-encoded in the path). Key from enter.pollinations.ai, sent as `Authorization: Bearer <key>` (a `?key=` query parameter also exists; we use the header so the key never lands in a URL).
+- Query: `model` (model id), `width`, `height` (default 1024), `seed` (default 0, -1 = random; we send -1), `safe` (optional prompt checks, off by default; we do not set it). Only some models honour `seed`.
+- Response: image bytes, `image/jpeg`, `image/png` or `image/svg+xml` depending on the model. The server accepts only png/jpeg/webp, decodes with Pillow and re-encodes PNG.
+- Errors (JSON `{status, success, error:{code,message}}`): 400 bad parameters (or `content_blocked` by `safe`), 401 missing/invalid key, 402 not enough pollen, 403 key lacks permission, 429 and 503 carry `Retry-After`, 500/502 upstream failure. Mapped to the safe messages in `docs/API.md`.
+- `GET /image/models` lists models with `paid_only` and per-image pollen prices without a key. Default `STUDIO_IMAGE_MODEL=black-forest-labs/flux.1-schnell` (alias `flux`) is listed `paid_only: false` at about 0.002 pollen per image.
+- A timed-out request can be resent identically: the server reuses the in-progress generation and bills once.
+
+UNVERIFIED: numeric rate limits for `sk_` keys and how pollen is granted per tier (not in the pages read); a `nologo` option (not documented, not sent); whether 403 is used for anything but missing key permissions; the exact maximum width/height for `flux.1-schnell` (the app only asks for sizes up to 1280x720).
+
+Verified once against the live API on 2026-10-14 with `python -m scripts.studio_ai_check`: the default model returned a 512x512 picture in about 8 seconds.

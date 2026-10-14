@@ -220,3 +220,5 @@ Needs review (non-permissive, none is a copyleft problem for this use):
 - `caniuse-lite`: **CC-BY-4.0** (browser-support data used by the build tooling, not shipped). Attribution is required if the data itself is redistributed; it is not.
 
 No GPL or AGPL package is present.
+
+**Studio images (Pollinations):** no package was added or removed. The Pollinations image call uses `httpx` and Pillow, both already in `backend/requirements.txt`. `huggingface_hub` stays only for the optional scanner text provider (`app/core/providers/text/huggingface.py`); Studio no longer uses it.

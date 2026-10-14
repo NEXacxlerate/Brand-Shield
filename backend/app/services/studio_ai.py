@@ -1,4 +1,4 @@
-"""Brand Studio AI proxy: chat (Groq, Gemini as fallback) and image generation (Hugging Face router). Keys never leave the server.
+"""Brand Studio AI proxy: chat (Groq, Gemini as fallback) and image generation (Pollinations). Keys never leave the server.
 
 What this module guarantees (docs/API.md, "Studio AI"):
 * the caller (app/api/studio_ai.py) has already authenticated, rate limited and charged the daily quota;
@@ -11,7 +11,6 @@ What this module guarantees (docs/API.md, "Studio AI"):
 
 from __future__ import annotations
 
-import base64
 import io
 import json
 import logging
@@ -20,7 +19,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
-from urllib.parse import urlparse
+from urllib.parse import quote, urlencode
 
 import httpx
 from PIL import Image, UnidentifiedImageError
@@ -33,15 +32,18 @@ from app.config.time import utcnow
 from app.models import ApiUsage
 
 log = logging.getLogger("app.studio_ai")
+# the Pollinations prompt travels in the URL path: keep httpx from logging request URLs
+for _noisy in ("httpx", "httpcore"):
+    logging.getLogger(_noisy).setLevel(logging.WARNING)
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-HF_ROUTER = "https://router.huggingface.co/"
+POLLINATIONS_IMAGE_URL = "https://gen.pollinations.ai/image/"
 TEXT_RESPONSE_CAP = 512 * 1024
 IMAGE_RESPONSE_CAP = 12 * 1024 * 1024
 IMAGE_MAX_SIDE = 4096
 IMAGE_MAX_PIXELS = 16_000_000
-IMAGE_HOSTS = (".fal.media", ".fal.run", ".huggingface.co", ".hf.co")  # where a provider may tell us to download the finished picture from
+IMAGE_TYPES = ("image/png", "image/jpeg", "image/webp")  # SVG and anything else is refused
 ROLES = {"system": "system", "user": "user", "assistant": "assistant", "model": "assistant"}
 
 
@@ -98,7 +100,7 @@ class StudioAI:
 
     @property
     def image_key(self) -> str | None:
-        return _secret(self.s.studio_hf_api_key)
+        return _secret(self.s.pollinations_api_key)
 
     def chat_configured(self) -> bool:
         return bool(self.groq_key or self.gemini_key)
@@ -218,44 +220,19 @@ class StudioAI:
     # ------------------------------------------------------------------ image
 
     def image(self, prompt: str, width: int, height: int) -> bytes:
-        """PNG bytes for `prompt`. The provider's picture is decoded and re-encoded here."""
+        """PNG bytes for `prompt` from Pollinations (GET /image/{prompt}). The picture is decoded and re-encoded here."""
         key = self.image_key
         if not key:
-            raise StudioAIError(503, "Image generation is not set up on the server (no STUDIO_HF_API_KEY).")
-        route = self.s.studio_image_route.strip("/")
-        body = {"prompt": prompt, "image_size": {"width": width, "height": height}}
-        r = self._send("POST", HF_ROUTER + route, headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-                       json_body=body, timeout=self.s.studio_image_timeout_seconds, cap=IMAGE_RESPONSE_CAP, provider="hf-image")
-        raw = self._picture_bytes(r)
-        return reencode_png(raw)
-
-    def _picture_bytes(self, r: _Reply) -> bytes:
-        if (r.headers.get("content-type") or "").split(";")[0].strip().lower().startswith("image/"):
-            return r.body
-        try:
-            data = json.loads(r.body)
-            first = (data.get("images") or data.get("data") or [None])[0]
-            ref = first.get("url") if isinstance(first, dict) else first
-            if isinstance(first, dict) and not ref and first.get("b64_json"):
-                return base64.b64decode(first["b64_json"], validate=False)
-        except (ValueError, AttributeError, IndexError, TypeError) as exc:
-            raise StudioAIError(502, "The image service returned something that is not a picture.") from exc
-        if not isinstance(ref, str):
+            raise StudioAIError(503, "Image generation is not set up on the server (no POLLINATIONS_API_KEY).")
+        # seed -1 = random (the default 0 repeats)
+        params = {"model": self.s.studio_image_model, "width": width, "height": height, "seed": -1}
+        url = f"{POLLINATIONS_IMAGE_URL}{quote(prompt, safe='')}?{urlencode(params)}"
+        r = self._send("GET", url, headers={"Authorization": f"Bearer {key}", "Accept": "image/*"}, json_body=None,
+                       timeout=self.s.studio_image_timeout_seconds, cap=IMAGE_RESPONSE_CAP, provider="pollinations")
+        ctype = (r.headers.get("content-type") or "").split(";")[0].strip().lower()
+        if ctype not in IMAGE_TYPES:
             raise StudioAIError(502, "The image service returned something that is not a picture.")
-        m = re.match(r"data:image/[a-z+.-]+;base64,(.+)$", ref, re.S)
-        if m:
-            try:
-                return base64.b64decode(m.group(1), validate=False)
-            except ValueError as exc:
-                raise StudioAIError(502, "The image service returned something that is not a picture.") from exc
-        u = urlparse(ref)
-        host = (u.hostname or "").lower()
-        if u.scheme != "https" or not any(host.endswith(h) or host == h.lstrip(".") for h in IMAGE_HOSTS):
-            log.warning("studio ai image url host not allowed")
-            raise StudioAIError(502, "The image service returned an address that is not trusted.")
-        got = self._send("GET", ref, headers={}, json_body=None, timeout=self.s.studio_image_timeout_seconds, cap=IMAGE_RESPONSE_CAP,
-                         provider="image-download")
-        return got.body
+        return reencode_png(r.body)
 
 
 def _as_json_text(text: str) -> str | None:

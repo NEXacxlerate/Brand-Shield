@@ -82,7 +82,7 @@ Signed-in users only. Replace `groqChat` and `hfGenerateImage` and the chat sess
 - Caps: at most 40 messages, 30000 characters in total, 12000 per message, `max_tokens` <= 4096 (default 4096).
 
 `POST /api/studio/ai/image` `{prompt, size}`; `size` in `512x512 | 768x768 | 1024x1024 | 1024x768 | 768x1024 | 1280x720 | 720x1280` (default `1024x1024`), prompt <= 2000 characters.
-- `200 {image_base64, data_url, media_type: "image/png", width, height, provider, model}`; use `data_url` wherever `hfGenerateImage` returned a data URL. `POST ...?format=png` returns the bytes. Image generation takes a while (timeout 120 s): show a spinner and do not retry blindly.
+- `200 {image_base64, data_url, media_type: "image/png", width, height, provider, model}`; use `data_url` wherever the old browser-side image call returned a data URL. `provider` is `pollinations`. `POST ...?format=png` returns the bytes. Image generation takes a while (timeout 120 s): show a spinner and do not retry blindly.
 
 `GET /api/studio/ai/status` -> what is configured and today's use: `{chat: {configured, providers, used_today, daily_limit}, image: {configured, used_today, daily_limit, sizes}, limits}`. Use it to hide the image tab when `image.configured` is false.
 
@@ -114,7 +114,7 @@ Network failure (no HTTP answer) is a client-side error ("Cannot reach the serve
 
 ## 7. Things Studio must not do
 
-- Never put a provider key in the browser build; never call Groq, Hugging Face or Gemini directly.
+- Never put a provider key in the browser build; never call Groq, Pollinations or Gemini directly.
 - Never store the tokens under other keys, and never log them.
 - Never assume a brand id from another account works: always use `default_brand_id` from `GET /api/me` or the id returned by `GET /api/brands`.
 - Never treat `404` on `/api/studio/items/{id}` as "retry later": the item is gone or not yours.

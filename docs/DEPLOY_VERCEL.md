@@ -165,10 +165,10 @@ request fails with a 500 and `/health` shows `migration` degraded.
 | `CRON_SECRET` | for scheduled scans | A random string of 16+ characters. Without it `/api/cron/scan` answers 503 and nothing runs. |
 | `DEMO_EMAIL`, `DEMO_PASSWORD` | optional | A public demo account for the login page's **Use demo credentials** button (role analyst, never admin; `DEMO_EMAIL` must differ from `ADMIN_EMAIL`). Both are shown to every visitor on purpose: use a throwaway password and expect strangers to use that account. Leave both unset on a real production site to show no demo button. |
 | `TAVILY_API_KEY`, `GEMINI_API_KEY`, `GOOGLE_SAFE_BROWSING_API_KEY` | optional | Same meaning as in `backend/.env.example` |
-| `GROQ_API_KEY`, `STUDIO_HF_API_KEY` | optional | Brand Studio AI (text and images), read by the backend only; without them the Studio AI buttons report "not configured" |
+| `GROQ_API_KEY`, `POLLINATIONS_API_KEY` | optional | Brand Studio AI (text and images), read by the backend only; without them the Studio AI buttons report "not configured" |
 | `SCAN_INTERVAL_MINUTES` | optional | `1440` for daily (the Settings page value is used when unset) |
 
-   **Brand Studio needs no variables and no keys.** The AI keys it uses (`GROQ_API_KEY`, `STUDIO_HF_API_KEY`, `GEMINI_API_KEY`) are
+   **Brand Studio needs no variables and no keys.** The AI keys it uses (`GROQ_API_KEY`, `GEMINI_API_KEY`, `POLLINATIONS_API_KEY`) are
    **backend** variables: add them here, in this one project's environment, where only the backend reads them (see
    `docs/STUDIO.md` for what each one enables). They must never be given a `VITE_` prefix, which would put them in the browser build.
    Leave `VITE_STUDIO_URL` unset too (Studio is on the same origin).

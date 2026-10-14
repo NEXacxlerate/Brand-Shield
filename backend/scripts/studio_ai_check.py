@@ -1,7 +1,7 @@
 """Manual check of the Brand Studio AI keys (reads backend/.env; prints STATUSES only, never keys, prompts or answers).
 
 Run from backend/:   python -m scripts.studio_ai_check            (model list checks + one tiny chat call + one image call)
-                     python -m scripts.studio_ai_check --no-image  (skip the image call: it can use paid Hugging Face credits)
+                     python -m scripts.studio_ai_check --no-image  (skip the image call: it spends a little Pollinations pollen)
                      python -m scripts.studio_ai_check --models-only
 
 What it does, in order:
@@ -9,7 +9,7 @@ What it does, in order:
   2. Groq   GET /openai/v1/models           -> is STUDIO_GROQ_MODEL listed?            (needs GROQ_API_KEY)
   3. Gemini GET /v1beta/models/<model>      -> does GEMINI_MODEL exist?               (needs GEMINI_API_KEY)
   4. one 1-sentence chat call through the same code the API uses (Groq first, Gemini fallback)
-  5. one small image call through the Hugging Face router (STUDIO_HF_API_KEY, STUDIO_IMAGE_ROUTE)
+  5. one small image call through Pollinations (POLLINATIONS_API_KEY, STUDIO_IMAGE_MODEL); --save-image PATH keeps the PNG
 Never part of the test suite (the suite blocks the network).
 """
 
@@ -33,6 +33,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--no-image", action="store_true")
     ap.add_argument("--models-only", action="store_true")
+    ap.add_argument("--save-image", metavar="PATH")
     args = ap.parse_args()
     s = Settings()  # type: ignore[call-arg]
     ai = StudioAI(s)
@@ -41,8 +42,8 @@ def main() -> int:
     print("keys present (names only)")
     line("  GROQ_API_KEY", "set" if ai.groq_key else "MISSING (chat falls back to Gemini)")
     line("  GEMINI_API_KEY", "set" if ai.gemini_key else "MISSING")
-    line("  STUDIO_HF_API_KEY", "set" if ai.image_key else "MISSING (image generation off)")
-    print(f"models: groq={s.studio_groq_model}  gemini={s.gemini_model}  image={s.studio_image_model} via /{s.studio_image_route}")
+    line("  POLLINATIONS_API_KEY", "set" if ai.image_key else "MISSING (image generation off)")
+    print(f"models: groq={s.studio_groq_model}  gemini={s.gemini_model}  image={s.studio_image_model}")
     print()
 
     if ai.groq_key:
@@ -78,7 +79,10 @@ def main() -> int:
         t0 = time.monotonic()
         try:
             png = ai.image("a simple flat blue circle on a white background", 512, 512)
-            line("image call", "OK", f"png bytes={len(png)} {time.monotonic() - t0:.1f}s")
+            line("image call", "OK", f"model={s.studio_image_model} png bytes={len(png)} {time.monotonic() - t0:.1f}s")
+            if args.save_image:
+                with open(args.save_image, "wb") as fh:
+                    fh.write(png)
         except StudioAIError as exc:
             line("image call", f"FAILED (maps to HTTP {exc.status_code})", exc.message)
             bad += 1

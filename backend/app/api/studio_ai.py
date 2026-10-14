@@ -78,7 +78,7 @@ def ai_status(request: Request, user: User = Depends(get_current_user), db: Sess
     return {
         "chat": {"configured": ai.chat_configured(), "providers": [p for p, ok in (("groq", ai.groq_key), ("gemini", ai.gemini_key)) if ok],
                  "used_today": svc.used_today(db, user.id, "text"), "daily_limit": settings.studio_daily_text_quota},
-        "image": {"configured": ai.image_configured(), "used_today": svc.used_today(db, user.id, "image"), "daily_limit": settings.studio_daily_image_quota,
+        "image": {"configured": ai.image_configured(), "provider": "pollinations", "used_today": svc.used_today(db, user.id, "image"), "daily_limit": settings.studio_daily_image_quota,
                   "sizes": sorted(IMAGE_SIZES)},
         "limits": {"requests_per_minute": settings.studio_ai_rate_per_minute, "max_messages": settings.studio_max_messages,
                    "max_chars": settings.studio_max_chars, "max_tokens": settings.studio_max_tokens, "max_prompt_chars": settings.studio_max_prompt_chars},
@@ -133,4 +133,4 @@ def image(body: ImageBody, request: Request, format: Literal["json", "png"] = "j
         return Response(png, media_type="image/png", headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "no-store"})
     b64 = base64.b64encode(png).decode()
     return {"image_base64": b64, "data_url": f"data:image/png;base64,{b64}", "media_type": "image/png", "width": width, "height": height,
-            "provider": "huggingface", "model": settings.studio_image_model}
+            "provider": "pollinations", "model": settings.studio_image_model}

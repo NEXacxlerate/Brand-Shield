@@ -135,10 +135,9 @@ class Settings(BaseSettings):
 
     # Brand Studio AI proxy (/api/studio/ai/*). Keys stay on the server; signed-in users only. Names only in .env.example.
     groq_api_key: SecretStr | None = None  # GROQ_API_KEY: chat (primary); without it chat falls back to Gemini (GEMINI_API_KEY)
-    studio_hf_api_key: SecretStr | None = None  # STUDIO_HF_API_KEY: image generation through the Hugging Face router (needs Inference Providers credits)
+    pollinations_api_key: SecretStr | None = None  # POLLINATIONS_API_KEY: Studio image generation (Pollinations, gen.pollinations.ai); server side only
     studio_groq_model: str = "openai/gpt-oss-120b"  # STUDIO_GROQ_MODEL (the model the Studio used)
-    studio_image_model: str = "Qwen/Qwen-Image"  # STUDIO_IMAGE_MODEL (the model the Studio used; informational + sent to providers that need it)
-    studio_image_route: str = "fal-ai/fal-ai/qwen-image"  # STUDIO_IMAGE_ROUTE: path under https://router.huggingface.co/ for that model
+    studio_image_model: str = "black-forest-labs/flux.1-schnell"  # STUDIO_IMAGE_MODEL: a Pollinations model id (GET /image/models); this one is not paid_only
     studio_ai_rate_per_minute: int = 20  # per user, chat + image together; in memory, single process
     studio_daily_text_quota: int = 200  # per user per UTC day (stored in api_usage, so it survives restarts); 0 = no limit
     studio_daily_image_quota: int = 50
