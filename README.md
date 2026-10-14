@@ -10,6 +10,7 @@ automatically.**
 * `docs/` decisions, API contract, collectors, dependencies and licenses, Definition-of-Done audit
 * `studio/` Brand Studio (React + Vite), a separate app served at `/studio/` on the same origin; see **[docs/STUDIO.md](docs/STUDIO.md)**.
 * **[Deploy on Vercel](docs/DEPLOY_VERCEL.md)**: backend, frontend and Brand Studio as one Vercel project (Services, one domain) with Supabase (step by step, limits, troubleshooting).
+* **[Submission: project description and test access / evaluation guide](docs/SUBMISSION.md)**: what BrandShield is, how evaluators sign in, and a 20-minute walk-through with expected results
 * **[User guide](docs/USER_GUIDE.md)**: install, sign in, every page with sample inputs, scoring, credits and troubleshooting (written for non-developers as well as the operator). What is verified on real data and what is not: **[docs/FEATURE_STATUS.md](docs/FEATURE_STATUS.md)**.
 
 ## The user flow
