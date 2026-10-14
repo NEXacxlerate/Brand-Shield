@@ -69,7 +69,7 @@ describe('LogoCompareCard', () => {
     expect(await screen.findByAltText('Primary logo')).toBeInTheDocument();
     expect(await screen.findByAltText('Dark mark')).toBeInTheDocument();
     expect(screen.getByText('Official logos you are comparing against')).toBeInTheDocument();
-    const logoCalls = calls.filter((c) => c.url.includes('/logo'));
+    const logoCalls = calls.filter((c) => /\/brands\/1\/logo/.test(c.url));
     expect(logoCalls.length).toBe(2);
     logoCalls.forEach((c) => expect((c.init.headers as Record<string, string>).Authorization).toBe('Bearer access-1'));
   });
@@ -149,5 +149,82 @@ describe('LogoCompareCard', () => {
     await waitFor(() => expect(created.length).toBeGreaterThanOrEqual(3));
     unmount();
     expect(revoked.sort()).toEqual([...created].sort());
+  });
+});
+
+describe('LogoCompareCard AI vision (CLIP)', () => {
+  const clipResult = () =>
+    result({
+      method: 'clip+hash',
+      clip: { available: true, cosine: 0.9954, score: 98.5, model: 'Qdrant/clip-ViT-B-32-vision' },
+      similarity: 98.5,
+      results: [
+        { id: 'primary', label: 'Primary logo', similarity: 98.5, hash_similarity: 96, clip: { cosine: 0.9954, score: 98.5 }, verdict: 'same_logo', width: 300, height: 300, algorithms: algos },
+        { id: '7', label: 'Dark mark', similarity: 12, hash_similarity: 20, clip: { cosine: 0.7, score: 12 }, verdict: 'different', width: 300, height: 300, algorithms: algos },
+      ],
+    });
+  const fetchWith = (engine: Record<string, unknown>, compare: () => Response) =>
+    mockFetch((c) => {
+      const path = c.url.replace(/^.*\/api/, '').split('?')[0];
+      if (path === '/brands/1/logo' || path === '/brands/1/logos/7/file') return new Response(new Blob(['x'], { type: 'image/png' }), { status: 200 });
+      if (path === '/lookalike/logo-engine') return jsonResponse(200, engine);
+      if (path === '/lookalike/test-logo') return compare();
+      return jsonResponse(404, { detail: 'nope' });
+    });
+  const run = async () => {
+    await userEvent.upload(screen.getByTestId('lc-candidate'), png());
+    const btn = screen.getByRole('button', { name: 'Compare' });
+    await waitFor(() => expect(btn).toBeEnabled());
+    await userEvent.click(btn);
+  };
+
+  it('shows the CLIP bar first, the driver note and a CLIP column', async () => {
+    fetchWith({ available: true, reason: null, model: 'm', mode: 'auto', cached: true, hint: null }, () => jsonResponse(200, clipResult()));
+    renderCard();
+    await run();
+    const row = await screen.findByTestId('lc-clip-row');
+    expect(row).toHaveTextContent('AI vision (CLIP)');
+    expect(row).toHaveTextContent('99');
+    const algos = row.parentElement!;
+    expect(algos.firstElementChild).toBe(row);
+    expect(screen.getByTestId('lc-uses')).toHaveTextContent('Score uses: AI vision + fingerprints');
+    expect(screen.getByText('AI vision', { selector: 'th' })).toBeInTheDocument();
+    expect(screen.getAllByTestId('lc-clip-cell').map((e) => e.textContent)).toEqual(['99%', '12%']);
+    expect(screen.queryByTestId('lc-clip-hint')).toBeNull();
+  });
+
+  it('shows the loading note while the first comparison runs', async () => {
+    let release: (r: Response) => void = () => undefined;
+    const gate = new Promise<Response>((r) => (release = r));
+    mockFetch(async (c) => {
+      const path = c.url.replace(/^.*\/api/, '').split('?')[0];
+      if (path === '/lookalike/logo-engine') return jsonResponse(200, { available: true, reason: null, model: 'm', mode: 'auto', cached: false, hint: null });
+      if (path === '/lookalike/test-logo') return gate;
+      return new Response(new Blob(['x'], { type: 'image/png' }), { status: 200 });
+    });
+    renderCard();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Compare' })).toBeDisabled());
+    await userEvent.upload(screen.getByTestId('lc-candidate'), png());
+    await userEvent.click(await screen.findByRole('button', { name: 'Compare' }));
+    expect(await screen.findByTestId('lc-loading')).toHaveTextContent('up to half a minute');
+    release(jsonResponse(200, clipResult()));
+    await screen.findByTestId('lc-result');
+    expect(screen.queryByTestId('lc-loading')).toBeNull();
+  });
+
+  it('shows an install hint and no CLIP bar or column when CLIP is unavailable', async () => {
+    const hint = 'pip install fastembed (or: pip install -r requirements-extra.txt).';
+    fetchWith({ available: false, reason: 'not_installed', model: 'm', mode: 'auto', cached: false, hint }, () =>
+      jsonResponse(200, result({ method: 'hash', clip: { available: false, reason: 'not_installed', hint } })),
+    );
+    renderCard();
+    expect(await screen.findByTestId('lc-clip-hint')).toHaveTextContent('pip install fastembed');
+    await run();
+    await screen.findByTestId('lc-result');
+    expect(screen.queryByTestId('lc-clip-row')).toBeNull();
+    expect(screen.queryByTestId('lc-clip-cell')).toBeNull();
+    expect(screen.getByTestId('lc-uses')).toHaveTextContent('fingerprints only');
+    expect(screen.getByTestId('lc-clip-hint')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /install/i })).toBeNull();
   });
 });

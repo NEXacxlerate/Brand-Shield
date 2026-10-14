@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { sm } from '../../api/sm';
 import { isAbortError } from '../../api/client';
-import type { Brand, LogoAlgorithms, LogoCompareResult, LogoVerdict } from '../../api/types';
+import type { Brand, LogoAlgorithms, LogoCompareResult, LogoEngineStatus, LogoVerdict } from '../../api/types';
 import { setBrandCache } from '../../hooks/useBrand';
 import { LOGO_MAX_BYTES, sniffImageFormat } from '../../utils/logoCheck';
 import { Notice } from './States';
@@ -21,6 +21,8 @@ const ALGO_LABEL: { key: keyof LogoAlgorithms; label: string }[] = [
   { key: 'whash', label: 'wHash (coarse structure)' },
   { key: 'colorhash', label: 'Colour mix' },
 ];
+
+const CLIP_HINT = 'pip install fastembed';
 
 /** Type and size check before upload; the server stays the authority and its own message is always shown. */
 export async function precheckImage(file: File, what: string): Promise<string> {
@@ -162,7 +164,17 @@ export const LogoCompareCard: React.FC<{ brand: Brand | null; missing: boolean; 
     setError(null);
   }, [brand?.id]);
 
-  const hasOfficial = thumbs.length > 0 || thumbsLoading || !!brand?.logo || (brand?.extra_logos ?? []).length > 0;
+  const [engine, setEngine] = useState<LogoEngineStatus | null>(null);
+  useEffect(() => {
+    const ctl = new AbortController();
+    sm.logoEngine(ctl.signal).then(setEngine).catch(() => undefined); // the hint is optional: a failure just hides it
+    return () => ctl.abort();
+  }, []);
+  const clipOn = result ? result.clip?.available === true : engine?.available === true;
+  const showHint = (result ? result.clip?.available === false : engine?.available === false) && !busy;
+  const hint = (result ? result.clip?.hint : engine?.hint) || CLIP_HINT;
+
+  const hasOfficial =thumbs.length > 0 || thumbsLoading || !!brand?.logo || (brand?.extra_logos ?? []).length > 0;
   const noLogo = !!brand && !hasOfficial;
   const manual = useManual && !!reference;
 
@@ -290,6 +302,13 @@ export const LogoCompareCard: React.FC<{ brand: Brand | null; missing: boolean; 
             )}
           </div>
 
+          {busy && clipOn && <p className="lc-dim" data-testid="lc-loading">First comparison loads the AI model, this can take up to half a minute.</p>}
+          {showHint && (
+            <p className="lc-dim lc-hint" data-testid="lc-clip-hint">
+              AI vision scoring is not active. To add it, run: <code>{hint}</code>
+            </p>
+          )}
+
           {result && (
             <div className="lc-result" data-testid="lc-result" aria-live="polite">
               <div className="lc-score-row">
@@ -314,7 +333,17 @@ export const LogoCompareCard: React.FC<{ brand: Brand | null; missing: boolean; 
                 </figure>
               </div>
 
+              <div className="lc-dim" data-testid="lc-uses">
+                {result.clip?.available ? 'Score uses: AI vision + fingerprints' : 'Score uses: fingerprints only'}
+              </div>
               <div className="lc-algos">
+                {result.clip?.available && typeof result.clip.score === 'number' && (
+                  <div className="lc-algo-row" data-testid="lc-clip-row">
+                    <span className="lc-algo-name"><strong>AI vision (CLIP)</strong></span>
+                    <Bar value={result.clip.score} tone={tone} />
+                    <span className="lc-algo-val">{Math.round(result.clip.score)}</span>
+                  </div>
+                )}
                 {ALGO_LABEL.map((a) => (
                   <div key={a.key} className="lc-algo-row">
                     <span className="lc-algo-name">{a.label}</span>
@@ -327,13 +356,14 @@ export const LogoCompareCard: React.FC<{ brand: Brand | null; missing: boolean; 
               {result.results.length > 1 && (
                 <table className="lc-table" data-testid="lc-table">
                   <thead>
-                    <tr><th>Official logo</th><th>Similarity</th><th>Verdict</th></tr>
+                    <tr><th>Official logo</th><th>Similarity</th>{result.clip?.available && <th>AI vision</th>}<th>Verdict</th></tr>
                   </thead>
                   <tbody>
                     {result.results.map((r) => (
                       <tr key={r.id}>
                         <td>{r.label}{r.id === result.best.id ? ' (best)' : ''}</td>
                         <td>{Math.round(r.similarity)}%</td>
+                        {result.clip?.available && <td data-testid="lc-clip-cell">{r.clip ? `${Math.round(r.clip.score)}%` : '-'}</td>}
                         <td>{VERDICT_LABEL[r.verdict]}</td>
                       </tr>
                     ))}

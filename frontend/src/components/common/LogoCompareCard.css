@@ -45,3 +45,4 @@
 .lc-warnings { margin: 0; padding-left: 18px; font-size: 13px; color: var(--orange-text); display: flex; flex-direction: column; gap: 4px; }
 .lc-add { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
 @media (max-width: 800px) { .lc-inputs { grid-template-columns: 1fr; } .lc-algo-row { grid-template-columns: 1fr 1fr 32px; } }
+.lc-hint code { font-family: ui-monospace, Consolas, monospace; background: var(--bg-inner); border: 1px solid var(--border-inner); border-radius: 4px; padding: 1px 6px; color: var(--text-main); }

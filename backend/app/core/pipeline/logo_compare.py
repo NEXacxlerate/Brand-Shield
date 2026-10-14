@@ -1,7 +1,8 @@
 """Logo comparison tester (Look-alike Lab). Pure and in-memory: nothing is stored, no detection or score is created.
 
 Uploads are validated like every other image upload (type from the magic bytes via Pillow, size cap, dimension and pixel caps,
-decompression-bomb guard); the filename is never read. The similarity number comes from the SAME engine scans use
+decompression-bomb guard); the filename is never read. With the optional CLIP engine the similarity is the calibrated CLIP score
+(see engine/logo_similarity.py); otherwise it comes from the SAME engine scans use
 (`scan_pipeline._image_impl`, so the IMAGE_SIMILARITY_BACKEND setting applies)
 on the same 0-100 scale. Verdict bands reuse the scorer's thresholds, none are new:
     >= 90                    same_logo         (scoring.image_points reaches its maximum at 90)
@@ -17,8 +18,9 @@ import io
 from PIL import Image, ImageOps, ImageStat, UnidentifiedImageError
 
 from app.config.config import Settings
+from app.core.engine import logo_similarity as ls
 from app.core.engine.image_hashes import compare_hashes, compute_hashes
-from app.core.engine.logo_similarity import LIKELY_COPY_MIN, SIMILAR_MIN, load_image
+from app.core.engine.logo_similarity import LIKELY_COPY_MIN, SIMILAR_MIN, NotAvailable, load_image
 from app.core.pipeline import evidence
 from app.core.pipeline.logo import LogoError, sniff_format
 from app.core.pipeline.scan_pipeline import _image_impl
@@ -33,6 +35,11 @@ NOTE = (
     "Hash similarity is a risk signal, not proof of reuse. "
     "A high number means the pictures look alike; it does not show that one was copied from the other."
 )
+CLIP_NOTE = (
+    "The main number is an AI visual-similarity score (CLIP) plus fingerprint checks (pHash, dHash, wHash, colour). "
+    "It is still a risk signal, not proof of reuse: a high number means the pictures look alike, not that one was copied from the other."
+)
+FIRST_USE_NOTE = "First comparison downloads/loads the AI model, so it can take up to half a minute."
 SAMPLE_NOTE = (
     "The app is showing sample data. This comparison uses only the logos you give it, "
     "but sample-mode results elsewhere are not real findings."
@@ -103,28 +110,79 @@ def _warnings(img: Image.Image, label: str) -> list[str]:
     return out
 
 
+def models_dir(settings: Settings):
+    return settings.data_dir / "models"
+
+
+def clip_status(settings: Settings) -> dict:
+    """Cheap status for the page (no model load, no network): is the CLIP engine usable, and are the weights already on disk?"""
+    base = {"model": ls.CLIP_MODEL, "mode": settings.logo_compare_clip}
+    if settings.logo_compare_clip == "off":
+        return {**base, "available": False, "reason": "off", "cached": False, "hint": "Switched off with LOGO_COMPARE_CLIP=off."}
+    if not ls.fastembed_installed():
+        return {**base, "available": False, "reason": "not_installed", "cached": False, "hint": ls.CLIP_INSTALL_HINT}
+    cached = ls.model_cached(models_dir(settings))
+    return {**base, "available": True, "reason": None, "cached": cached, "loaded": ls.clip_loaded(),
+            "hint": None if cached else "Weights (about 336 MB) are downloaded on the first comparison."}
+
+
+def _get_embedder(settings: Settings):
+    """(embedder | None, unavailable-info | None, first_use)."""
+    if settings.logo_compare_clip == "off":
+        return None, {"available": False, "reason": "off", "hint": "Switched off with LOGO_COMPARE_CLIP=off."}, False
+    first = not ls.clip_loaded()
+    try:
+        return ls.get_clip_embedder(models_dir(settings)), None, first
+    except NotAvailable as exc:
+        return None, {"available": False, "reason": exc.reason, "hint": ls.CLIP_INSTALL_HINT}, False
+
+
 def compare(settings: Settings, candidate: Image.Image, refs: list[tuple[str, str, Image.Image]], manual: bool, sample: bool) -> dict:
     impl, algorithm = _image_impl(settings)
+    embedder, unavailable, first_use = _get_embedder(settings)
+    cand_vec = None
+    if embedder is not None:
+        try:
+            cand_vec = list(embedder(candidate))
+        except NotAvailable as exc:
+            embedder, unavailable = None, {"available": False, "reason": exc.reason, "hint": ls.CLIP_INSTALL_HINT}
     ch = compute_hashes(candidate)
     rows = []
     for lid, label, img in refs:
-        sim = round(float(impl.similarity(candidate, img)), 1)
+        hash_sim = round(float(impl.similarity(candidate, img)), 1)
         parts = compare_hashes(ch, compute_hashes(img))
-        rows.append({"id": lid, "label": label, "similarity": sim, "verdict": verdict_for(sim), "width": img.size[0], "height": img.size[1],
-                     "algorithms": dict(parts)})
+        row = {"id": lid, "label": label, "similarity": hash_sim, "hash_similarity": hash_sim, "clip": None,
+               "width": img.size[0], "height": img.size[1],
+               "algorithms": dict(parts)}
+        if cand_vec is not None:
+            cos = ls.cosine(cand_vec, list(embedder(img)))
+            score = ls.clip_to_score(cos)
+            row["clip"] = {"cosine": round(cos, 4), "score": score}
+            row["similarity"] = ls.combine_clip_hash(score, hash_sim)
+        row["verdict"] = verdict_for(row["similarity"])
+        rows.append(row)
     best = max(rows, key=lambda r: r["similarity"])
     best_img = next(img for lid, _, img in refs if lid == best["id"])
     warnings = _warnings(candidate, "candidate logo")
     warnings += _warnings(best_img, "reference logo" if manual else f"official logo \"{best['label']}\"")
-    if best["similarity"] < SIMILAR_MIN and impl.similarity(ImageOps.invert(_flat(candidate)), best_img) >= SIMILAR_MIN:
+    inverted = cand_vec is None and best["similarity"] < SIMILAR_MIN
+    if inverted and impl.similarity(ImageOps.invert(_flat(candidate)), best_img) >= SIMILAR_MIN:
         warnings.append(
             "This logo looks like a colour-inverted version of the reference. "
             "Inverted logos score low with these hashes, so check it by eye."
         )
+    if cand_vec is not None:
+        clip = {"available": True, "cosine": best["clip"]["cosine"], "score": best["clip"]["score"], "model": ls.CLIP_MODEL}
+        if first_use:
+            warnings.append(FIRST_USE_NOTE)
+    else:
+        clip = {"available": False, "model": ls.CLIP_MODEL, **(unavailable or {})}
     return {
         "similarity": best["similarity"], "verdict": best["verdict"], "algorithm": algorithm, "mode": "manual" if manual else "official",
+        "method": "clip+hash" if cand_vec is not None else "hash", "clip": clip, "hash_similarity": best["hash_similarity"],
         "best": {"id": best["id"], "label": best["label"]}, "algorithms": best["algorithms"], "results": rows,
         "candidate": {"width": candidate.size[0], "height": candidate.size[1]},
         "thresholds": {"same_logo": SAME_MIN, "very_similar": LIKELY_COPY_MIN, "somewhat_similar": SIMILAR_MIN},
-        "explanation": NOTE, "warnings": warnings, "is_sample": sample, "sample_note": SAMPLE_NOTE if sample else None,
+        "explanation": CLIP_NOTE if cand_vec is not None else NOTE, "warnings": warnings,
+        "is_sample": sample, "sample_note": SAMPLE_NOTE if sample else None,
     }

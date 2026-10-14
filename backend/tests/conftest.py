@@ -87,6 +87,11 @@ def _optional_packages_absent(monkeypatch):
     """Tests assume the optional scraper is NOT installed (the CI default); installing requirements-extra locally must not change results."""
     monkeypatch.setattr("app.core.collectors.selection.package_installed", lambda: False)
     monkeypatch.setattr("app.core.collectors.google_play.package_installed", lambda: False)
+    # fastembed (CLIP) is optional too: absent unless a test opts in by patching get_clip_embedder / fastembed_installed
+    monkeypatch.setattr("app.core.engine.logo_similarity.fastembed_installed", lambda: False)
+    from app.core.engine import logo_similarity
+
+    logo_similarity.reset_clip_for_tests()
 
 
 @pytest.fixture

@@ -646,11 +646,33 @@ export interface LogoCompareRow {
   width: number;
   height: number;
   algorithms: LogoAlgorithms;
+  hash_similarity?: number;
+  clip?: { cosine: number; score: number } | null;
+}
+export interface LogoClipInfo {
+  available: boolean;
+  model?: string;
+  cosine?: number;
+  score?: number;
+  reason?: 'not_installed' | 'model_unavailable' | 'off';
+  hint?: string;
+}
+export interface LogoEngineStatus {
+  available: boolean;
+  reason: string | null;
+  model: string;
+  mode: string;
+  cached: boolean;
+  loaded?: boolean;
+  hint: string | null;
 }
 export interface LogoCompareResult {
   similarity: number;
   verdict: LogoVerdict;
   algorithm: string;
+  method?: 'clip+hash' | 'hash';
+  clip?: LogoClipInfo;
+  hash_similarity?: number;
   mode: 'official' | 'manual';
   best: { id: string; label: string };
   algorithms: LogoAlgorithms;

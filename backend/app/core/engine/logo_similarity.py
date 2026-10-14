@@ -15,11 +15,19 @@ hashes through the `ImageSimilarity` protocol (cosine similarity scaled 0-100).
 
 from __future__ import annotations
 
+import importlib.util
+import logging
 import math
+import os
+import threading
+import time
 from collections.abc import Callable, Sequence
+from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
 from PIL import Image, ImageOps
+
+log = logging.getLogger(__name__)
 
 LIKELY_COPY_MIN = 80.0
 SIMILAR_MIN = 55.0
@@ -30,7 +38,14 @@ _LOW = 8
 
 
 class NotAvailable(RuntimeError):
-    """An optional similarity backend (e.g. CLIP) is not installed."""
+    """An optional similarity backend (e.g. CLIP) is not installed or its weights are missing.
+
+    `reason` is "not_installed" (package missing) or "model_unavailable" (package present, weights not loadable).
+    """
+
+    def __init__(self, message: str = "", reason: str = "not_installed") -> None:
+        super().__init__(message)
+        self.reason = reason
 
 
 @runtime_checkable
@@ -164,3 +179,148 @@ def load_image(data: Any) -> Image.Image:
     img = Image.open(io.BytesIO(data) if isinstance(data, bytes | bytearray) else data)
     img.load()
     return img
+
+# ---- CLIP image embeddings through fastembed (ONNX, no torch). Optional: the hashes above remain the default.
+
+CLIP_MODEL = "Qdrant/clip-ViT-B-32-vision"
+CLIP_INSTALL_HINT = "pip install fastembed  (or: pip install -r requirements-extra.txt). The first use downloads about 336 MB of model weights."
+# Cosine similarity of two CLIP image embeddings -> 0..100 so the EXISTING bands (55 / 80 / 90) apply unchanged. Measured on real logos:
+# copies, resizes, crops up to 20%, mirrored, blurred, JPEG q30 and inverted logos all >= 0.92; unrelated logos 0.53-0.79; a similar-composition
+# but different logo 0.82. See docs/DECISIONS.md.
+CLIP_KNOTS: tuple[tuple[float, float], ...] = ((0.62, 0.0), (0.80, 55.0), (0.88, 80.0), (0.97, 90.0), (1.00, 100.0))
+HASH_SAME_MIN = 90.0
+
+
+def clip_to_score(cosine_value: float) -> float:
+    """Piecewise-linear calibration of a CLIP cosine to a 0-100 score (clamped outside the first and last knot)."""
+    if cosine_value <= CLIP_KNOTS[0][0]:
+        return 0.0
+    if cosine_value >= CLIP_KNOTS[-1][0]:
+        return 100.0
+    for (x0, y0), (x1, y1) in zip(CLIP_KNOTS, CLIP_KNOTS[1:], strict=False):
+        if cosine_value <= x1:
+            return round(y0 + (y1 - y0) * (cosine_value - x0) / (x1 - x0), 1)
+    return 100.0  # pragma: no cover
+
+
+def combine_clip_hash(clip_score: float, hash_score: float) -> float:
+    """Final tester score. CLIP leads; a very high hash score only lifts an already-similar CLIP score
+    (same shape recoloured stays high) and never rescues a low one."""
+    if hash_score >= HASH_SAME_MIN and clip_score >= SIMILAR_MIN:
+        return round(max(clip_score, hash_score), 1)
+    return round(clip_score, 1)
+
+
+def cosine(a: Sequence[float], b: Sequence[float]) -> float:
+    na, nb = math.sqrt(sum(x * x for x in a)), math.sqrt(sum(x * x for x in b))
+    if na == 0 or nb == 0:
+        return 0.0
+    return sum(x * y for x, y in zip(a, b, strict=True)) / (na * nb)
+
+
+def fastembed_installed() -> bool:
+    return importlib.util.find_spec("fastembed") is not None
+
+
+def model_cached(cache_dir: Path) -> bool:
+    """True when the CLIP weights are already under cache_dir (an .onnx file inside the model folder)."""
+    try:
+        folder = Path(cache_dir) / ("models--" + CLIP_MODEL.replace("/", "--"))
+        return folder.is_dir() and any(folder.rglob("*.onnx"))
+    except OSError:
+        return False
+
+
+def _flatten_rgb(img: Image.Image) -> Image.Image:
+    rgba = img.convert("RGBA")
+    bg = Image.new("RGBA", rgba.size, (255, 255, 255, 255))
+    bg.alpha_composite(rgba)
+    return bg.convert("RGB")
+
+
+class FastembedClipEmbedder:
+    """CLIP ViT-B/32 image encoder via fastembed. Lazy: nothing is imported or downloaded until the first embed()/load()."""
+
+    def __init__(self, cache_dir: Path, model_name: str = CLIP_MODEL) -> None:
+        self.cache_dir = Path(cache_dir)
+        self.model_name = model_name
+        self._model: Any = None
+        self._lock = threading.Lock()
+
+    @property
+    def loaded(self) -> bool:
+        return self._model is not None
+
+    def load(self) -> None:
+        with self._lock:
+            if self._model is not None:
+                return
+            os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+            try:
+                from fastembed import ImageEmbedding  # type: ignore[import-not-found]
+            except ImportError as exc:
+                raise NotAvailable("The optional package 'fastembed' is not installed.", "not_installed") from exc
+            try:
+                self.cache_dir.mkdir(parents=True, exist_ok=True)
+                self._model = ImageEmbedding(model_name=self.model_name, cache_dir=str(self.cache_dir))
+            except Exception as exc:  # noqa: BLE001 - offline, disk full, corrupt cache: all mean "weights unavailable"
+                raise NotAvailable(f"The CLIP model could not be loaded ({type(exc).__name__}).", "model_unavailable") from exc
+
+    def embed(self, img: Image.Image) -> list[float]:
+        self.load()
+        rgb = _flatten_rgb(img)
+        with self._lock:
+            vec = next(iter(self._model.embed([rgb])))
+        v = [float(x) for x in vec]
+        n = math.sqrt(sum(x * x for x in v)) or 1.0
+        return [x / n for x in v]
+
+    __call__ = embed
+
+
+_clip_lock = threading.Lock()
+_clip_embedder: FastembedClipEmbedder | None = None
+_clip_failure: tuple[float, NotAvailable] | None = None
+_FAILURE_TTL = 60.0
+
+
+def clip_loaded() -> bool:
+    return _clip_embedder is not None and _clip_embedder.loaded
+
+
+def get_clip_embedder(cache_dir: Path) -> FastembedClipEmbedder:
+    """The process-wide embedder, loaded once behind a lock. Raises NotAvailable (failures are remembered for a minute so a
+    missing package or an offline machine does not retry a download on every request)."""
+    global _clip_embedder, _clip_failure
+    with _clip_lock:
+        if _clip_embedder is not None and _clip_embedder.loaded:
+            return _clip_embedder
+        if _clip_failure and time.monotonic() - _clip_failure[0] < _FAILURE_TTL:
+            raise _clip_failure[1]
+        if not fastembed_installed():
+            _clip_failure = (time.monotonic(), NotAvailable("The optional package 'fastembed' is not installed.", "not_installed"))
+            raise _clip_failure[1]
+        emb = _clip_embedder or FastembedClipEmbedder(cache_dir)
+        try:
+            emb.load()
+        except NotAvailable as exc:
+            _clip_failure = (time.monotonic(), exc)
+            raise
+        _clip_embedder, _clip_failure = emb, None
+        return emb
+
+
+def reset_clip_for_tests() -> None:
+    global _clip_embedder, _clip_failure
+    with _clip_lock:
+        _clip_embedder, _clip_failure = None, None
+
+
+class CalibratedClipSimilarity:
+    """ImageSimilarity over CLIP: the calibrated 0-100 score. Used by IMAGE_SIMILARITY_BACKEND=clip."""
+
+    def __init__(self, embedder: Callable[[Image.Image], Sequence[float]]) -> None:
+        self._embed = embedder
+
+    def similarity(self, a: Image.Image, b: Image.Image) -> float:
+        return clip_to_score(cosine(self._embed(a), self._embed(b)))

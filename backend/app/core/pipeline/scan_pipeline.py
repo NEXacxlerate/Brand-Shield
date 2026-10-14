@@ -39,7 +39,7 @@ from app.core.collectors.selection import CollectorRuntime, select_collectors
 from app.core.engine.domain_match import DomainAnalysis, analyze_domain, make_domain_matcher
 from app.core.engine.image_hashes import ImageHashSimilarity, MultiHashSimilarity, best_match
 from app.core.engine.llm import LLMIntentResult, ScamIntentLLM
-from app.core.engine.logo_similarity import HashSimilarity, NotAvailable, load_image
+from app.core.engine.logo_similarity import CalibratedClipSimilarity, HashSimilarity, NotAvailable, get_clip_embedder, load_image
 from app.core.engine.models import BrandProfileInput
 from app.core.engine.name_match import SAFE, NameMatchResult
 from app.core.engine.pipeline import _package_name_text, best_name_match
@@ -332,7 +332,22 @@ def _image_impl(settings: Settings):
             return ImageHashSimilarity(), "image-2-imagehash"
         except NotAvailable:
             log.warning("IMAGE_SIMILARITY_BACKEND=imagehash but ImageHash is not installed: using the default hashes")
+    if name == "clip":
+        try:
+            return CalibratedClipSimilarity(get_clip_embedder(settings.data_dir / "models")), "image-3-clip"
+        except NotAvailable as exc:
+            _warn_clip_once(str(exc))
     return HashSimilarity(), "image-1"
+
+
+_clip_warned = False
+
+
+def _warn_clip_once(why: str) -> None:
+    global _clip_warned
+    if not _clip_warned:
+        _clip_warned = True
+        log.warning("IMAGE_SIMILARITY_BACKEND=clip but CLIP is unavailable (%s): using the default hashes", why)
 
 
 def _compare(env: _Env, img) -> tuple[float, str | None]:

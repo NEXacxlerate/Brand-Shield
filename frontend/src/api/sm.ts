@@ -22,6 +22,7 @@ import type {
   LogoInfo,
   LookalikeResult,
   LogoCompareResult,
+  LogoEngineStatus,
   ExtraLogo,
   UrlExamples,
   UrlTestResult,
@@ -148,6 +149,7 @@ export const sm = {
     if (reference) form.append('reference', reference);
     return request<LogoCompareResult>(`/api/lookalike/test-logo${qs({ brand_id: brandId })}`, { method: 'POST', form, signal });
   },
+  logoEngine: (signal?: Sig) => request<LogoEngineStatus>('/api/lookalike/logo-engine', { signal }),
   testUrls: (signal?: Sig) => request<UrlExamples>('/api/lookalike/test-urls', { signal }),
   testCases: (signal?: Sig) => request<TestCaseList>('/api/lookalike/test-cases', { signal }),
   runTestCases: () => request<TestCaseRun>('/api/lookalike/test-cases/run', { method: 'POST' }),

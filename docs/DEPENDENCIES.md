@@ -28,7 +28,11 @@ No GPL or AGPL packages were found.
 | requests-file | 3.0.1 | Apache-2.0 ("Apache 2.0") | no (tldextract) | Same. |
 | filelock | 4.1.1 | MIT | no (tldextract) | Same. |
 | ImageHash | 4.3.2 | BSD-2-Clause ("2-clause BSD License") | yes, OPTIONAL (`requirements-extra.txt`) | Installed in the dev venv for the later image work (E6); nothing imports it yet. |
-| numpy | 2.5.4 | BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 | no (ImageHash) | Optional chain only. |
+| numpy | 2.5.4 | BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 | no (ImageHash, fastembed) | Optional chain only. |
+| fastembed | 0.9.0 | Apache-2.0 | yes, OPTIONAL (`requirements-extra.txt`) | CLIP image embeddings for the logo tester (`engine/logo_similarity.py::FastembedClipEmbedder`, lazy import). ONNX based, no torch. |
+| onnxruntime | 1.31.0 | MIT | no (fastembed) | Runs the CLIP model. Optional chain only. |
+| tokenizers | 0.23.3 | Apache-2.0 (classifier) | no (fastembed) | Optional chain only. |
+| Qdrant/clip-ViT-B-32-vision (model weights) | - | MIT (per the public Hugging Face model card API, `license: mit`; not independently verified against the original OpenAI CLIP release) | model, downloaded on first use | About 336 MB from huggingface.co into `DATA_DIR/models` (gitignored). Not shipped in the repo. |
 | scipy | 1.18.1 | BSD-3-Clause (classifier; the License field holds the long text) | no (ImageHash) | Optional chain only (large wheel). |
 | PyWavelets | 1.10.0 | MIT AND BSD-3-Clause | no (ImageHash) | Optional chain only. |
 
@@ -180,6 +184,7 @@ Licenses read from the installed metadata (`importlib.metadata`) on 2026-10-14:
 |---|---|---|---|---|
 | google-genai | 2.30.0 | Apache-2.0 | `app/core/providers/text/gemini.py`, lazy import, `requirements-extra.txt` | ~11 MB; brings google-auth, tenacity, websockets, requests, distro, sniffio |
 | huggingface_hub | 2.2.0 | Apache-2.0 | `app/core/providers/text/huggingface.py`, lazy import, `requirements-extra.txt` | ~7 MB; brings httpx2, hf-xet, fsspec, tqdm, pyyaml, click |
+| fastembed | 0.9.0 | Apache-2.0 | `engine/logo_similarity.py::FastembedClipEmbedder`, optional (`requirements-extra.txt`) | **Heavy:** about 175 MB of packages (onnxruntime MIT, numpy, tokenizers; no torch) plus ~336 MB of model weights downloaded on first use. It requires `huggingface-hub<2`, so `requirements-extra.txt` caps huggingface_hub at `<2` (was `<3`). Tests treat it as absent unless a test opts in. |
 | ImageHash | 4.3.2 | BSD-2-Clause | `engine/image_hashes.py::ImageHashSimilarity`, optional | **Heavy:** needs numpy 2.5.4 (BSD-3-Clause and others, ~54 MB), scipy 1.18.1 (BSD, ~135 MB), PyWavelets 1.10.0 (MIT / BSD-3-Clause, ~9 MB): about 200 MB installed. So the default image code implements pHash, dHash, a Haar low-pass wHash and a colour hash locally over Pillow; ImageHash stays optional |
 
 The Anthropic option and its optional `anthropic` package were removed in E5 (the owner does not use that API). No GPL/AGPL package was added.

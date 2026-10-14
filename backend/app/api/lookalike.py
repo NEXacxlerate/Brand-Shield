@@ -108,6 +108,12 @@ def test_logo(
     return logo_compare.compare(settings, cand, refs, bool(ref_data), mode_of(db, request) == "sample")
 
 
+@router.get("/logo-engine")
+def logo_engine(_: User = Depends(get_current_user), settings: Settings = Depends(get_settings_dep)) -> dict:
+    """Is the AI (CLIP) logo engine usable? No model load and no network: it only checks the package and the weights on disk."""
+    return logo_compare.clip_status(settings)
+
+
 @router.get("/test-urls")
 def url_examples(brand_id: int | None = None, _: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
     brand = resolve_brand(db, brand_id)

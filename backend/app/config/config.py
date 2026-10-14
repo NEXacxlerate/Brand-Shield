@@ -54,7 +54,10 @@ class Settings(BaseSettings):
     text_embeddings_enabled: bool = False
     gemini_embedding_model: str | None = None
     # Logo / icon scoring backend: hash (default, the original pHash+dHash) | multihash (image-2, pHash+dHash+wHash) | imagehash (needs the ImageHash package)
+    # | clip (optional fastembed + CLIP weights; falls back to hash when unavailable)
     image_similarity_backend: str = "hash"
+    # Look-alike Lab logo tester only (scans are unaffected): auto = use CLIP when installed, off = hashes only
+    logo_compare_clip: str = "auto"
     candidate_image_max_bytes: int = 2 * 1024 * 1024
     import_max_bytes: int = 1024 * 1024
     import_max_rows: int = 500
