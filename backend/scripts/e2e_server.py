@@ -64,7 +64,13 @@ def seed_viewer(engine) -> None:
 
     with make_session_factory(engine)() as db:
         if not db.scalar(select(User.id).where(User.email == email.lower())):
-            db.add(User(name="E2E Viewer", email=email.lower(), password_hash=hash_password(password), role="viewer"))
+            viewer = User(name="E2E Viewer", email=email.lower(), password_hash=hash_password(password), role="viewer")
+            db.add(viewer)
+            db.flush()
+            # A viewer cannot create a brand and every brand belongs to one account, so the read-only tests need one of its own.
+            from app.models import Brand
+
+            db.add(Brand(name="Viewer Test Brand", industry="", aliases=[], keywords=[], domains=[], owner_id=viewer.id))
             db.commit()
 
 
