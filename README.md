@@ -8,7 +8,7 @@ automatically.**
 * `backend/` FastAPI + SQLAlchemy 2 + Alembic API, detection engine, collectors, RQ worker (this is the product backend)
 * `frontend/` React + TypeScript + Vite app (10 screens + evaluation view)
 * `docs/` decisions, API contract, collectors, dependencies and licenses, Definition-of-Done audit
-* **[Deploy on Vercel](docs/DEPLOY_VERCEL.md)**: backend and frontend as two Vercel projects with Supabase (step by step, limits, troubleshooting).
+* **[Deploy on Vercel](docs/DEPLOY_VERCEL.md)**: backend and frontend as one Vercel project (Services, one domain) with Supabase (step by step, limits, troubleshooting).
 * **[User guide](docs/USER_GUIDE.md)**: install, sign in, every page with sample inputs, scoring, credits and troubleshooting (written for non-developers as well as the operator). What is verified on real data and what is not: **[docs/FEATURE_STATUS.md](docs/FEATURE_STATUS.md)**.
 
 ## Architecture
