@@ -27,4 +27,16 @@ describe('API base URL precedence', () => {
     vi.stubEnv('VITE_API_URL', '');
     expect(await loadBaseUrl()).toBe('http://127.0.0.1:8000');
   });
+
+  it('uses the same origin (empty base) in a production build when nothing is configured', async () => {
+    vi.stubEnv('VITE_API_URL', '');
+    vi.stubEnv('PROD', true);
+    expect(await loadBaseUrl()).toBe('');
+  });
+
+  it('keeps an explicit VITE_API_URL in a production build (two-project setup)', async () => {
+    vi.stubEnv('VITE_API_URL', 'https://api.example.com/');
+    vi.stubEnv('PROD', true);
+    expect(await loadBaseUrl()).toBe('https://api.example.com');
+  });
 });

@@ -1,3 +1,21 @@
+# Packaging metadata. Vercel's Python builder installs dependencies from pyproject.toml when this file exists (requirements.txt is then
+# ignored), so the dependency list is read from requirements.txt (single source of truth). Nothing else uses this section.
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "brandshield-backend"
+version = "0.1.0"
+requires-python = ">=3.11"
+dynamic = ["dependencies"]
+
+[tool.setuptools]
+packages = []
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]

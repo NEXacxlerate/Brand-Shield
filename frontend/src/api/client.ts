@@ -20,9 +20,11 @@ declare global {
   }
 }
 
-// Precedence: runtime config (/config.js, no rebuild needed) > VITE_API_URL (build time) > local default.
+// Precedence: runtime config (/config.js, no rebuild needed) > VITE_API_URL (build time) > default.
+// Default: '' (same origin, relative /api/... calls) in a production build, which is the single-project Vercel setup where one domain
+// serves both the SPA and the API; the local API address in development (vite dev / vitest).
 const runtimeApiUrl = typeof window !== 'undefined' ? window.__SCAMMIND_CONFIG__?.API_URL : undefined;
-export const BASE_URL: string = (runtimeApiUrl || (import.meta.env.VITE_API_URL as string | undefined) || 'http://127.0.0.1:8000').replace(/\/+$/, '');
+export const BASE_URL: string = (runtimeApiUrl || (import.meta.env.VITE_API_URL as string | undefined) || (import.meta.env.PROD ? '' : 'http://127.0.0.1:8000')).replace(/\/+$/, '');
 
 export const NETWORK_ERROR_MESSAGE = 'Cannot reach the server. Check your connection and try again.';
 
