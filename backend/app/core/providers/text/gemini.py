@@ -43,7 +43,7 @@ class GeminiTextProvider(ApiTextProvider):
             "response_mime_type": "application/json",
             "response_schema": GeminiResponseSchema,
             "temperature": 0,
-            "max_output_tokens": 400,
+            "max_output_tokens": 2048,  # thinking models spend part of this budget before the visible JSON
         }
         resp = client.models.generate_content(model=self.model, contents=user, config=config)
         text = getattr(resp, "text", None)
