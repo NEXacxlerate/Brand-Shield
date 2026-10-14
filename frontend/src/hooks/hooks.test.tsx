@@ -137,6 +137,28 @@ describe('useScan', () => {
     expect(jobCalls).toBeGreaterThanOrEqual(2);
   });
 
+  it('accepts a scan that is already finished in the POST response (inline executor, e.g. on Vercel) without polling', async () => {
+    const done = vi.fn();
+    let jobCalls = 0;
+    mockFetch((c) => {
+      const path = c.url.replace(/^.*\/api/, '');
+      if (path === '/scan/status') return jsonResponse(200, { running_job_id: null });
+      if (path === '/scan') return jsonResponse(202, { job_id: 'job_1', scan_id: 1, status: 'completed', scan: scanObj({ state: 'done', status: 'completed', progress: 100, message: 'Scan finished' }) });
+      jobCalls++;
+      return jsonResponse(200, scanObj({ state: 'done', status: 'completed', progress: 100 }));
+    });
+    const { result } = renderHook(() => useScan('all', done, 5));
+    await act(async () => {
+      await result.current.start();
+    });
+    expect(jobCalls).toBe(0);
+    expect(result.current.scanning).toBe(false);
+    expect(result.current.progress).toBe(100);
+    expect(result.current.error).toBeNull();
+    expect(result.current.last?.state).toBe('done');
+    expect(done).toHaveBeenCalledTimes(1);
+  });
+
   it('attaches to the running scan on 409 instead of failing', async () => {
     mockFetch((c) => {
       const path = c.url.replace(/^.*\/api/, '');
