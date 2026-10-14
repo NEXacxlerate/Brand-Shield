@@ -223,6 +223,9 @@ On `done`:
 ```
 The UI messages to drive today's alerts: "Scan complete! 8 sources queried." (Dashboard) and "{n} accounts analyzed. {k} new threats." (Social). A source being slow/unavailable does **not** fail the job (PDF: "The scan still finishes").
 
+### GET /api/cron/scan  (Vercel Cron only)
+Header `Authorization: Bearer <CRON_SECRET>`. 503 when `CRON_SECRET` is unset, 401 for a missing or wrong token (constant-time compare). Applies the scheduler's decision and, when due, runs one inline scan (`started_by: "scheduler"`). Answer: `{"ran": bool, "skipped": bool, "reason": str, "scan_id": int|null}`. See `docs/DEPLOY_VERCEL.md`.
+
 ### GET /api/scan/status  [NEW]
 `{ "last_scan_at":"2026-10-12T11:58:00Z","last_full_sync_at":"2026-10-12T12:05:00Z","next_scan_at":"2026-10-12T12:10:00Z","schedule":"5m","running_job_id":null }`
 Feeds Dashboard hero line ("Last scan 12 Oct 2026, 11:58 AM · 6 of 8 sources online" with sources counts from /sources) and Source Health "Next scan 12:10".
