@@ -155,9 +155,68 @@
   padding-top: 4px;
 }
 
-/* Option 1: Create a Brand (UI-only button) */
+/* Option 1: Create a Brand (opens Brand Studio). The card reacts to hover like "Protect a Brand" does, in violet to match its icon. */
 .card-create {
   cursor: default;
+  position: relative;
+  border-color: rgba(167, 139, 250, 0.22);
+}
+
+.card-create:hover,
+.card-create:focus-within {
+  transform: translateY(-3px);
+  border-color: rgba(167, 139, 250, 0.6);
+  background: rgba(26, 22, 40, 0.84);
+  box-shadow: 0 16px 36px rgba(139, 92, 246, 0.26), 0 0 0 1px rgba(167, 139, 250, 0.32);
+}
+
+.card-create:hover .card-icon-box,
+.card-create:focus-within .card-icon-box {
+  transform: scale(1.08) rotate(-4deg);
+  box-shadow: 0 0 22px rgba(167, 139, 250, 0.45);
+}
+
+.card-create .card-icon-box {
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s ease;
+}
+
+/* the button fills in with the card's colour as the card is hovered, and a little more when it is hovered itself */
+.card-create:hover .btn-card-create,
+.card-create:focus-within .btn-card-create {
+  background: linear-gradient(135deg, #7c5cf0 0%, #a78bfa 100%);
+  border-color: transparent;
+  color: #ffffff;
+  box-shadow: 0 6px 22px rgba(139, 92, 246, 0.5);
+}
+
+.card-create .btn-card-create:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 28px rgba(139, 92, 246, 0.65);
+}
+
+.card-create .btn-card-create:active {
+  transform: translateY(0);
+  box-shadow: 0 3px 12px rgba(139, 92, 246, 0.45);
+}
+
+.card-create .btn-card-create:focus-visible {
+  outline: 2px solid #a78bfa;
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-create,
+  .card-create .card-icon-box,
+  .card-create .btn-card-create {
+    transition: none;
+  }
+  .card-create:hover,
+  .card-create:focus-within,
+  .card-create:hover .card-icon-box,
+  .card-create:focus-within .card-icon-box,
+  .card-create .btn-card-create:hover {
+    transform: none;
+  }
 }
 
 .btn-card-create {
@@ -172,8 +231,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: default;
-  transition: all 0.15s ease;
+  cursor: pointer;
+  transition: all 0.18s ease;
   user-select: none;
 }
 

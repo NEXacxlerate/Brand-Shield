@@ -1,25 +1,36 @@
 # BrandShield
 
-Brand-protection workspace. You describe your brand (name, aliases, official social handles, official apps, logo); BrandShield scans public
-sources for look-alike social profiles and fake apps, scores every suspect with a reason for every point, excludes your own official assets,
-and prepares evidence-backed reports. **A person reviews every detection and approves every report; nothing is ever sent or taken down
-automatically.**
+**BrandShield is a Digital Risk Protection platform.** You describe your brand (name, aliases, official social handles, official apps, domains,
+logo); BrandShield scans public sources for look-alike **social profiles, fake apps and look-alike websites**, scores every suspect with a
+reason for every point, excludes your own official assets, and prepares evidence-backed reports. **A person reviews every detection and
+approves every report; nothing is ever sent or taken down automatically.** It also includes **Brand Studio**, an AI toolkit for naming,
+logos, palettes and copy, which registers a new brand in BrandShield in one step. One login serves both, and every account owns its own brand.
+
+**Detection pillars:** name and handle look-alikes (homoglyphs, digit swaps, separators, added scam words) · look-alike domains
+(registrable-domain comparison, punycode, brand-in-subdomain, Google Safe Browsing) · logo and app-icon similarity (CLIP AI vision plus
+perceptual hashes) · scam wording in bios and descriptions · account and app signals · exact-match allowlist of your official assets.
+
+**Screens:** Overview · Brand Registry · Social Threats · App Threats · Web Threats (domain lab) · Investigations · Look-alike Lab (name
+tester, test cases, logo comparison) · Source Health · Reports · Model Evaluation · Settings · Brand Studio.
 
 * `backend/` FastAPI + SQLAlchemy 2 + Alembic API, detection engine, collectors, RQ worker (this is the product backend)
-* `frontend/` React + TypeScript + Vite app (10 screens + evaluation view)
+* `frontend/` React + TypeScript + Vite app (BrandShield: dashboard, threat lists, labs, investigations, reports, settings, evaluation)
 * `docs/` decisions, API contract, collectors, dependencies and licenses, Definition-of-Done audit
 * `studio/` Brand Studio (React + Vite), a separate app served at `/studio/` on the same origin; see **[docs/STUDIO.md](docs/STUDIO.md)**.
 * **[Deploy on Vercel](docs/DEPLOY_VERCEL.md)**: backend, frontend and Brand Studio as one Vercel project (Services, one domain) with Supabase (step by step, limits, troubleshooting).
+* **[Brand Studio](docs/STUDIO.md)**: the AI branding toolkit, how its login, saved items and AI proxy work.
 * **[Submission: project description and test access / evaluation guide](docs/SUBMISSION.md)**: what BrandShield is, how evaluators sign in, and a 20-minute walk-through with expected results
 * **[User guide](docs/USER_GUIDE.md)**: install, sign in, every page with sample inputs, scoring, credits and troubleshooting (written for non-developers as well as the operator). What is verified on real data and what is not: **[docs/FEATURE_STATUS.md](docs/FEATURE_STATUS.md)**.
 
 ## The user flow
 
 1. **Create account** (`/register`) or **Sign in** (`/login`). One login serves BrandShield and Brand Studio (the same JWT session).
+   The login page has a **Use demo credentials** button when the operator sets `DEMO_EMAIL` / `DEMO_PASSWORD` (a shared, non-admin demo account).
 2. You land on **Protect Your Brand** (`/protect-brand`).
 3. **Create a Brand** opens **Brand Studio** (`/studio/`): design the brand there and register it in BrandShield from Studio. Every account owns its own brand.
    **Protect a Brand** goes to BrandShield's `/setup` for a brand you already have.
-4. BrandShield then scans for look-alike profiles, pages and apps for that brand. The sidebar has a **Brand Studio** link back.
+4. BrandShield then scans for look-alike profiles, pages, domains and apps for that brand. The sidebar has a **Brand Studio** link back.
+   Brand Studio's AI calls (text and images) go through the BrandShield backend, so no provider key ever reaches the browser.
 
 Development: BrandShield's Vite dev server proxies `/studio` to the Studio dev server (port 3000), see `frontend/README.md`.
 Deployment: [docs/DEPLOY_VERCEL.md](docs/DEPLOY_VERCEL.md) (three Vercel services, one domain) or Docker Compose (the frontend nginx proxies `/studio/` and `/api/`).
@@ -68,10 +79,16 @@ copy .env.example .env          # then edit backend/.env (see "First run")
 # 2. frontend (second terminal)
 cd frontend
 npm install
-npm run dev                     # http://localhost:5173
+npm run dev                     # http://localhost:5173  (open this one: it also serves Brand Studio at /studio/)
+
+# 3. Brand Studio (third terminal; optional, needed for "Create a Brand")
+cd studio
+npm install
+npm run dev                     # port 3000; BrandShield's dev server forwards /studio to it
 ```
 
-Sign in with the `ADMIN_EMAIL` / `ADMIN_PASSWORD` from `backend/.env`, open `/setup` to create the brand, then run a scan.
+Open **http://localhost:5173**. Sign in with the `ADMIN_EMAIL` / `ADMIN_PASSWORD` from `backend/.env`, press **Use demo credentials** (if you set
+`DEMO_EMAIL` / `DEMO_PASSWORD`), or **Create an account**. Then use Protect Your Brand to create or set up a brand, and run a scan.
 With no live source configured the app is in **sample mode**: detections are fictional, every page shows a "Sample data" badge, and nothing
 contacts a real platform. (The server also reads a root `.env` if present; do not put the Docker `.env` values there for a non-Docker run.)
 
@@ -131,6 +148,16 @@ Server (`backend/app/config/config.py`; names are case-insensitive, blank = not 
 | `SOURCE_SLOW_THRESHOLD_MS`, `COLLECTOR_TIMEOUT_SECONDS`, `REACHABILITY_CHECKS_PER_SCAN` | no | `4000`, `15`, `0` | Collector timing and optional reachability checks of result URLs. |
 | `SCAM_LLM_ENABLED`, `SCAM_LLM_PROVIDER`, `GEMINI_API_KEY`, `GEMINI_MODEL`, `HUGGINGFACE_API_TOKEN`, `HUGGINGFACE_MODEL` | no | `false`, `gemini`, unset, `gemini-3.5-flash-lite`, unset, unset | Optional hosted AI text check (never for sample data). Keys are secrets. See docs/USER_GUIDE.md. |
 | `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `SENTRY_TRACES_SAMPLE_RATE` | no | unset, `APP_ENV`, `0.0` | Optional error reporting; needs `pip install -r backend/requirements-extra.txt`. DSN is a secret. |
+| `DEMO_EMAIL`, `DEMO_PASSWORD` | no | unset | A **public** demo account (role analyst, never admin) advertised on the login page. Both set = button shown; `DEMO_EMAIL` must differ from `ADMIN_EMAIL`. Use a throwaway password. |
+| `SIGNUP_ENABLED`, `SIGNUP_MAX_PER_IP_PER_HOUR`, `SIGNUP_MAX_PER_EMAIL_PER_HOUR` | no | `true`, `5`, `3` | Self-service **Create account** and its in-memory limits. No email verification. |
+| `GROQ_API_KEY`, `STUDIO_GROQ_MODEL` | no | unset, `openai/gpt-oss-120b` | Brand Studio text AI (server side only). Without a Groq key Studio chat falls back to `GEMINI_API_KEY`. Secrets. |
+| `POLLINATIONS_API_KEY`, `STUDIO_IMAGE_MODEL` | no | unset, `black-forest-labs/flux.1-schnell` | Brand Studio image generation via Pollinations (server side only). Without it Studio offers manual logo upload. Secret. |
+| `STUDIO_AI_RATE_PER_MINUTE`, `STUDIO_DAILY_TEXT_QUOTA`, `STUDIO_DAILY_IMAGE_QUOTA`, `STUDIO_MAX_*`, `STUDIO_*_TIMEOUT_SECONDS` | no | see `.env.example` | Per-user rate limit, daily quotas, request caps and timeouts for the Studio AI proxy. |
+| `LOGO_COMPARE_CLIP`, `IMAGE_SIMILARITY_BACKEND` | no | `auto`, `hash` | Logo comparison uses the CLIP AI model when `pip install -r backend/requirements-extra.txt` was run (about 175 MB of packages and a one-time 336 MB model download); otherwise perceptual hashes. Scans keep `hash` unless set to `clip`. |
+| `STORAGE_BACKEND` | no | `local` (`database` on Vercel) | Where logos, evidence and images are stored: `DATA_DIR` or the database. |
+| `MIGRATION_DATABASE_URL` | no | `DATABASE_URL` | Direct/session-mode URL used only by migrations (needed with a transaction pooler such as Supabase port 6543). |
+| `CORS_ORIGIN_REGEX`, `RESPONSE_CACHE_SECONDS`, `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `DB_POOL_RECYCLE`, `DB_PRE_PING` | no | unset, `15`, `5`, `2`, `1800`, `false` | Preview-origin pattern, short read cache, and the Postgres connection pool. |
+| `CRON_SECRET`, `SCHEDULER_MAX_BRANDS_PER_RUN` | no | unset, `5` | Protects `GET /api/cron/scan` (Vercel Cron); max brands scanned per scheduled run. |
 
 Container-only (docker-compose.yml / entrypoint / frontend image):
 
@@ -152,7 +179,7 @@ Container-only (docker-compose.yml / entrypoint / frontend image):
 2. Fill in `ADMIN_EMAIL`, `ADMIN_PASSWORD` and `JWT_SECRET`:
    `python -c "import secrets; print(secrets.token_urlsafe(48))"`
 3. Apply migrations (`python -m scripts.migrate`, or the compose api does it) and start the server and frontend.
-4. Sign in, open `/setup`, create the brand: name, aliases, official handles/apps, logo (PNG, JPEG or WebP, at least 256 px, roughly square, 2 MB max). The official handles and package ids are your **allowlist**: only an exact match is excluded from detections.
+4. Sign in, open Protect Your Brand, and either **Create a Brand** (Brand Studio) or **Protect a Brand** (`/setup`): name, aliases, official handles/apps, logo (PNG, JPEG or WebP, at least 256 px, roughly square, 2 MB max). The official handles and package ids are your **allowlist**: only an exact match is excluded from detections.
 5. **Going live is your step.** Add `TAVILY_API_KEY=...` to `backend/.env` (or `.env` for Docker), then run the one-call check yourself (it costs 1 credit and is never run by the build):
    `cd backend && .\.venv\Scripts\python -m scripts.live_check` (see `docs/COLLECTORS.md`).
 6. Settings > Account (admin) switches the data mode: **Auto** (default: live if a live source is configured, else sample), **Live**, **Sample**. The header shows a "Sample data" badge whenever the data is sample.
@@ -166,6 +193,8 @@ Container-only (docker-compose.yml / entrypoint / frontend image):
 * **Canary:** `cd backend && python -m scripts.canary` or admin `POST /api/health/canary` plants a fictional fake ("Zephyrine Vault Bank") in an in-memory database, runs the real pipeline plus the sample collector, and reports pass/fail for: fake profile flagged, fake app stored for review, official assets excluded, unrelated business not flagged, score explained. It proves the **pipeline logic** (name matching, allowlist, scoring) still works after a change. It does **not** prove that Tavily/iTunes/etc. are reachable or return real data (use `/health` and the Source Health page, and one real scan, for that). It never touches your database or the network.
 
 ## Deploy to a managed host (generic)
+
+> Using Vercel and Supabase? Follow **[docs/DEPLOY_VERCEL.md](docs/DEPLOY_VERCEL.md)** (three services on one domain). The section below is for container hosts.
 
 Components: managed PostgreSQL, managed Redis, a container host for three containers (`api`, `worker`, `frontend`), a TLS-terminating proxy/ingress, and a persistent volume for `DATA_DIR`.
 
@@ -187,7 +216,9 @@ Components: managed PostgreSQL, managed Redis, a container host for three contai
 * **SSRF guard:** every outbound fetch that uses a URL from data (reachability checks, candidate logos, SearXNG base URL) resolves DNS, refuses private/loopback/link-local/metadata addresses, limits redirects, size and content type, and re-checks after redirects. `SEARXNG_ALLOW_PRIVATE_HOSTS` is an explicit operator opt-in for a private SearXNG.
 * Passwords use bcrypt (72-byte limit enforced). Secrets are redacted from logs; `Settings` holds keys as secret strings; `/health` never returns URLs or exception text.
 * Official-asset exclusion is by exact handle/URL/package id only: the brand name alone never excludes anything.
-* Roles: `viewer` read-only, `analyst` reviews and scans, `admin` also settings, data mode, health details and canary.
+* Roles: `viewer` read-only, `analyst` reviews and scans (self-registered and demo accounts are analysts), `admin` also settings, data mode, health details and canary.
+* **Each account owns its own brand and workspace.** Another account's brand, detections, reports, logos and evidence answer 404. Settings, data mode, source health and credit counters are shared by design (see `docs/DECISIONS.md`).
+* **Self-service sign-up has no email verification**, and the demo account is shared and public on purpose. AI provider keys stay on the server (Brand Studio uses a signed-in-only proxy).
 * The app sends nothing to anyone: notifications and takedown e-mails are stored preferences only (`delivery: not_implemented`).
 
 ## PRE-DEMO CHECKLIST
@@ -203,18 +234,24 @@ Tick each item on the machine you will demo from, the day before and again 30 mi
 - [ ] **A scan has been run** against the demo data and finished (`completed`, or `partial` with a source reason you can explain). Results are visible on the Dashboard and the Social/Apps pages.
 - [ ] **Human approval flow rehearsed:** open a detection, confirm/dismiss, mark one as official, create a report draft, preview it, approve it. Nothing is sent anywhere; say so.
 - [ ] **Look-alike Lab** run: "Run test cases" shows the expected pass count.
-- [ ] **Accounts:** the admin password is not the one in any example; a viewer account exists if you want to show read-only access.
+- [ ] **Accounts:** the admin password is not the one in any example; the demo account (`DEMO_EMAIL`) uses a throwaway password; a viewer account exists if you want to show read-only access.
+- [ ] **Brand Studio:** `GROQ_API_KEY` (or Gemini) and `POLLINATIONS_API_KEY` are set on the backend if you want to show AI naming and logo generation; otherwise show manual logo upload.
 - [ ] **Backups / rollback plan:** a copy of the database and `DATA_DIR` taken before the demo; know the previous image tags and how to switch back; keep the last known-good `docker compose` `.env`. If something breaks mid-demo: switch the data mode to Sample (admin) and continue on fictional data.
-- [ ] **Known limitations told, not hidden:** sample data is fictional; live results depend on Tavily coverage and credits; Google Play needs an optional package; no PDF export (printable HTML/CSV); notifications are not delivered; one brand per organisation; logo similarity needs a logo and live icon URLs; the login rate limiter is per process.
+- [ ] **Known limitations told, not hidden:** sample data is fictional; live results depend on Tavily coverage and credits; Google Play needs an optional package; no PDF export (printable HTML/CSV); notifications are not delivered; one brand per account; logo similarity needs a logo and live icon URLs; the login rate limiter is per process.
 - [ ] **Network:** a stable connection; the UI loads Manrope from Google Fonts (falls back to a system font offline).
 
 ## Tests
 
 ```powershell
-cd backend;   .\.venv\Scripts\python -m pytest -q          # SQLite, no network
+cd backend;   .\.venv\Scripts\python -m pytest -q          # SQLite, no network (about 1,240 tests)
              $env:TEST_DATABASE_URL="postgresql+psycopg://user@host:5432/throwaway"; .\.venv\Scripts\python -m pytest -q   # same suite on PostgreSQL
              .\.venv\Scripts\python -m ruff check .
-cd frontend; npm run lint; npm test; npm run build; npm run e2e:install; npm run test:e2e
+cd frontend; npm run lint; npm test; npm run build; npm run e2e:install; npm run test:e2e   # unit tests, build, then browser tests
+cd studio;   npm run lint; npm test; npm run build
 ```
 
-More: `backend/README.md`, `frontend/README.md`, `docs/API.md`, `docs/COLLECTORS.md`, `docs/DECISIONS.md`, `docs/DEPENDENCIES.md`, `docs/DONE_AUDIT.md`, `docs/SECURITY.md`, `docs/DEPLOY_VERCEL.md`.
+The browser tests start their own API (sample data, throwaway database), the BrandShield dev server and a Brand Studio dev server, then walk every
+page and the full sign-up, Brand Studio and brand-registration flow. CI (`.github/workflows/ci.yml`) runs lint, the backend suite on Python 3.11 and
+3.12, the same suite on PostgreSQL, the frontend and Studio tests, the browser tests and the Docker image builds.
+
+More: `backend/README.md`, `frontend/README.md`, `docs/API.md`, `docs/COLLECTORS.md`, `docs/DECISIONS.md`, `docs/DEPENDENCIES.md`, `docs/DONE_AUDIT.md`, `docs/SECURITY.md`, `docs/DEPLOY_VERCEL.md`, `docs/STUDIO.md`, `docs/SUBMISSION.md`, `docs/DATABASE_SCHEMA.md`.

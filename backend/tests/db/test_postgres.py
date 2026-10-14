@@ -68,9 +68,9 @@ def test_partial_unique_indexes_enforced_on_postgres(pg):
                 "timings, errors, created_at) VALUES ('j4', 1, 'all', 'queued', 0, '', '[]', 'live', 'x', '{}', '[]', '{}', '[]', :n)", n=now)
     with eng.begin() as c:
         for b in (True, False, False):
-            _ins(c, "INSERT INTO lookalike_cases (name, expected, builtin, source, created_at) VALUES ('n', 'flagged', :b, 'live', :n)", b=b, n=now)
+            _ins(c, "INSERT INTO lookalike_cases (brand_id, name, expected, builtin, source, created_at) VALUES (1, 'n', 'flagged', :b, 'live', :n)", b=b, n=now)
     with pytest.raises(IntegrityError), eng.begin() as c:
-        _ins(c, "INSERT INTO lookalike_cases (name, expected, builtin, source, created_at) VALUES ('n', 'flagged', true, 'live', :n)", n=now)
+        _ins(c, "INSERT INTO lookalike_cases (brand_id, name, expected, builtin, source, created_at) VALUES (1, 'n', 'flagged', true, 'live', :n)", n=now)
 
 
 def test_0004_cleans_duplicates_on_postgres(pg):
