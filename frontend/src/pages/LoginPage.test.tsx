@@ -10,6 +10,8 @@ function renderLogin() {
     <MemoryRouter initialEntries={['/login']}>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/protect-brand" element={<div>PROTECT BRAND PAGE</div>} />
+        <Route path="/setup" element={<div>SETUP PAGE</div>} />
         <Route path="/dashboard" element={<div>DASHBOARD PAGE</div>} />
       </Routes>
     </MemoryRouter>
@@ -30,12 +32,18 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('LoginPage', () => {
+  it('does not display the "Set up your brand profile" button', () => {
+    renderLogin();
+    expect(screen.queryByRole('button', { name: /set up your brand profile/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/new organization\?/i)).not.toBeInTheDocument();
+  });
+
   it('shows "Incorrect email or password" on 401 and does not enter the app (no offline bypass)', async () => {
     mockFetch(() => jsonResponse(401, { detail: 'Incorrect email or password' }));
     renderLogin();
     await fillAndSubmit();
     expect(await screen.findByRole('alert')).toHaveTextContent('Incorrect email or password');
-    expect(screen.queryByText('DASHBOARD PAGE')).not.toBeInTheDocument();
+    expect(screen.queryByText('PROTECT BRAND PAGE')).not.toBeInTheDocument();
     expect(localStorage.getItem('scammind.auth')).toBeNull();
     expect(localStorage.getItem('scammind.offline-session')).toBeNull();
     expect(sessionStorage.length).toBe(0);
@@ -46,7 +54,7 @@ describe('LoginPage', () => {
     renderLogin();
     await fillAndSubmit();
     expect(await screen.findByRole('alert')).toHaveTextContent('Too many failed attempts. Try again later.');
-    expect(screen.queryByText('DASHBOARD PAGE')).not.toBeInTheDocument();
+    expect(screen.queryByText('PROTECT BRAND PAGE')).not.toBeInTheDocument();
   });
 
   it('shows a network error when the server cannot be reached', async () => {
@@ -56,7 +64,7 @@ describe('LoginPage', () => {
     renderLogin();
     await fillAndSubmit();
     expect(await screen.findByRole('alert')).toHaveTextContent('Cannot reach the server');
-    expect(screen.queryByText('DASHBOARD PAGE')).not.toBeInTheDocument();
+    expect(screen.queryByText('PROTECT BRAND PAGE')).not.toBeInTheDocument();
   });
 
   it('shows 422 validation messages from the server', async () => {
@@ -66,13 +74,13 @@ describe('LoginPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('value is not a valid email address');
   });
 
-  it('signs in, stores the session under scammind.auth and opens the dashboard', async () => {
+  it('signs in, stores the session under scammind.auth and opens the Protect Your Brand page', async () => {
     const { calls } = mockFetch(() =>
       jsonResponse(200, { access_token: 'acc', refresh_token: 'ref', token_type: 'bearer', expires_in: 900, user: USER })
     );
     renderLogin();
     await fillAndSubmit('me@example.test', 'pw-12345');
-    await waitFor(() => expect(screen.getByText('DASHBOARD PAGE')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('PROTECT BRAND PAGE')).toBeInTheDocument());
     expect(JSON.parse(calls[0].init.body as string)).toEqual({ email: 'me@example.test', password: 'pw-12345' });
     expect(JSON.parse(localStorage.getItem('scammind.auth') as string)).toEqual({ access: 'acc', refresh: 'ref' });
   });
@@ -82,7 +90,7 @@ describe('LoginPage', () => {
     renderLogin();
     await userEvent.setup().click(screen.getByRole('checkbox'));
     await fillAndSubmit();
-    await waitFor(() => expect(screen.getByText('DASHBOARD PAGE')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('PROTECT BRAND PAGE')).toBeInTheDocument());
     expect(localStorage.getItem('scammind.auth')).toBeNull();
     expect(sessionStorage.getItem('scammind.auth')).not.toBeNull();
   });

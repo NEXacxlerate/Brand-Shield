@@ -1,0 +1,307 @@
+.protect-brand-screen {
+  min-height: 100vh;
+  width: 100%;
+  background: radial-gradient(ellipse 80% 500px at 50% 0%, #11142e 0%, #09090f 55%, #07070a 100%);
+  color: #f2f3f7;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+/* Header */
+.protect-brand-header {
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 32px 32px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 2;
+}
+
+.protect-brand-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.protect-brand-title {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  color: #ffffff;
+}
+
+/* Main Area */
+.protect-brand-main {
+  flex: 1;
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 48px 24px 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  box-sizing: border-box;
+}
+
+/* Hero */
+.protect-brand-hero {
+  text-align: center;
+  max-width: 600px;
+  margin-bottom: 40px;
+}
+
+.protect-brand-heading {
+  font-size: 40px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  color: #ffffff;
+  margin: 0 0 12px;
+}
+
+.protect-brand-subtitle {
+  font-size: 16.5px;
+  line-height: 1.5;
+  color: #a3a6b8;
+  margin: 0;
+}
+
+/* Cards Grid */
+.protect-brand-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+  width: 100%;
+  margin-bottom: 32px;
+}
+
+.protect-card {
+  background: rgba(18, 19, 27, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  padding: 32px 28px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  display: flex;
+  flex-direction: column;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  box-sizing: border-box;
+}
+
+.protect-card-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 20px;
+}
+
+/* Icon Boxes */
+.card-icon-box {
+  width: 48px;
+  height: 48px;
+  border-radius: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.box-purple {
+  background: rgba(167, 139, 250, 0.15);
+  color: #c084fc;
+  border: 1px solid rgba(167, 139, 250, 0.3);
+}
+
+.box-blue {
+  background: rgba(79, 157, 255, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(79, 157, 255, 0.3);
+}
+
+/* Card Body */
+.card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.card-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.015em;
+  margin: 0;
+}
+
+.card-description {
+  font-size: 14.5px;
+  line-height: 1.5;
+  color: #8b8e9f;
+  margin: 0;
+}
+
+/* Card Buttons */
+.card-button-wrap {
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+/* Option 1: Create a Brand (UI-only button) */
+.card-create {
+  cursor: default;
+}
+
+.btn-card-create {
+  width: 100%;
+  height: 48px;
+  border-radius: 12px;
+  border: 1px solid #2a2a35;
+  background: rgba(255, 255, 255, 0.035);
+  color: #cfd2e3;
+  font-size: 14.5px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+/* Option 2: Protect a Brand (Clickable card & button) */
+.card-protect {
+  cursor: pointer;
+  position: relative;
+  border-color: rgba(99, 102, 241, 0.25);
+}
+
+.card-protect:hover {
+  transform: translateY(-3px);
+  border-color: rgba(99, 102, 241, 0.55);
+  background: rgba(22, 24, 36, 0.82);
+  box-shadow: 0 16px 36px rgba(79, 99, 240, 0.22), 0 0 0 1px rgba(99, 102, 241, 0.3);
+}
+
+.card-protect:focus-visible {
+  outline: 2px solid #635bff;
+  outline-offset: 2px;
+}
+
+.btn-card-protect {
+  width: 100%;
+  height: 48px;
+  border-radius: 12px;
+  border: none;
+  background: linear-gradient(135deg, #4f63f0 0%, #635bff 100%);
+  color: #ffffff;
+  font-size: 14.5px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 4px 18px rgba(79, 99, 240, 0.35);
+  cursor: pointer;
+  transition: all 0.18s ease;
+  pointer-events: none; /* Card handles the click */
+}
+
+.card-protect:hover .btn-card-protect {
+  box-shadow: 0 6px 24px rgba(79, 99, 240, 0.55);
+  transform: translateY(-1px);
+}
+
+/* Bottom Security Notice */
+.protect-audit-notice {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+  color: #8a8d9f;
+  text-align: center;
+  justify-content: center;
+}
+
+.protect-lock-icon {
+  flex-shrink: 0;
+  color: #717387;
+}
+
+/* Atmospheric glowing orbs (same as LoginPage) */
+.protect-orbs-wrap {
+  position: absolute;
+  top: 15%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 900px;
+  height: 500px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.protect-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(64px);
+}
+
+.orb-primary {
+  width: 320px;
+  height: 320px;
+  background: radial-gradient(circle, rgba(79, 99, 240, 0.35) 0%, rgba(79, 99, 240, 0) 70%);
+  top: 10px;
+  left: 120px;
+}
+
+.orb-secondary {
+  width: 280px;
+  height: 280px;
+  background: radial-gradient(circle, rgba(168, 70, 239, 0.3) 0%, rgba(217, 70, 239, 0) 70%);
+  top: 60px;
+  right: 140px;
+}
+
+.orb-tertiary {
+  width: 240px;
+  height: 240px;
+  background: radial-gradient(circle, rgba(34, 197, 130, 0.2) 0%, rgba(139, 92, 246, 0) 70%);
+  bottom: 20px;
+  left: 360px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .protect-brand-header {
+    padding: 24px 20px 12px;
+  }
+
+  .protect-brand-main {
+    padding: 32px 18px 48px;
+  }
+
+  .protect-brand-heading {
+    font-size: 30px;
+  }
+
+  .protect-brand-subtitle {
+    font-size: 15px;
+  }
+
+  .protect-brand-grid {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .protect-card {
+    padding: 24px 20px;
+  }
+}

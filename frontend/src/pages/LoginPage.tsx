@@ -29,7 +29,7 @@ export const LoginPage: React.FC = () => {
     setBusy(true);
     try {
       await sm.login(email.trim(), password, keepSignedIn);
-      navigate(from && from !== '/login' ? from : '/dashboard', { replace: true });
+      navigate('/protect-brand', { replace: true });
     } catch (err) {
       // The server's own message is shown: "Incorrect email or password", the 429 rate-limit text, or the network message.
       setErrorMsg(err instanceof ApiError ? err.message : 'Failed to sign in. Please try again.');
@@ -178,18 +178,6 @@ export const LoginPage: React.FC = () => {
 
             <button type="submit" className="btn-primary auth-submit-btn" disabled={busy}>
               {busy ? 'Signing in…' : 'Sign in →'}
-            </button>
-
-            <div className="new-org-separator">
-              <span>New organization?</span>
-            </div>
-
-            <button
-              type="button"
-              className="btn-secondary auth-setup-btn"
-              onClick={() => navigate('/setup')}
-            >
-              Set up your brand profile
             </button>
 
             <div className="auth-audit-notice">
