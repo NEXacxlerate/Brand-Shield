@@ -118,6 +118,55 @@ describe('request: refresh on 401 with rotation', () => {
   });
 });
 
+describe('refresh: cross-tab Web Lock', () => {
+  afterEach(() => {
+    delete (navigator as unknown as { locks?: unknown }).locks;
+  });
+  const stubLocks = (before?: () => void) => {
+    const request = vi.fn(async (_name: string, fn: () => Promise<unknown>) => {
+      before?.(); // simulates another tab/app rotating the tokens while we waited for the lock
+      return fn();
+    });
+    Object.defineProperty(navigator, 'locks', { value: { request }, configurable: true });
+    return request;
+  };
+
+  it('takes the scammind-refresh lock around the refresh', async () => {
+    signIn('old-access', 'old-refresh');
+    const locks = stubLocks();
+    mockFetch((c, n) => (c.url.endsWith('/api/auth/refresh') ? refreshOk(2) : n === 1 ? jsonResponse(401, {}) : jsonResponse(200, { ok: 1 })));
+    await request('/api/x');
+    expect(locks).toHaveBeenCalledTimes(1);
+    expect(locks.mock.calls[0][0]).toBe('scammind-refresh');
+    expect(session.tokens()).toEqual({ access: 'access-2', refresh: 'refresh-2' });
+  });
+
+  it('if the tokens changed while waiting for the lock, retries with the new token and does NOT refresh', async () => {
+    signIn('old-access', 'old-refresh');
+    stubLocks(() => signIn('other-tab-access', 'other-tab-refresh'));
+    const { calls } = mockFetch((c) => (authHeader(c) === 'Bearer other-tab-access' ? jsonResponse(200, { ok: 1 }) : jsonResponse(401, {})));
+    expect(await request('/api/x')).toEqual({ ok: 1 });
+    expect(calls.some((c) => c.url.endsWith('/auth/refresh'))).toBe(false);
+    expect(authHeader(calls[1])).toBe('Bearer other-tab-access');
+    expect(session.tokens()).toEqual({ access: 'other-tab-access', refresh: 'other-tab-refresh' });
+  });
+
+  it('refreshes with the refresh token re-read inside the lock when nothing changed', async () => {
+    signIn('old-access', 'old-refresh');
+    stubLocks();
+    const { calls } = mockFetch((c, n) => (c.url.endsWith('/api/auth/refresh') ? refreshOk(2) : n === 1 ? jsonResponse(401, {}) : jsonResponse(200, {})));
+    await request('/api/x');
+    expect(JSON.parse(calls[1].init.body as string)).toEqual({ refresh_token: 'old-refresh' });
+  });
+
+  it('works without the Web Locks API', async () => {
+    signIn('old-access', 'old-refresh');
+    expect((navigator as unknown as { locks?: unknown }).locks).toBeUndefined();
+    mockFetch((c, n) => (c.url.endsWith('/api/auth/refresh') ? refreshOk(2) : n === 1 ? jsonResponse(401, {}) : jsonResponse(200, { ok: 1 })));
+    expect(await request('/api/x')).toEqual({ ok: 1 });
+  });
+});
+
 describe('error mapping', () => {
   it('uses the string detail and keeps the body', () => {
     const e = mapError(409, { detail: 'A scan is already running', job_id: 'job_1' });

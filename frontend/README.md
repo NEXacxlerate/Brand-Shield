@@ -22,6 +22,23 @@ npm run dev          # http://localhost:5173
 - There are no secrets in the frontend. Sign in with the admin created from `ADMIN_EMAIL` / `ADMIN_PASSWORD` in `backend/.env`, open `/setup` to create the brand, then run a scan.
 - With no live collector configured (no `TAVILY_API_KEY`) the server is in **sample mode**: detections are fictional, every page shows a "Sample data" badge, and nothing contacts a real platform. Settings > Account (admin) switches Live / Sample / Auto.
 
+### Brand Studio in development
+
+Brand Studio (`../studio`) is a separate app served at `/studio/` on the same origin as BrandShield, so both share one login.
+In development `vite.config.ts` proxies `/studio` (HTTP and the HMR websocket) to the Studio dev server on `http://127.0.0.1:3000`:
+
+```powershell
+# terminal 3
+cd studio
+npm install
+npm run dev          # port 3000, base /studio/
+```
+
+Then open `http://localhost:5173/studio/` (not `:3000`: the session lives in the `:5173` origin). "Create a Brand" on `/protect-brand`
+and the "Brand Studio" sidebar entry navigate to `/studio/` (`VITE_STUDIO_URL` overrides this only for odd setups).
+Without the Studio dev server running, `/studio/` answers 502/504 from the proxy; BrandShield itself is unaffected.
+Create account is at `/register` (public, like `/login`).
+
 ## Check
 
 ```powershell

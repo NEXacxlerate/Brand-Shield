@@ -3,7 +3,7 @@
 #   cp .env.example .env     # then fill in the REQUIRED values (names only are committed; real values never are)
 #   docker compose up --build
 #   API       http://localhost:8000   (docs at /docs, readiness at /health)
-#   Frontend  http://localhost:5173
+#   Frontend  http://localhost:5173   (Brand Studio at http://localhost:5173/studio/)
 #
 # Required variables use ${VAR:?message}: compose refuses to start when one is missing (fail fast, no default secrets).
 # Local development extras (published db/redis ports, debug logging):
@@ -143,6 +143,20 @@ services:
     depends_on:
       api:
         condition: service_healthy
+      studio:
+        condition: service_started   # nginx proxies /studio/ to it
+    security_opt:
+      - no-new-privileges:true
+
+  # Brand Studio: static build served under /studio/. Not published on its own: the frontend nginx proxies /studio/ to it, so the
+  # browser sees one origin (shared login). It needs no environment variables and no keys.
+  studio:
+    build:
+      context: ./studio
+    image: brandshield-studio:local
+    restart: unless-stopped
+    expose:
+      - "8080"
     security_opt:
       - no-new-privileges:true
 

@@ -1,8 +1,10 @@
-# Deploy BrandShield on Vercel (one project, two services, one domain)
+# Deploy BrandShield on Vercel (one project, three services, one domain)
 
 **One Vercel project** from this GitHub repository, declared as *Vercel Services* in the **root `vercel.json`**: a `backend` service
-(FastAPI, `backend/`) and a `frontend` service (React + Vite, `frontend/`) behind **one domain**. The browser only ever talks to
-that one origin: `/api/*` goes to the backend, everything else to the frontend. The database stays on Supabase. Everything here is
+(FastAPI, `backend/`), a `frontend` service (React + Vite, `frontend/`) and a `studio` service (Brand Studio, React + Vite,
+`studio/`, served under `/studio/`) behind **one domain**. The browser only ever talks to that one origin: `/api/*` goes to the
+backend, `/studio` and `/studio/*` to Brand Studio, everything else to the frontend. Because Studio is on the same origin it shares
+the BrandShield login (`localStorage` keys `scammind.auth` / `scammind.user`). The database stays on Supabase. Everything here is
 **additive**: with no Vercel environment present, nothing changes (Docker, CI, local runs, tests behave as before).
 
 > **The deployment itself is UNVERIFIED.** Services are a **Beta** feature. The configuration was validated against Vercel's JSON
@@ -66,6 +68,12 @@ that one origin: `/api/*` goes to the backend, everything else to the frontend. 
 * **Top-level `headers` on responses that come from a service** (security headers, `Cache-Control` for `/assets/*` and `/config.js`).
   The docs say top-level headers stay top level and own public URL behaviour; they do not spell out that they apply to responses
   produced by a service. `vercel dev -L` did not show them.
+* **The `studio` service.** Built on the same documented pieces as `frontend`, but not deployed. Two assumptions: (1) the service
+  receives the full `/studio/...` path (the docs say no prefix is stripped) while Studio's build output (`dist/`, built with Vite
+  `base: '/studio/'`) has no `studio` folder, so the service-level `rewrites` map `/studio/assets/*` and `/studio/<file.ext>` back to
+  `/$1` and serve `/index.html` for client routes; whether service rewrites can point at static files like this is not shown in the
+  docs; (2) the same open questions as the `frontend` SPA fallback above. If Studio assets 404 after deploying, this is the first
+  place to look (alternative: build Studio with `build.outDir: dist/studio`).
 * How environment variables are shared between services (the docs only say services share "environment variables"). This guide
   assumes project variables reach the backend function; the frontend needs no build-time variable.
 * Service request limits and pricing beyond "same as Vercel Functions".
@@ -83,13 +91,15 @@ that one origin: `/api/*` goes to the backend, everything else to the frontend. 
 |---|---|
 | `services.backend` | `root: backend`, `framework: fastapi`, `entrypoint: api.index:app`, and `functions` for `api/index.py` (`maxDuration` 300, `excludeFiles` for tests, scripts, `data/`, caches). Python 3.12 comes from `backend/.python-version`; the upload filter is `backend/.vercelignore`. |
 | `services.frontend` | `root: frontend`, `framework: vite` (build `npm run build`, output `dist`: the defaults), and a service-level `rewrites` entry that serves `/index.html` for client-side routes (`/dashboard`, `/protect-brand`, ...) but not for `/assets/*` or anything that looks like a file (`*.js`, `*.svg`, `/config.js`). |
-| `rewrites` (top level) | In this order: `/api/(.*)` -> backend, `/health` -> backend, `/health/live` -> backend, `/(.*)` -> frontend. |
+| `services.studio` | `root: studio`, `framework: vite`. Service-level `rewrites`: `/studio/assets/*` and `/studio/<file.ext>` map to the built file, other `/studio/...` paths serve `/index.html` (Studio's client routes). Studio needs **no environment variables and no keys**. |
+| `rewrites` (top level) | In this order: `/api/(.*)` -> backend, `/health` -> backend, `/health/live` -> backend, `/studio` and `/studio/(.*)` -> studio, `/(.*)` -> frontend. |
 | `crons` | `GET /api/cron/scan` daily at 06:00 UTC. It goes through the rewrite above to the backend, with the `Authorization: Bearer <CRON_SECRET>` header Vercel adds. |
-| `headers` (top level) | Security headers (CSP, HSTS, `X-Frame-Options`, ...) for every path, `Cache-Control: public, max-age=31536000, immutable` for `/assets/*`, `no-cache` for `/config.js` (moved from `frontend/vercel.json`). |
+| `headers` (top level) | Security headers (CSP, HSTS, `X-Frame-Options`, ...) for every path (also Studio: it only loads Google Fonts, already allowed by `style-src`/`font-src`; `connect-src 'self'` is unchanged because Studio calls the backend on the same origin), `Cache-Control: public, max-age=31536000, immutable` for `/assets/*` and `/studio/assets/*`, `no-cache` for `/config.js` (moved from `frontend/vercel.json`). |
 
 ### What is public and what is not
 * **Public**: `/api/*` (every API route, including `/api/health` and `/api/cron/scan`), `/health` and `/health/live` (the two
-  health routes the app serves outside `/api`; the Docker healthcheck and uptime monitors use them), and the whole frontend.
+  health routes the app serves outside `/api`; the Docker healthcheck and uptime monitors use them), Brand Studio under `/studio/`,
+  and the whole frontend.
 * **Not exposed on purpose**: FastAPI's `/docs`, `/redoc` and `/openapi.json`. They are not needed in production, and a request for
   them falls through to the frontend (which answers with the SPA page). To expose the API docs, add the rewrite
   `{ "source": "/(docs|openapi.json)", "destination": { "service": "backend" } }` **before** the catch-all.
@@ -154,7 +164,13 @@ request fails with a 500 and `/health` shows `migration` degraded.
 | `APP_ENV` | recommended | `production` |
 | `CRON_SECRET` | for scheduled scans | A random string of 16+ characters. Without it `/api/cron/scan` answers 503 and nothing runs. |
 | `TAVILY_API_KEY`, `GEMINI_API_KEY`, `GOOGLE_SAFE_BROWSING_API_KEY` | optional | Same meaning as in `backend/.env.example` |
+| `GROQ_API_KEY`, `STUDIO_HF_API_KEY` | optional | Brand Studio AI (text and images), read by the backend only; without them the Studio AI buttons report "not configured" |
 | `SCAN_INTERVAL_MINUTES` | optional | `1440` for daily (the Settings page value is used when unset) |
+
+   **Brand Studio needs no variables and no keys.** The AI keys it uses (`GROQ_API_KEY`, `STUDIO_HF_API_KEY`, `GEMINI_API_KEY`) are
+   **backend** variables: add them here, in this one project's environment, where only the backend reads them (see
+   `docs/STUDIO.md` for what each one enables). They must never be given a `VITE_` prefix, which would put them in the browser build.
+   Leave `VITE_STUDIO_URL` unset too (Studio is on the same origin).
 
    **Leave `VITE_API_URL` UNSET**: the frontend then calls relative `/api/...` on the same domain. **`CORS_ORIGINS` is not needed**
    on Vercel with one project; set it only for local development or another frontend host. Do **not** set `STORAGE_BACKEND`,

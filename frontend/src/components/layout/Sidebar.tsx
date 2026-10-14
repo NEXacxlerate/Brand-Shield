@@ -16,8 +16,10 @@ import {
   Globe,
   SearchCheck,
   FlaskConical,
+  Palette,
 } from 'lucide-react';
 import { useBrand } from '../../hooks/useBrand';
+import { STUDIO_URL } from '../../utils/studio';
 import './Layout.css';
 
 interface SidebarProps {
@@ -157,6 +159,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
           <FlaskConical size={19} strokeWidth={1.8} />
           <span>Model Evaluation</span>
         </NavLink>
+        {/* Brand Studio is a separate app on the same origin (full page load, same login) */}
+        <a href={STUDIO_URL} className="nav-item" onClick={onClose}>
+          <Palette size={19} strokeWidth={1.8} />
+          <span>Brand Studio</span>
+        </a>
       </nav>
 
       {/* Spacer */}

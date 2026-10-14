@@ -63,6 +63,7 @@ export function qs(params: Query): string {
 export const sm = {
   // ---- auth / me
   login: authApi.login,
+  register: authApi.register,
   logout: authApi.logout,
   me: (signal?: Sig) => request<Me>('/api/me', { signal }),
 

@@ -131,10 +131,33 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+  test-studio:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: studio/package-lock.json
+      - name: Install
+        working-directory: studio
+        run: npm ci
+      - name: Type-check
+        working-directory: studio
+        run: npx tsc --noEmit
+      - name: Vitest
+        working-directory: studio
+        run: npx vitest run
+      - name: Build
+        working-directory: studio
+        run: npm run build
+
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: [test-server, test-frontend]
+    needs: [test-server, test-frontend, test-studio]
     env:
       E2E_PYTHON: python
     steps:
@@ -175,7 +198,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: [lint, test-server, test-frontend]
+    needs: [lint, test-server, test-frontend, test-studio]
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -187,6 +210,14 @@ jobs:
           tags: brandshield-server:ci
           cache-from: type=gha,scope=server
           cache-to: type=gha,scope=server,mode=max
+      - name: Build studio image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./studio
+          push: false
+          tags: brandshield-studio:ci
+          cache-from: type=gha,scope=studio
+          cache-to: type=gha,scope=studio,mode=max
       - name: Build frontend image (no push)
         uses: docker/build-push-action@v6
         with:

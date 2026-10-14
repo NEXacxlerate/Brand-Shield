@@ -21,6 +21,24 @@
           "destination": "/index.html"
         }
       ]
+    },
+    "studio": {
+      "root": "studio",
+      "framework": "vite",
+      "rewrites": [
+        {
+          "source": "/studio/(assets/.*|.*\\.[A-Za-z0-9]+)",
+          "destination": "/$1"
+        },
+        {
+          "source": "/studio",
+          "destination": "/index.html"
+        },
+        {
+          "source": "/studio/((?!assets/|.*\\.[A-Za-z0-9]+$).*)",
+          "destination": "/index.html"
+        }
+      ]
     }
   },
   "rewrites": [
@@ -40,6 +58,18 @@
       "source": "/health/live",
       "destination": {
         "service": "backend"
+      }
+    },
+    {
+      "source": "/studio",
+      "destination": {
+        "service": "studio"
+      }
+    },
+    {
+      "source": "/studio/(.*)",
+      "destination": {
+        "service": "studio"
       }
     },
     {
@@ -87,6 +117,15 @@
     },
     {
       "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/studio/assets/(.*)",
       "headers": [
         {
           "key": "Cache-Control",

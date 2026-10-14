@@ -2,10 +2,16 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShieldCheck, Sparkles, Lock, ArrowRight } from 'lucide-react';
 import { BrandMark, Wordmark } from '../components/common/BrandMark';
+import { openStudio } from '../utils/studio';
 import './ProtectBrandPage.css';
 
 export const ProtectBrandPage: React.FC = () => {
   const navigate = useNavigate();
+
+  // "Create a Brand" opens Brand Studio (separate app, same origin, same login). The brand made there is registered in BrandShield from Studio.
+  const handleCreateBrand = () => {
+    openStudio();
+  };
 
   const handleProtectBrand = () => {
     navigate('/setup');
@@ -35,7 +41,7 @@ export const ProtectBrandPage: React.FC = () => {
 
         {/* Action Cards Grid */}
         <div className="protect-brand-grid">
-          {/* Option 1: Create a Brand (UI-only, no functionality attached) */}
+          {/* Option 1: Create a Brand (opens Brand Studio at /studio/) */}
           <div className="protect-card card-create" data-testid="card-create-brand">
             <div className="protect-card-content">
               <div className="card-icon-box box-purple">
@@ -44,7 +50,7 @@ export const ProtectBrandPage: React.FC = () => {
 
               <div className="card-body">
                 <h2 className="card-title">Create a Brand</h2>
-                <p className="card-description">Set up a new brand profile.</p>
+                <p className="card-description">Design a new brand in Brand Studio.</p>
               </div>
 
               <div className="card-button-wrap">
@@ -53,6 +59,7 @@ export const ProtectBrandPage: React.FC = () => {
                   className="btn-card-create"
                   aria-label="Create a Brand"
                   data-testid="btn-create-brand"
+                  onClick={handleCreateBrand}
                 >
                   Create a Brand
                 </button>

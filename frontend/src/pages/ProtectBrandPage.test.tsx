@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -16,6 +16,10 @@ function renderProtectBrand() {
   );
 }
 
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 describe('ProtectBrandPage', () => {
   it('renders the heading, subtitle, and branding elements', () => {
     renderProtectBrand();
@@ -24,18 +28,19 @@ describe('ProtectBrandPage', () => {
     expect(screen.getByText(/enterprise security verified/i)).toBeInTheDocument();
   });
 
-  it('renders "Create a Brand" card and button as UI-only without navigation or side effects', async () => {
+  it('"Create a Brand" opens Brand Studio at /studio/ with a full-page navigation', async () => {
+    const assign = vi.fn();
+    vi.stubGlobal('location', { ...window.location, assign });
     renderProtectBrand();
     expect(screen.getByRole('heading', { level: 2, name: /create a brand/i })).toBeInTheDocument();
-    expect(screen.getByText(/set up a new brand profile/i)).toBeInTheDocument();
-
-    const createBtn = screen.getByTestId('btn-create-brand');
-    expect(createBtn).toBeInTheDocument();
+    expect(screen.getByText(/design a new brand in brand studio/i)).toBeInTheDocument();
 
     const user = userEvent.setup();
-    await user.click(createBtn);
+    await user.click(screen.getByTestId('btn-create-brand'));
 
-    // Verify no navigation happened: still on the same page
+    expect(assign).toHaveBeenCalledTimes(1);
+    expect(assign).toHaveBeenCalledWith('/studio/');
+    // no client-side navigation happened
     expect(screen.queryByTestId('setup-destination')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1, name: /protect your brand/i })).toBeInTheDocument();
   });

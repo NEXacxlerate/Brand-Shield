@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { BrandMark, Wordmark } from '../components/common/BrandMark';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Target, Users, Database, Lock, Check } from 'lucide-react';
 import { ApiError } from '../api/client';
 import { sm } from '../api/sm';
 import '../components/common/States.css';
 import './LoginPage.css';
+import './RegisterPage.css';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -179,6 +180,10 @@ export const LoginPage: React.FC = () => {
             <button type="submit" className="btn-primary auth-submit-btn" disabled={busy}>
               {busy ? 'Signing in…' : 'Sign in →'}
             </button>
+
+            <p className="auth-switch">
+              New here? <Link to="/register">Create an account</Link>
+            </p>
 
             <div className="auth-audit-notice">
               <Lock size={15} className="notice-lock-icon" />

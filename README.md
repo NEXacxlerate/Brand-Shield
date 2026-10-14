@@ -8,8 +8,20 @@ automatically.**
 * `backend/` FastAPI + SQLAlchemy 2 + Alembic API, detection engine, collectors, RQ worker (this is the product backend)
 * `frontend/` React + TypeScript + Vite app (10 screens + evaluation view)
 * `docs/` decisions, API contract, collectors, dependencies and licenses, Definition-of-Done audit
-* **[Deploy on Vercel](docs/DEPLOY_VERCEL.md)**: backend and frontend as one Vercel project (Services, one domain) with Supabase (step by step, limits, troubleshooting).
+* `studio/` Brand Studio (React + Vite), a separate app served at `/studio/` on the same origin; see **[docs/STUDIO.md](docs/STUDIO.md)**.
+* **[Deploy on Vercel](docs/DEPLOY_VERCEL.md)**: backend, frontend and Brand Studio as one Vercel project (Services, one domain) with Supabase (step by step, limits, troubleshooting).
 * **[User guide](docs/USER_GUIDE.md)**: install, sign in, every page with sample inputs, scoring, credits and troubleshooting (written for non-developers as well as the operator). What is verified on real data and what is not: **[docs/FEATURE_STATUS.md](docs/FEATURE_STATUS.md)**.
+
+## The user flow
+
+1. **Create account** (`/register`) or **Sign in** (`/login`). One login serves BrandShield and Brand Studio (the same JWT session).
+2. You land on **Protect Your Brand** (`/protect-brand`).
+3. **Create a Brand** opens **Brand Studio** (`/studio/`): design the brand there and register it in BrandShield from Studio. Every account owns its own brand.
+   **Protect a Brand** goes to BrandShield's `/setup` for a brand you already have.
+4. BrandShield then scans for look-alike profiles, pages and apps for that brand. The sidebar has a **Brand Studio** link back.
+
+Development: BrandShield's Vite dev server proxies `/studio` to the Studio dev server (port 3000), see `frontend/README.md`.
+Deployment: [docs/DEPLOY_VERCEL.md](docs/DEPLOY_VERCEL.md) (three Vercel services, one domain) or Docker Compose (the frontend nginx proxies `/studio/` and `/api/`).
 
 ## Architecture
 

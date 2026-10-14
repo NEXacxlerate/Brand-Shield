@@ -124,8 +124,30 @@ To leave: click your name (top right) and choose **Sign out**.
 | **analyst** | Everything a viewer can, plus run scans, edit the brand profile, review detections, make reports, run the Look-alike test cases. |
 | **admin** | Everything an analyst can, plus Settings, the data mode, the Look-alike test-case list, health details. |
 
-The first admin is created from `backend\.env`. **The app has no screen to add other users** yet; ask your developer to add them.
+The first admin is created from `backend\.env`. Other people create their own account (next section).
 "Forgot password?" is not available: ask the administrator.
+
+### 3.1 Create account
+
+On the Sign in page choose **New here? Create an account** (`/register`). Enter your name, work email and a password, type the password
+again, and press **Create account**. You are signed in at once and taken to **Protect Your Brand**. The eye button shows or hides the password.
+
+The password rules are listed under the field and turn green as you meet them: at least 10 characters (at most 72 bytes), not all digits,
+at least 5 different characters, not a very common password, and not your name or email. The same login works in Brand Studio.
+
+| Message | Meaning |
+|---|---|
+| **An account with this email already exists.** | Sign in instead (or use another address). |
+| **Too many sign-up attempts. Try again in N seconds.** | Limit of 5 sign-ups per network address and 3 per email per hour. |
+| **Sign-up is disabled** | The operator switched sign-up off: ask your administrator for an account. |
+
+New accounts are **analysts** and own their own brand. There is no email verification, so the address is not proven.
+
+### 3.2 Protect Your Brand and Brand Studio
+
+After signing in you see **Protect Your Brand** with two cards. **Create a Brand** opens **Brand Studio** (`/studio/`, same login): design
+the name, logo and colours, then register the brand in BrandShield from there. **Protect a Brand** opens BrandShield's **Setup** page for a
+brand you already have. Once a brand exists, the **Brand Studio** entry in the sidebar takes you back to Studio at any time.
 
 ---
 

@@ -224,12 +224,27 @@ async function readJson(res: Response): Promise<unknown> {
 type RefreshResult = 'ok' | 'denied' | 'network';
 let refreshing: Promise<RefreshResult> | null = null;
 
-/** Single-flight token refresh. Exported for tests. */
-export function refreshTokens(): Promise<RefreshResult> {
+export const REFRESH_LOCK = 'scammind-refresh';
+
+/** Run `fn` while holding the cross-tab, cross-app refresh lock (Web Locks API); runs it directly where the API is missing. */
+function withRefreshLock<T>(fn: () => Promise<T>): Promise<T> {
+  const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined;
+  return locks && typeof locks.request === 'function' ? locks.request(REFRESH_LOCK, fn) : fn();
+}
+
+/**
+ * Single-flight token refresh (one per tab), serialised across tabs and across BrandShield / Brand Studio with a Web Lock.
+ * `failedAccess` is the access token the failing request used: if the stored tokens changed while we waited for the lock,
+ * another tab or app already rotated them, so the caller just retries with the new token and no refresh is sent.
+ * Exported for tests.
+ */
+export function refreshTokens(failedAccess?: string | null): Promise<RefreshResult> {
   if (refreshing) return refreshing;
-  const t = session.tokens();
-  if (!t) return Promise.resolve('denied');
-  const p: Promise<RefreshResult> = (async (): Promise<RefreshResult> => {
+  if (!session.tokens()) return Promise.resolve('denied');
+  const p: Promise<RefreshResult> = withRefreshLock(async (): Promise<RefreshResult> => {
+    const t = session.tokens(); // re-read INSIDE the lock
+    if (!t) return 'denied';
+    if (failedAccess && t.access !== failedAccess) return 'ok';
     try {
       const res = await fetch(`${BASE_URL}/api/auth/refresh`, {
         method: 'POST',
@@ -246,7 +261,7 @@ export function refreshTokens(): Promise<RefreshResult> {
     } catch {
       return 'network';
     }
-  })().finally(() => {
+  }).finally(() => {
     if (refreshing === p) refreshing = null;
   });
   refreshing = p;
@@ -308,7 +323,7 @@ async function authedFetch(path: string, o: RequestOptions<unknown>): Promise<Re
     if (current && current !== used) {
       ok = true; // another request already rotated the tokens while this one was in flight
     } else {
-      const r = await refreshTokens();
+      const r = await refreshTokens(used);
       if (r === 'network') {
         setOffline(true);
         throw new ApiError(0, NETWORK_ERROR_MESSAGE);

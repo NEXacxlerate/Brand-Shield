@@ -1,0 +1,32 @@
+/* Create account page: reuses the Login page layout (LoginPage.css); only the extras live here. */
+.pw-field { position: relative; display: flex; }
+.pw-field .form-input { width: 100%; padding-right: 46px; }
+.pw-toggle {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  width: 38px; height: 38px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center;
+  color: #a3a6b8; background: transparent; border: 0; cursor: pointer;
+}
+.pw-toggle:hover { color: #ffffff; background: rgba(255, 255, 255, 0.06); }
+
+.field-error { font-size: 12.5px; color: #ff8a98; }
+.form-input[aria-invalid='true'] { border-color: rgba(240, 86, 106, 0.6); }
+
+.pw-hints { list-style: none; margin: 2px 0 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.pw-hint { display: flex; align-items: center; gap: 8px; font-size: 12.5px; line-height: 1.4; color: #8a8d9f; }
+.pw-hint svg { flex-shrink: 0; }
+.pw-hint.ok { color: #34d399; }
+.pw-hint.bad { color: #ff8a98; }
+
+.auth-switch { font-size: 14px; color: #a3a6b8; text-align: center; margin: 2px 0 0; }
+.auth-switch a { color: #8b9bff; font-weight: 600; text-decoration: none; }
+.auth-switch a:hover { text-decoration: underline; }
+
+/* Light mode */
+:root[data-theme='light'] .pw-toggle { color: var(--text-muted); }
+:root[data-theme='light'] .pw-toggle:hover { color: var(--text-main); background: rgba(0, 0, 40, 0.06); }
+:root[data-theme='light'] .field-error,
+:root[data-theme='light'] .pw-hint.bad { color: var(--red-text); }
+:root[data-theme='light'] .pw-hint { color: var(--text-muted); }
+:root[data-theme='light'] .pw-hint.ok { color: #0f8a5f; }
+:root[data-theme='light'] .auth-switch { color: var(--text-muted); }
+:root[data-theme='light'] .auth-switch a { color: var(--accent); }

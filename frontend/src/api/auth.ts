@@ -14,6 +14,12 @@ export const authApi = {
     session.save(tokens, r.user, persist);
     return r.user;
   },
+  /** Self-service sign-up (POST /api/auth/register). Stores the session exactly like login: the new user is signed in at once. */
+  async register(name: string, email: string, password: string, persist = true): Promise<ApiUser> {
+    const r = await request<TokenResponse>('/api/auth/register', { method: 'POST', json: { name, email, password }, anonymous: true });
+    session.save({ access: r.access_token, refresh: r.refresh_token }, r.user, persist);
+    return r.user;
+  },
   async logout(): Promise<void> {
     const t = session.tokens();
     try {
