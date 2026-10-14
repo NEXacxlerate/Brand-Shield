@@ -188,3 +188,35 @@ Licenses read from the installed metadata (`importlib.metadata`) on 2026-10-14:
 | ImageHash | 4.3.2 | BSD-2-Clause | `engine/image_hashes.py::ImageHashSimilarity`, optional | **Heavy:** needs numpy 2.5.4 (BSD-3-Clause and others, ~54 MB), scipy 1.18.1 (BSD, ~135 MB), PyWavelets 1.10.0 (MIT / BSD-3-Clause, ~9 MB): about 200 MB installed. So the default image code implements pHash, dHash, a Haar low-pass wHash and a colour hash locally over Pillow; ImageHash stays optional |
 
 The Anthropic option and its optional `anthropic` package were removed in E5 (the owner does not use that API). No GPL/AGPL package was added.
+
+## Brand Studio (`studio/`)
+
+Licenses read from the installed `package.json` metadata in `studio/node_modules` (npm, lockfile `studio/package-lock.json`) on 2026-10-14. 263 packages in total; the direct ones are below. Removed with the move to the BrandShield backend: `firebase`, `@google/genai`, `@huggingface/inference`, `express`, `better-sqlite3`, `dotenv`, `tsx`, `@types/express`, `autoprefixer`, `rollup` (a stray direct dependency; Vite brings its own).
+
+| Package | Version | License | Kind |
+|---|---|---|---|
+| react, react-dom | 19.3.0 | MIT | runtime |
+| react-markdown | 10.1.0 | MIT | runtime |
+| motion | 12.43.0 | MIT | runtime |
+| lucide-react | 0.546.0 | ISC | runtime |
+| chart.js | 4.5.1 | MIT | runtime |
+| react-chartjs-2 | 5.3.1 | MIT | runtime |
+| clsx | 2.1.1 | MIT | runtime |
+| tailwind-merge | 3.7.0 | MIT | runtime |
+| tailwindcss, @tailwindcss/vite | 4.3.3 | MIT | build |
+| vite | 6.4.4 | MIT | build |
+| @vitejs/plugin-react | 5.2.0 | MIT | build |
+| typescript | 5.8.3 | Apache-2.0 | dev |
+| @types/node | 22.20.5 | MIT | dev (types only) |
+| vitest | 3.2.7 | MIT | dev (tests) |
+| @testing-library/react | 16.3.3 | MIT | dev (tests) |
+| @testing-library/jest-dom | 6.9.1 | MIT | dev (tests) |
+| jsdom | 26.1.0 | MIT | dev (tests) |
+
+Transitive licences across all 263 packages: MIT 234, ISC 10, Apache-2.0 6 (aria-query, baseline-browser-mapping, detect-libc, expect-type, typescript, xml-name-validator), BSD-2-Clause 2, BSD-3-Clause 2, MPL-2.0 2, MIT-0 1, 0BSD 1, CC-BY-4.0 1, plus 71 optional platform binaries that are not installed on every OS (esbuild, rollup, lightningcss, tailwind oxide: MIT or MPL-2.0).
+
+Needs review (non-permissive, none is a copyleft problem for this use):
+- `lightningcss` 1.x (and its platform binary): **MPL-2.0**, file-level weak copyleft, pulled in by Tailwind v4 / Vite at BUILD time only. It is not shipped in the browser bundle, and we do not modify it.
+- `caniuse-lite`: **CC-BY-4.0** (browser-support data used by the build tooling, not shipped). Attribution is required if the data itself is redistributed; it is not.
+
+No GPL or AGPL package is present.

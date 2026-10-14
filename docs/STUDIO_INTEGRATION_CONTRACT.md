@@ -1,6 +1,6 @@
 # Brand Studio integration contract (for the frontend agents)
 
-One login for BrandShield and Brand Studio: the BrandShield JWT. Studio is a separate app served at `/studio` on the **same origin** as BrandShield and calls this backend with relative URLs (`/api/...`). Full detail is in `docs/API.md` section 23; this page is the short, precise version. Nothing here needs Firebase, `VITE_GROQ_API_KEY`, `VITE_HF_API_KEY` or `VITE_FIREBASE_*` any more.
+One login for BrandShield and Brand Studio: the BrandShield JWT. Studio (the `studio/` folder, see `docs/STUDIO.md`) is a separate app served at `/studio/` on the **same origin** as BrandShield and calls this backend with relative URLs (`/api/...`). Full detail is in `docs/API.md` section 23; this page is the short, precise version. Nothing here needs Firebase, `VITE_GROQ_API_KEY`, `VITE_HF_API_KEY` or `VITE_FIREBASE_*` any more.
 
 ## 1. Auth
 
@@ -107,7 +107,7 @@ or, for `422` validation, `{"detail": [{"loc": ["body", "email"], "msg": "...", 
 | 413 / 415 | file or JSON too large / wrong file type |
 | 422 | validation |
 | 429 | rate limit or daily AI allowance reached; honour `Retry-After` (seconds) when present |
-| 502 / 503 | the AI provider failed / is not configured / ran out of credits: the `detail` is safe to show to the user |
+| 502 / 503 | the AI provider failed / is not configured / ran out of credits: the `detail` is safe to show to the user. A provider `402` (credits exhausted) reaches the browser as **`503` "The AI service has run out of credits..."**, never as `402`; the Studio treats both as "image generation unavailable" and offers manual logo upload |
 | 500 | `{"detail": "Internal server error"}` |
 
 Network failure (no HTTP answer) is a client-side error ("Cannot reach the server...").
@@ -118,3 +118,12 @@ Network failure (no HTTP answer) is a client-side error ("Cannot reach the serve
 - Never store the tokens under other keys, and never log them.
 - Never assume a brand id from another account works: always use `default_brand_id` from `GET /api/me` or the id returned by `GET /api/brands`.
 - Never treat `404` on `/api/studio/items/{id}` as "retry later": the item is gone or not yours.
+
+## 8. What the Studio implements (`studio/src/lib`)
+
+- `session.ts` / `api.ts` copy the rules of `frontend/src/api/client.ts`: same storage keys and lookup order, Bearer header, one refresh per 401 with rotation, single flight per tab, and across tabs and apps `navigator.locks.request('scammind-refresh', ...)` (inside the lock the stored tokens are re-read; changed since the failing request means retry with them, otherwise refresh and store). Without Web Locks only the per-tab single flight remains. **For the same guarantee BrandShield's `client.ts` must take the same lock name around its own refresh.** A rejected refresh clears both keys and goes to `/login?next=/studio/`; a 5xx during refresh keeps the session.
+- `GET /api/brands` returns a plain array of `{id, name, ...}` (the caller's active brand first and only, one per account); the 409 flow uses `list[0]`.
+- Open point for the BrandShield login page: `/login?next=/studio/` is only useful if `LoginPage` navigates to `next` (same origin paths only, never an absolute URL) after sign-in. At the time of writing it always goes to `/protect-brand`.
+- Studio sign-out revokes the refresh token with `POST /api/auth/logout`, then clears both keys and goes to `/login`.
+- A logo that is picked in Studio (saved item or upload) is normalised in the browser to a 512 x 512 PNG when it violates the logo rules (type stays PNG/JPEG/WebP, <= 2 MB, >= 256 px, ratio 0.8..1.25) before `POST /api/brands/{id}/logo`; the server rules stay authoritative (`413/415/422` are shown).
+- Item pictures are fetched as blobs with the Authorization header and shown through object URLs.
