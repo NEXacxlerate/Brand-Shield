@@ -15,7 +15,7 @@ This started as a **proposed** contract. Phases 1, 3 and 4 have since built most
 
 - Base URL: `VITE_API_URL` (default `http://127.0.0.1:8000`). All paths start with `/api`.
 - JSON, UTF-8. Timestamps ISO-8601 UTC with `Z` (`"2026-10-12T11:58:00Z"`). The UI formats them (e.g. "12 Oct, 11:58 AM"). Durations as integers.
-- `brand_id`: collection endpoints accept optional `?brand_id=`; default is `me.default_brand_id`. Single brand per org assumed (open question).
+- `brand_id`: collection endpoints accept optional `?brand_id=`; default is `me.default_brand_id`, the signed-in user's OWN brand. Every account owns its own brand and workspace; another account's id is a 404 (section 23.2).
 - Pagination (list endpoints that can grow): `?limit=50&offset=0` (max limit 200); response includes `total`.
 - Enum wire values are **lowercase snake_case**; the UI maps them to labels (tables in section 3).
 - IDs: integers for brands/accounts/apps/sources/reports; detections use string ids `det_<n>` or integers (pick one; examples use integers). Frontend store today uses strings like `det-1`; any opaque id works.
@@ -106,13 +106,8 @@ Request `{ "email": "..." }` Response `{ "ok": true, "detail": "If the account e
 ### POST /api/auth/reset  [CALLED: `authApi.reset`, no page] [EXISTS]  anonymous
 Request `{ "token": "...", "new_password": "..." }` (min 8). Response `{ "ok": true, "detail": "Password updated" }`. No reset UI exists yet.
 
-### POST /api/auth/register  [NEW for Setup page: "New organization? Set up your brand profile"] [EXISTS in backend, old shape]  anonymous
-Creates the organization, first admin user and an empty brand so the Setup wizard can run.
-Request:
-```json
-{ "name": "Harini", "email": "admin@company.com", "password": "...", "organization": "Acme Bank" }
-```
-Response 201: same token payload as login (user.default_brand_id set to the new brand). 409 if email exists.
+### POST /api/auth/register  anonymous  [EXISTS, see section 23.1 (authoritative)]
+Self-service sign-up ("Create account"). Creates an `analyst` user and returns the login payload. The old `organization` field is gone: the user creates their own brand afterwards (`POST /api/brands`).
 
 ---
 
@@ -1075,3 +1070,99 @@ Writers = analyst or admin. Viewers get 403 on every write.
 - **Resolution.** Migration 0007 adds `detections.resolution` (nullable). `POST /api/detections/{id}/resolution` (writer) `{resolution: true_positive|false_positive|resolved|monitoring, note}` returns the detail plus `audit_id`. It does not change `status`, adds an event (`kind: resolution`) to `history`, and is audited as `detection.resolution_set`. `GET /api/detections?resolution=` filters; rows and detail carry `resolution`. `severity` is already on every row and detail.
 - **Evaluation.** `GET /api/evaluation` -> `synthetic` also has `confusion {matrix{tp,fp,fn,tn}, false_positive_rate, false_negative_rate, accuracy, total_cases, negative_groups[{group,n,flagged,false_positive_rate}]}`, `dataset {name, version, size, synthetic: true, banner, split}`, `algorithm_version {social_app, web}` and `ml_classifier` ("deferred until labelled analyst data exists"). The top level adds `by_category[{category,total,confirmed,dismissed,precision}]` from reviewer decisions. Negative groups: `hard_negative`, `fan_page`, `authorized_reseller`, `unrelated`. There is no train/test split (nothing is trained), so no variants can leak. Authorized-reseller names are flagged by a name-only matcher (known limit; the allowlist clears real ones).
 - **Rate limit.** Every `/api/*` request counts against `API_RATE_LIMIT_PER_MINUTE` (default 600; 0 = off) per client IP and per token; over the limit -> `429 {detail}` with `Retry-After: 60`. In memory, single process. `/health*` is exempt. See `docs/SECURITY.md`.
+
+## 23. Accounts, tenant separation and Brand Studio (authoritative, Oct 2026)
+
+Overrides anything above that assumes one organisation, one shared brand or a shared audit log.
+
+### 23.1 Sign-up
+
+`POST /api/auth/register` (public)
+
+```json
+{ "name": "Rita Shah", "email": "rita@company.com", "password": "at least 10 characters" }
+```
+
+Response **201**: exactly the login payload `{access_token, refresh_token, token_type: "bearer", expires_in, user: {id, name, email, role: "analyst", active: true, default_brand_id: null}}`, so the client is signed in at once.
+
+| Rule | Detail |
+|---|---|
+| `name` | trimmed, inner spaces collapsed, control characters removed, 1 to 80 characters |
+| `email` | valid; trimmed and lower-cased; unique. A duplicate is `409 {"detail": "An account with this email already exists."}` (nothing more is revealed) |
+| `password` | at least 10 characters, at most 72 bytes (bcrypt), not all digits, at least 5 different characters, not on a short list of trivial passwords (`password1234`, `qwertyuiop`, ...), not equal to the name, the email or its local part. A refusal is a normal `422` whose `msg` is a plain sentence; the password is never echoed |
+| role | always `analyst` (can create and own a brand; admin-only features stay admin-only) |
+| `SIGNUP_ENABLED=false` | `403 {"detail": "Sign-up is disabled"}` |
+| rate limit | per client IP (`SIGNUP_MAX_PER_IP_PER_HOUR`, default 5) and per email (`SIGNUP_MAX_PER_EMAIL_PER_HOUR`, default 3), both per hour: `429 {"detail": "Too many sign-up attempts. Try again later."}`. In memory, single process (with several workers each counts separately). Behind a proxy the client IP is the proxy's unless the platform rewrites it |
+| audit | `auth.registered` (actor = the new user) |
+| not included | **no email verification** and no password reset email: anyone can register any address they can type. See `docs/DECISIONS.md` |
+
+### 23.2 Ownership rules (tenant separation)
+
+- `brands.owner_id` is the account that created the brand. Every endpoint that accepts or resolves a brand, or an object that belongs to a brand, checks that **the signed-in user owns it**. This covers: brand CRUD, logo, extra logos, publishers, verification, accounts, apps, archive/restore, scans and jobs, detections (list, detail, evidence, screenshot, status, resolution, confirm/dismiss/keep-reviewing/mark-official, excluded, false-positives), dashboard, reports (list, preview, create, detail, preview, every export, approve), candidates (manual, import, images and `image_id`), Look-alike Lab (test, test-url, test-logo, test-urls, test cases, run), evaluation, the sensitivity preview (counts only the user's own detections) and the source retry (runs for the user's own brand).
+- **A foreign id is `404`, never `403`**, so existence does not leak (`Brand not found`, `Detection not found`, `Scan not found`, `Report not found`, `Image not found`, `Test case not found`, ...). The role check still comes first: an analyst calling an admin-only route gets `403` whatever the id.
+- **Admin has no cross-tenant access.** The admin owns a brand like anyone else and sees nothing of other accounts' brands or data.
+- With no `brand_id`, the default is the user's own non-archived brand; none yet: `404 {"detail": "No brand profile yet. Create one first."}` (starting a scan keeps its old `409 "Create the brand profile before scanning."`).
+- `GET /api/brands` lists only the caller's brands. `POST /api/brands` is `409 "A brand already exists. Edit it instead."` only when THIS user already has a non-archived brand; many users can each have one (even with the same name). `POST /api/brands/{id}/restore` (admin) is `409` only if the admin has another active brand.
+- `GET /api/me` / `/auth/me`: `default_brand_id` is the user's own brand (or `null`).
+- Look-alike test cases belong to a brand (`lookalike_cases.brand_id`): `GET/POST /api/lookalike/test-cases` accept `?brand_id=` (default own), the 12 built-in cases are written from that brand's name on first use, a rename rebuilds only that brand's built-in cases, and an admin-added case stays on that admin's brand.
+- **Audit log:** `GET /api/audit` and `/api/audit/export.csv` show a non-admin only the rows they caused (`actor_id` = them). The admin sees every row (including sign-ins, failed logins and scheduler rows). Filters cannot widen the scope.
+- **Scheduler and cron:** the scheduled pass scans every non-archived brand that is due (`started_by: "scheduler"`), oldest brand first, re-reading the shared credit-aware decision for each brand; it stops the whole pass when credits are low and starts at most `SCHEDULER_MAX_BRANDS_PER_RUN` (default 5) scans per pass. `GET /api/cron/scan` runs the same pass; its response is unchanged (`ran`, `skipped`, `reason`, `scan_id` = the newest scan id).
+- **Still global (shared by all accounts):** the data mode and every Settings value (admin-only writes), providers, source health, collector state and cache, the monthly credit counters, `GET /api/sources`, and the evaluation's synthetic benchmark. See `docs/DECISIONS.md`.
+- `viewer` accounts (created by an admin in the database) cannot create a brand, so they see an empty workspace.
+
+### 23.3 Migrations 0010 and 0011
+
+- **0010** `brands.owner_id` (FK users, nullable, indexed; every existing brand is given to the first admin), `lookalike_cases.brand_id` (FK brands, nullable, indexed; existing cases go to the first brand), and the unique index on built-in case names becomes `(brand_id, name)`. On SQLite `brands` is rebuilt with foreign keys switched off for that step, otherwise the rebuild would cascade-delete scans, detections and accounts. No table is added, so there is no new RLS to enable. Works on SQLite and PostgreSQL.
+- **0011** table `studio_items` (RLS enabled on PostgreSQL, like `stored_files`).
+
+### 23.4 Studio saved items (replaces Firebase `collections`)
+
+All signed-in users (any role), owner-only. The shape mirrors the Studio's `SavedItem`:
+
+```json
+{ "id": "17", "userId": "5", "type": "logo", "label": "Acme logo, Minimalist", "data": { "...": "free JSON" },
+  "url": "/api/studio/items/17/image", "timestamp": 1791990000000, "created_at": "2026-10-14T13:00:00Z" }
+```
+`id` and `userId` are strings, `timestamp` is milliseconds, `url` is `null` when there is no picture.
+
+| Call | Notes |
+|---|---|
+| `GET /api/studio/items?type=&limit=&offset=` | `type` one of `logo, palette, brand_name, content, audit, sentiment` (else 422); `limit` 1..500 (default 100); newest first. Returns `{total, limit, offset, items: [...]}` |
+| `POST /api/studio/items` | **JSON** `{type, label, data?, image_base64?}` (`image_base64` is raw base64 or a `data:image/...;base64,` URL) **or multipart/form-data** (`type`, `label`, `data` = JSON text, `file` = the picture). `201` with the item. Other content types: `415` |
+| `DELETE /api/studio/items/{id}` | `{ok: true}`; the picture file is removed when no other item of the user shares it |
+| `GET /api/studio/items/{id}/image` | the stored picture (`image/png|jpeg|webp`, `nosniff`, `Cache-Control: private`) |
+
+Limits: `label` 1..200 characters (422); `data` at most 64 KB as compact JSON (413); picture PNG/JPEG/WebP only, decoded and re-encoded, at most 2 MB (413/415/422, like every other upload), 32..6000 px; at most **500 items per user** (409). Another user's item is `404`, also for the admin.
+
+### 23.5 Studio AI proxy (the provider keys stay on the server)
+
+Signed-in users only (any role). The browser never needs `VITE_GROQ_API_KEY` / `VITE_HF_API_KEY` again.
+
+`POST /api/studio/ai/chat`
+```json
+{ "messages": [ {"role": "system", "content": "..."}, {"role": "user", "content": "..."} ],
+  "response_format": "json", "temperature": 0.8, "max_tokens": 2000 }
+```
+- `role`: `system | user | assistant | model` (`model` = the Studio's `ChatMessage` role); the text may be sent as `content` or `text`. `response_format`: `json` (default `text`): the answer is validated as JSON (a fenced or wrapped JSON answer is unwrapped; otherwise `502`) and returned as the JSON **text** exactly like the Studio's `groqChat`, so `JSON.parse(text)` keeps working. `temperature` 0..2 (default 0.7). `max_tokens` default and cap `STUDIO_MAX_TOKENS` (4096).
+- Response `200 {"text": "...", "provider": "groq" | "gemini", "model": "..."}`.
+- Provider: Groq (`STUDIO_GROQ_MODEL`, default `openai/gpt-oss-120b`, the model the Studio used); **Gemini (`GEMINI_MODEL`) is used when `GROQ_API_KEY` is missing or the Groq call fails** (401/402/429/5xx/timeout/unreadable answer).
+
+`POST /api/studio/ai/image` `{"prompt": "...", "size": "1024x1024"}` (sizes: `512x512 768x768 1024x1024 1024x768 768x1024 1280x720 720x1280`)
+- Response `200 {"image_base64", "data_url": "data:image/png;base64,...", "media_type": "image/png", "width", "height", "provider": "huggingface", "model"}`. `?format=png` returns the PNG bytes instead. The picture is decoded, size checked and **re-encoded as PNG** on the server. `data_url` is a drop-in for the Studio's old `hfGenerateImage` result.
+- Provider: the Hugging Face router (`https://router.huggingface.co/{STUDIO_IMAGE_ROUTE}`, default `fal-ai/fal-ai/qwen-image`, i.e. the `Qwen/Qwen-Image` model the Studio used, not FLUX). It needs Hugging Face Inference Providers credits; a result URL is only downloaded over https from `*.fal.media`, `*.fal.run`, `*.huggingface.co`, `*.hf.co`.
+
+`GET /api/studio/ai/status` -> `{chat: {configured, providers, used_today, daily_limit}, image: {configured, used_today, daily_limit, sizes}, limits: {...}}` (no secrets).
+
+| Safety | Detail |
+|---|---|
+| auth | `401` without a token |
+| request caps | at most `STUDIO_MAX_MESSAGES` (40) messages (422), `STUDIO_MAX_CHARS` (30000) characters in total (413), 12000 per message (422), `max_tokens` above the cap (422), image prompt at most `STUDIO_MAX_PROMPT_CHARS` (2000) (413) |
+| rate limit | `STUDIO_AI_RATE_PER_MINUTE` (20) per user, chat and image together: `429` with `Retry-After`. In memory, single process |
+| daily quota | `STUDIO_DAILY_TEXT_QUOTA` (200) and `STUDIO_DAILY_IMAGE_QUOTA` (50) per user per UTC day, kept in `api_usage` (survives restarts); `0` = unlimited; `429`. A call that fails at the provider gives its unit back |
+| timeouts and retries | `STUDIO_AI_TIMEOUT_SECONDS` (45) chat, `STUDIO_IMAGE_TIMEOUT_SECONDS` (120) image; up to `STUDIO_AI_MAX_RETRIES` (2) retries for timeouts, connection errors and 5xx only (never 401, 402, 429) |
+| response caps | provider answers are streamed and cut off at 512 KB (text) / 12 MB (image): `502` |
+| missing keys | `503 {"detail": "AI chat is not set up on the server."}` / `"Image generation is not set up on the server."`; placeholder values (`hf_xxx...`, `your_...`) count as missing |
+| provider errors | mapped, the provider's own text is never forwarded: 401/403 -> `503` "its key was rejected", 402 -> `503` "has run out of credits", 429 -> `429` "busy" (with its `Retry-After`), 400/422 -> `422`, 5xx/timeout -> `502` |
+| logging | only provider, status and duration; never prompts, answers or keys |
+
+Env names (values only in `backend/.env`): `GROQ_API_KEY`, `STUDIO_HF_API_KEY`, `GEMINI_API_KEY`, `STUDIO_GROQ_MODEL`, `STUDIO_IMAGE_MODEL`, `STUDIO_IMAGE_ROUTE`, and the limits above. Manual key check (not part of the tests): `python -m scripts.studio_ai_check`.
