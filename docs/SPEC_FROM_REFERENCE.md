@@ -8,7 +8,7 @@ Source: the artifact accompanying "The Imitation Game: Exploring Brand Impersona
 
 - The archive contains no LICENSE or COPYING file at any level (verified by filename search of the full listing).
 - Searching all files for "licen" found no license statement in the READMEs or the dependency manifest. The README gives only a citation request and a contact address.
-- Conclusion: no license is granted. Under default copyright, all of its code and data files are treated as OFF-LIMITS for reuse, copying or adaptation in ScamMind AI. Only the ideas and the public algorithms in section 11 may be used, implemented independently.
+- Conclusion: no license is granted. Under default copyright, all of its code and data files are treated as OFF-LIMITS for reuse, copying or adaptation in BrandShield. Only the ideas and the public algorithms in section 11 may be used, implemented independently.
 - The README itself says the toolkit is "not plug-and-play": it needs private API keys, a self-hosted document database and other dependencies.
 
 ## 1. The problem
@@ -114,12 +114,12 @@ Typo distance 1; fuzzy up to 2; minimum extra length 2; image threshold 0.80 (0.
 - Takedown is observed only as suspension, confounded by other detection.
 
 ## 7. Ethical notes
-- Data is public, but scraping may breach platform terms; ScamMind AI should use official APIs and user-supplied input.
+- Data is public, but scraping may breach platform terms; BrandShield should use official APIs and user-supplied input.
 - Generated squatted handles were only looked up, never registered; keep it so.
 - Lists may include fan or parody accounts; human review before accusing anyone.
 - Minimise and limit retention of personal data in bios and posts.
 
-## 8. What this means for ScamMind AI
+## 8. What this means for BrandShield
 
 Worth building:
 - Handle-vs-brand checker: edit distance 1 / 2 plus brand word-split presence, giving typo / combo / fuzzy labels with an explanation.
@@ -136,7 +136,7 @@ Skip or defer:
 - Takedown-measurement experiments (long-running monitoring).
 - Ranking-wide brand seeding; start with a small brand list.
 
-Differences: the research system is batch, offline and analyst-driven over millions of accounts; ScamMind AI is interactive and per-case, so it should give single-case explainable scores, avoid scraping and keep user data local. The paper's numbers are results on its own data, not targets; re-tune thresholds on our own labelled data.
+Differences: the research system is batch, offline and analyst-driven over millions of accounts; BrandShield is interactive and per-case, so it should give single-case explainable scores, avoid scraping and keep user data local. The paper's numbers are results on its own data, not targets; re-tune thresholds on our own labelled data.
 
 ## 9. Public algorithms freely implementable (information only)
 - Damerau-Levenshtein edit distance.
@@ -145,4 +145,4 @@ Differences: the research system is batch, offline and analyst-driven over milli
 - Frequency-based word segmentation by dynamic programming.
 
 ### Third-party packages the reference relies on (names only; all are on the normal public Python registry)
-apify client, scikit-learn, nltk, pymongo, tld, web3, seaborn, pyppeteer, validators, spacy, beautifulsoup4, selenium, webdriver-manager, rstr, cymruwhois, ipwhois, textdistance, wordninja, tweepy, pytube, youtube-search-python, sentence-transformers, hdbscan, umap, dill, bertopic. The image stage additionally uses an open CLIP loader and a conda-style environment file. The manifest lists a package literally named "umap", which on the registry is a different project from the dimensionality-reduction library (umap-learn); verify package names and licences independently before installing. Information only; ScamMind AI should choose and review its own dependencies.
+apify client, scikit-learn, nltk, pymongo, tld, web3, seaborn, pyppeteer, validators, spacy, beautifulsoup4, selenium, webdriver-manager, rstr, cymruwhois, ipwhois, textdistance, wordninja, tweepy, pytube, youtube-search-python, sentence-transformers, hdbscan, umap, dill, bertopic. The image stage additionally uses an open CLIP loader and a conda-style environment file. The manifest lists a package literally named "umap", which on the registry is a different project from the dimensionality-reduction library (umap-learn); verify package names and licences independently before installing. Information only; BrandShield should choose and review its own dependencies.

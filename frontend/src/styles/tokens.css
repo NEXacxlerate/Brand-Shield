@@ -480,5 +480,5 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   text-align: center;
 }
 
-/* Wordmark: "AI" in the accent colour, regular weight */
+/* Wordmark: "Shield" in the accent colour, regular weight */
 .wordmark-ai { color: var(--accent); font-weight: 600; }

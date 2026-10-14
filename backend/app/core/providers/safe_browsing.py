@@ -42,7 +42,7 @@ API_VERSION = "v4"
 ENDPOINT = "https://safebrowsing.googleapis.com/v4/threatMatches:find"
 MAX_URLS_PER_REQUEST = 500  # documented limit of threatMatches:find
 THREAT_TYPES = ["MALWARE", "SOCIAL_ENGINEERING", "UNWANTED_SOFTWARE", "POTENTIALLY_HARMFUL_APPLICATION"]
-CLIENT_ID = "scammind-ai"
+CLIENT_ID = "brandshield"
 CLIENT_VERSION = "1.0"
 CLEAN_NOTE = "No match in Google's Safe Browsing lists. This does not prove the site is safe."
 

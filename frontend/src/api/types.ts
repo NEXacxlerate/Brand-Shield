@@ -1,4 +1,4 @@
-// Wire types of the ScamMind server (docs/API.md section 18 is authoritative). Only fields the UI reads are listed.
+// Wire types of the BrandShield server (docs/API.md section 18 is authoritative). Only fields the UI reads are listed.
 
 export type Platform = 'instagram' | 'facebook' | 'x' | 'telegram' | 'linkedin' | 'youtube' | 'google_play' | 'app_store' | 'third_party_apk';
 export type DetectionType = 'fake_profile' | 'fake_brand_page' | 'scam_account' | 'fake_app';

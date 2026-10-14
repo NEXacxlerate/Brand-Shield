@@ -139,7 +139,7 @@ class UrlChecker:
                 with client.stream(
                     "GET",
                     pinned,
-                    headers={"Host": parts.netloc.split("@")[-1], "User-Agent": "ScamMindAI-LinkCheck/1.0"},
+                    headers={"Host": parts.netloc.split("@")[-1], "User-Agent": "BrandShield-LinkCheck/1.0"},
                     extensions={"sni_hostname": host},
                     timeout=self.timeout,
                 ) as resp:

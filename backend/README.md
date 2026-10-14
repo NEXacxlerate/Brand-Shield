@@ -1,4 +1,4 @@
-# ScamMind AI server (Phase 1: skeleton and data model)
+# BrandShield server (Phase 1: skeleton and data model)
 
 FastAPI + SQLAlchemy 2 + Alembic. PostgreSQL in production, SQLite for local and tests.
 Design decisions: `../docs/DECISIONS.md`. API contract: `../docs/API.md`. Licenses: `../docs/DEPENDENCIES.md`.

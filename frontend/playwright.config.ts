@@ -13,7 +13,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const API_PORT = Number(process.env.E2E_API_PORT || 8765);
 const WEB_PORT = Number(process.env.E2E_WEB_PORT || 5174);
 // This file is also loaded by the test worker: values created by the main process are inherited through the environment, never regenerated.
-const tmp = process.env.E2E_TMP_DIR ?? mkdtempSync(path.join(tmpdir(), 'scammind-e2e-'));
+const tmp = process.env.E2E_TMP_DIR ?? mkdtempSync(path.join(tmpdir(), 'brandshield-e2e-'));
 process.env.E2E_TMP_DIR = tmp;
 const serverDir = path.resolve(here, '..', 'backend');
 const python = process.env.E2E_PYTHON || path.join(serverDir, '.venv', process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python');

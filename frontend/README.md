@@ -1,4 +1,4 @@
-# ScamMind AI frontend
+# BrandShield frontend
 
 React + TypeScript + Vite. It talks to the FastAPI server in `../backend`.
 Screens: `/login`, `/setup`, `/dashboard`, `/brand`, `/social`, `/apps`, `/lookalike`, `/sources`, `/reports`, `/settings`, plus `/evaluation` (linked from Settings > Account).

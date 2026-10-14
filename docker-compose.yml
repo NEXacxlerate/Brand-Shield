@@ -1,4 +1,4 @@
-# ScamMind AI: api + worker + postgres + redis + frontend.
+# BrandShield: api + worker + postgres + redis + frontend.
 #
 #   cp .env.example .env     # then fill in the REQUIRED values (names only are committed; real values never are)
 #   docker compose up --build
@@ -71,7 +71,7 @@ services:
       context: ./backend
       args:
         INSTALL_EXTRAS: ${INSTALL_EXTRAS:-false}  # true adds sentry-sdk (requirements-extra.txt)
-    image: scammind-server:local
+    image: brandshield-server:local
     restart: unless-stopped
     command: ["api"]
     environment:
@@ -103,7 +103,7 @@ services:
       - ALL
 
   worker:
-    image: scammind-server:local
+    image: brandshield-server:local
     restart: unless-stopped
     command: ["worker"]
     environment:
@@ -134,7 +134,7 @@ services:
       context: ./frontend
       args:
         VITE_API_URL: ${PUBLIC_API_URL:-http://localhost:8000}   # build-time fallback only
-    image: scammind-frontend:local
+    image: brandshield-frontend:local
     restart: unless-stopped
     environment:
       API_URL: ${PUBLIC_API_URL:-http://localhost:8000}   # runtime: written to /config.js, also used in the CSP header

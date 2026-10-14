@@ -37,7 +37,7 @@ ALGORITHM_V1 = "1.0"
 ALGORITHM_V2 = "2.0"
 SEVERITIES = ("LOW", "MEDIUM", "HIGH", "CRITICAL")
 
-# The original ScamMind weights, frozen. tests/engine/test_risk_engine.py pins them to scoring.py.
+# The original BrandShield weights, frozen. tests/engine/test_risk_engine.py pins them to scoring.py.
 WEIGHTS_V1 = {"social": dict(SOCIAL_MAX), "app": dict(APP_MAX), "band_high_min": HIGH_MIN, "band_medium_min": MEDIUM_MIN}
 # New weights for web signals (need the owner's approval, see docs/DECISIONS.md). Points add up to more than 100 on purpose.
 WEIGHTS_V2_WEB = {**WEB_MAX, "url_reputation": 45}

@@ -77,7 +77,7 @@ class SafeFetcher:
                 with client.stream(
                     "GET",
                     pinned,
-                    headers={"Host": parts.netloc.split("@")[-1], "User-Agent": "ScamMindAI-ImageFetch/1.0", "Accept": "image/*"},
+                    headers={"Host": parts.netloc.split("@")[-1], "User-Agent": "BrandShield-ImageFetch/1.0", "Accept": "image/*"},
                     extensions={"sni_hostname": host},
                     timeout=self.timeout,
                 ) as resp:

@@ -1,6 +1,6 @@
-# ScamMind AI
+# BrandShield
 
-Brand-protection workspace. You describe your brand (name, aliases, official social handles, official apps, logo); ScamMind scans public
+Brand-protection workspace. You describe your brand (name, aliases, official social handles, official apps, logo); BrandShield scans public
 sources for look-alike social profiles and fake apps, scores every suspect with a reason for every point, excludes your own official assets,
 and prepares evidence-backed reports. **A person reviews every detection and approves every report; nothing is ever sent or taken down
 automatically.**
@@ -159,7 +159,7 @@ Components: managed PostgreSQL, managed Redis, a container host for three contai
 2. **Database:** create a PostgreSQL database and user; set `DATABASE_URL=postgresql+psycopg://...` (add `?sslmode=require` if your provider needs it).
 3. **Redis:** set `REDIS_URL` (use `rediss://` for TLS). The worker is idle without it.
 4. **Secrets:** put `JWT_SECRET`, `ADMIN_PASSWORD`, `TAVILY_API_KEY`, `REDIS_URL`, `DATABASE_URL`, `SENTRY_DSN` in the platform's secret store, not in images, compose files or the repo. Rotate `JWT_SECRET` if it ever leaks (everyone is signed out).
-5. **Migrations:** run once per release as a pre-deploy job: `docker run ... scammind-server migrate`. Set `RUN_MIGRATIONS=false` on the api replicas (safe either way: an advisory lock serialises concurrent runs). Roll back application code first; migrations 0001-0004 have downgrades, but avoid downgrading a database that holds real data without a backup.
+5. **Migrations:** run once per release as a pre-deploy job: `docker run ... brandshield-server migrate`. Set `RUN_MIGRATIONS=false` on the api replicas (safe either way: an advisory lock serialises concurrent runs). Roll back application code first; migrations 0001-0004 have downgrades, but avoid downgrading a database that holds real data without a backup.
 6. **Processes:** api (1+ replicas) and worker (1+) from the same image (`api` / `worker` commands). **Exactly one process runs the scheduler**: `SCHEDULER_ENABLED=true` on one api instance, `false` everywhere else.
 7. **DATA_DIR:** mount the same persistent volume at `/data` for api and worker (or a shared filesystem if they run on different hosts). **Back it up** (it holds evidence snapshots with their SHA-256, report files and the logo): a nightly snapshot of the volume plus your database backups.
 8. **HTTPS and CORS:** terminate TLS at the proxy. Set `CORS_ORIGINS` to the exact https origin(s) of the frontend and the frontend's `API_URL` to the public https API origin. Set `FORWARDED_ALLOW_IPS` to the proxy's address so client IPs (login rate limit, audit) are real. The frontend image sends HSTS and a CSP that allows only the API origin and Google Fonts.

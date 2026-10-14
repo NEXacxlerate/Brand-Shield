@@ -1,4 +1,4 @@
-// Typed calls to the ScamMind server. One function per endpoint; pages use them through hooks.
+// Typed calls to the BrandShield server. One function per endpoint; pages use them through hooks.
 // Every function accepts an optional AbortSignal (last argument) so a page can cancel what it no longer needs.
 import { authApi } from './auth';
 import { downloadFile, request } from './client';

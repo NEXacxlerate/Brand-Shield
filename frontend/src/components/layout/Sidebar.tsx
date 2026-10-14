@@ -177,7 +177,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
           type="button"
           className="nav-item"
           onClick={() => {
-            alert('Support desk: support@scammind.ai');
+            alert('Support desk: support@brandshield.ai');
             if (onClose) onClose();
           }}
           aria-label="Support desk"

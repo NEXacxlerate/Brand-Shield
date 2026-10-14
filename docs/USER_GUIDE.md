@@ -1,6 +1,6 @@
-# ScamMind AI: User Guide
+# BrandShield: User Guide
 
-This guide is for the people who **use** ScamMind AI (analysts, brand and legal teams) and for the **operator** who installs and runs it.
+This guide is for the people who **use** BrandShield (analysts, brand and legal teams) and for the **operator** who installs and runs it.
 Everything here was checked by running the app. All screenshots and step-by-step examples use a **fictional** brand called **Acme Bank**
 with **sample data**; nothing in them is a real company or account.
 
@@ -25,7 +25,7 @@ Contents
 
 ## 1. What the app is (and is not)
 
-ScamMind AI helps a company find **fake social profiles, fake brand pages and look-alike mobile apps** that copy its brand.
+BrandShield helps a company find **fake social profiles, fake brand pages and look-alike mobile apps** that copy its brand.
 
 1. You tell it what is **official**: your brand name and spellings, logo, domains, official social handles and official apps. This is your **allowlist**.
 2. A **scan** looks in public places (a web search service and the Apple App Store) for things that use your name, then **throws away** anything exactly on your allowlist.

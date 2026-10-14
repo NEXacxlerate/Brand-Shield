@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
-# ScamMind AI server (API and RQ worker share this image).
-#   docker build -t scammind-server ./backend
-#   docker run ... scammind-server api       (default)   |   scammind-server worker   |   scammind-server migrate
+# BrandShield server (API and RQ worker share this image).
+#   docker build -t brandshield-server ./backend
+#   docker run ... brandshield-server api       (default)   |   brandshield-server worker   |   brandshield-server migrate
 # Not built or run in the authoring environment (no Docker there): see docs/DECISIONS.md.
 
 # ---- builder: installs runtime dependencies into a virtualenv (no dev tools, no pytest/ruff) ----

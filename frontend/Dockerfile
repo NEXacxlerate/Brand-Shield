@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
-# ScamMind AI frontend: build with Vite, serve static files with nginx (unprivileged, port 8080).
-#   docker build -t scammind-frontend ./frontend
-#   docker run -p 5173:8080 -e API_URL=https://api.example.com scammind-frontend
+# BrandShield frontend: build with Vite, serve static files with nginx (unprivileged, port 8080).
+#   docker build -t brandshield-frontend ./frontend
+#   docker run -p 5173:8080 -e API_URL=https://api.example.com brandshield-frontend
 # The API address is a RUNTIME setting (API_URL, written to /config.js at start). VITE_API_URL is only the build-time fallback.
 # Not built or run in the authoring environment (no Docker there): see docs/DECISIONS.md.
 

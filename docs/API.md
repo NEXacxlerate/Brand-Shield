@@ -1,4 +1,4 @@
-# ScamMind AI: API Specification (derived from the frontend contract)
+# BrandShield: API Specification (derived from the frontend contract)
 
 Source of truth for screens: `ScamMind AI Screens.pdf` (10 screens). Frontend facts: `docs/FRONTEND_CONTRACT.md`.
 This started as a **proposed** contract. Phases 1, 3 and 4 have since built most of it: sections titled "Phase N implementation notes" (section 9 for sources, **section 18 for everything in Phase 4**) are authoritative and override anything older in this file when they differ. Legend used on every endpoint:

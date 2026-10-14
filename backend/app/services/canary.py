@@ -117,7 +117,7 @@ def run_canary() -> dict[str, Any]:
     t0 = time.perf_counter()
     checks: list[dict] = []
     try:
-        with tempfile.TemporaryDirectory(prefix="scammind-canary-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="brandshield-canary-") as tmp:
             settings = _settings(Path(tmp))
             engine = make_engine("sqlite://")
             try:

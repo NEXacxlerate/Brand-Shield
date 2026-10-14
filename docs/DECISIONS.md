@@ -156,3 +156,7 @@ Decisions D1 to D13 of `docs/EXTENSION_PLAN.md` as answered by the owner, and wh
 - **Provenance:** new `detections.origin` (`scan|manual|import|synthetic`) beside `source` (`live|sample`), so manual rows still show in the live data mode.
 - **Intake:** rows that resemble nothing (verdict ignored) are reported `not_flagged` and not saved; the prefilter is off for manual/import rows; their URLs are never fetched, and Safe Browsing is still asked about web rows (looked up, not opened).
 - **Not built:** frontend for E7 (Brand Profile fields, Import dialog), embeddings in scans, any live provider call.
+
+## Rename to BrandShield
+
+- Intentionally kept as `scammind`/`SCAMMIND` for compatibility: SQLite file `scammind.db`, Postgres user/db defaults and CI db `scammind_ci`, compose project name and volume `scammind-data`, storage keys `scammind.auth|user|offline-session|ui.*`, event `scammind:unauthorized`, runtime global `__SCAMMIND_CONFIG__`, Alembic files, and the design-PDF filename `ScamMind AI Screens.pdf`. Renamed: compose/CI image tags (`brandshield-server`, `brandshield-frontend`), npm package name, HTTP User-Agent/client id strings.

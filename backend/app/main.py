@@ -78,7 +78,7 @@ def create_app(
         if loop is not None:
             loop.stop()
 
-    app = FastAPI(title="ScamMind AI", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="BrandShield", version="0.1.0", lifespan=lifespan)
     app.state.settings = settings
     app.state.engine = engine
     app.state.session_factory = make_session_factory(engine)
