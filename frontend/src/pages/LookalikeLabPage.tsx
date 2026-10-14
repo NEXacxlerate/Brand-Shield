@@ -67,7 +67,10 @@ export const LookalikeLabPage: React.FC = () => {
 
       <div className="panel-content">
         <div className="lookalike-page-wrap">
-          {/* Top 2-Column Split */}
+          {/* Image comparison first: it is the quickest way to check a suspicious profile picture or app icon */}
+          <LogoCompareCard brand={brand} missing={missing} canWrite={canWrite} />
+
+          {/* Name tester and test cases */}
           <div className="lookalike-top-grid">
             {/* Left Interactive Tester */}
             <div className="card test-name-card">
@@ -270,8 +273,6 @@ export const LookalikeLabPage: React.FC = () => {
               </table>
             </div>
           </div>
-
-          <LogoCompareCard brand={brand} missing={missing} canWrite={canWrite} />
 
           <SampleNote brandName={brandName} />
         </div>
