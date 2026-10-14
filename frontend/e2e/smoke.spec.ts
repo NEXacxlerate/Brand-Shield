@@ -38,6 +38,9 @@ async function login(page: Page, who = ADMIN) {
   await page.locator('#email').fill(who.email);
   await page.locator('#password').fill(who.password);
   await page.getByRole('button', { name: /sign in/i }).click();
+  // Signing in lands on the "Protect Your Brand" page; the tests continue from the dashboard.
+  await expect(page).toHaveURL(/\/protect-brand$/);
+  await page.goto('/dashboard');
   await expect(page).toHaveURL(/\/dashboard$/);
 }
 
@@ -87,13 +90,13 @@ test('setup: admin signs in, creates the brand, pre-checks and uploads a logo, s
   await page.getByTestId('setup-logo-input').setInputFiles({ name: 'logo.png', mimeType: 'image/png', buffer: makePng(512, 512) });
   await expect(page.getByText('New logo selected')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Continue' }).click();
+  await page.getByTestId('setup-continue-btn').click();
   await expect(page.getByText('STEP 2 OF 3')).toBeVisible();
-  await expect(page.getByText('None added yet').first()).toBeVisible();
-  await page.getByRole('button', { name: 'Continue' }).click();
+  await expect(page.getByText('No official social accounts added yet')).toBeVisible();
+  await page.getByTestId('setup-continue-btn').click();
   await expect(page.getByText('STEP 3 OF 3')).toBeVisible();
-  await expect(page.getByText(/Ready to scan 8 sources/)).toBeVisible();
-  await page.getByRole('button', { name: 'Launch Protection Dashboard' }).click();
+  await expect(page.getByText('Active intelligence sources ready to query')).toBeVisible();
+  await page.getByTestId('setup-continue-btn').click(); // "Start First Scan & Open Dashboard"
   await expect(page).toHaveURL(/\/dashboard$/);
   await expect(page.getByRole('heading', { name: /Protect Acme Bank across social media and app stores/ })).toBeVisible();
   expect(withoutHttpStatusNoise(errors)).toEqual([]);

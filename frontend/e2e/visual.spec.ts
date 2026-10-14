@@ -31,7 +31,7 @@ test('capture every page for the visual comparison', async ({ page }) => {
       await page.locator('#email').fill(process.env.E2E_ADMIN_EMAIL as string);
       await page.locator('#password').fill(process.env.E2E_ADMIN_PASSWORD as string);
       await page.getByRole('button', { name: /sign in/i }).click();
-      await expect(page).toHaveURL(/\/dashboard$/);
+      await expect(page).toHaveURL(/\/protect-brand$/); // signing in lands on the "Protect Your Brand" page
     }
     if (name === '01-login') {
       await page.goto('/login');

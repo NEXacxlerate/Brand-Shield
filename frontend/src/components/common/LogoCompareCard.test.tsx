@@ -32,7 +32,7 @@ const result = (over: Record<string, unknown> = {}) => ({
 function server(opts: { compare?: () => Response } = {}) {
   return mockFetch((c) => {
     const path = c.url.replace(/^.*\/api/, '').split('?')[0];
-    if (path === '/brands/1/logo' || path === '/brands/1/logos/7/file') return new Response(new Blob(['x'], { type: 'image/png' }), { status: 200 });
+    if (path === '/brands/1/logo' || path === '/brands/1/logos/7/file') return new Response('x', { status: 200, headers: { 'Content-Type': 'image/png' } }); // a plain body: Node 22 (CI) does not accept jsdom's Blob here
     if (path === '/lookalike/test-logo') return opts.compare ? opts.compare() : jsonResponse(200, result());
     if (path === '/brands/1/logos') return jsonResponse(201, { id: 9, label: 'Added', url: '', format: 'png', width: 300, height: 300, size_bytes: 1, sha256: 'c' });
     if (path === '/brands/1') return jsonResponse(200, brand());
@@ -166,7 +166,7 @@ describe('LogoCompareCard AI vision (CLIP)', () => {
   const fetchWith = (engine: Record<string, unknown>, compare: () => Response) =>
     mockFetch((c) => {
       const path = c.url.replace(/^.*\/api/, '').split('?')[0];
-      if (path === '/brands/1/logo' || path === '/brands/1/logos/7/file') return new Response(new Blob(['x'], { type: 'image/png' }), { status: 200 });
+      if (path === '/brands/1/logo' || path === '/brands/1/logos/7/file') return new Response('x', { status: 200, headers: { 'Content-Type': 'image/png' } }); // a plain body: Node 22 (CI) does not accept jsdom's Blob here
       if (path === '/lookalike/logo-engine') return jsonResponse(200, engine);
       if (path === '/lookalike/test-logo') return compare();
       return jsonResponse(404, { detail: 'nope' });
@@ -200,7 +200,7 @@ describe('LogoCompareCard AI vision (CLIP)', () => {
       const path = c.url.replace(/^.*\/api/, '').split('?')[0];
       if (path === '/lookalike/logo-engine') return jsonResponse(200, { available: true, reason: null, model: 'm', mode: 'auto', cached: false, hint: null });
       if (path === '/lookalike/test-logo') return gate;
-      return new Response(new Blob(['x'], { type: 'image/png' }), { status: 200 });
+      return new Response('x', { status: 200, headers: { 'Content-Type': 'image/png' } }); // a plain body: Node 22 (CI) does not accept jsdom's Blob here
     });
     renderCard();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Compare' })).toBeDisabled());
