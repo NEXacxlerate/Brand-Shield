@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.config.time import utcnow
 from app.models import Setting, User
 from app.services import audit
+from app.services.setting_rows import setting_row
 
 KEY = "data_mode"
 MODES = ("live", "sample", "auto")
@@ -11,7 +12,7 @@ DEFAULT = "auto"
 
 
 def get_data_mode(db: Session) -> str:
-    row = db.scalar(select(Setting).where(Setting.key == KEY))
+    row = setting_row(db, KEY)
     return row.value if row is not None and row.value in MODES else DEFAULT
 
 

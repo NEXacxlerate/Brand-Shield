@@ -5,12 +5,12 @@ from __future__ import annotations
 import copy
 from typing import Any
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config.time import utcnow
 from app.core.pipeline.matching import DEFAULT_IMPERSONATION_WORDS, DEFAULT_RULES
 from app.models import Setting, User
+from app.services.setting_rows import setting_row
 
 SCHEDULES = ("off", "5m", "15m", "1h", "1d")
 SCHEDULE_MINUTES = {"off": 0, "5m": 5, "15m": 15, "1h": 60, "1d": 1440}
@@ -31,7 +31,7 @@ DEFAULT_NOTIFICATIONS: dict[str, Any] = {
 
 
 def _row(db: Session, key: str) -> Setting | None:
-    return db.scalar(select(Setting).where(Setting.key == key))
+    return setting_row(db, key)
 
 
 def _merged(defaults: dict[str, Any], stored: Any) -> dict[str, Any]:

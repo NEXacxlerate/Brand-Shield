@@ -134,7 +134,7 @@ class CollectorRuntime:
         self.itunes_limiter = SpacingLimiter(settings.itunes_calls_per_minute, clock=clock, sleep=sleep)
         self.itunes_cache = TTLCache(settings.itunes_cache_ttl_seconds, clock=clock)
         self.play_limiter = SpacingLimiter(30, clock=clock, sleep=sleep)
-        self.ledger = CreditLedger(session_factory, settings.tavily_monthly_budget, now=now)
+        self.ledger = CreditLedger(session_factory, settings.tavily_monthly_budget, now=now, cache_seconds=3 if settings.response_cache_seconds else 0)
         # URL reputation (Google Safe Browsing). Key only from the environment; without it every lookup is "unknown".
         key = settings.google_safe_browsing_api_key.get_secret_value() if settings.google_safe_browsing_api_key else None
         self.safe_browsing = SafeBrowsingClient(

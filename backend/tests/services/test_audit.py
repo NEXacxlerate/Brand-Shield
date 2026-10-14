@@ -37,8 +37,8 @@ def test_every_mutating_action_writes_one_audit_row(client, db, admin_h):
         r = call()
         assert r.status_code in (200, 201), (expected, r.text)
         after = actions(db)
-        assert len(after) == before + 1
-        assert after[-1] == expected
+        new = [a for a in after[before:] if not a.startswith("scan.")]  # a rename in sample mode also queues a rescan; its rows are the scan's own
+        assert new == [expected]
     assert actions(db)[1] == "brand.created"
 
 

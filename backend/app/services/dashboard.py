@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config.time import as_utc
@@ -24,50 +24,62 @@ def _percentages(counts: dict[str, int]) -> dict[str, int]:
     return out
 
 
-def _group(db: Session, base, col) -> dict[str, int]:
-    sub = base.subquery()
-    return {k: n for k, n in db.execute(select(getattr(sub.c, col.key), func.count()).group_by(getattr(sub.c, col.key))).all()}
+def _count_by(rows, attr: str) -> dict[str, int]:
+    out: dict[str, int] = {}
+    for r in rows:
+        k = getattr(r, attr)
+        out[k] = out.get(k, 0) + 1
+    return out
 
 
-def kpi(db: Session, base, now: datetime, days: int = 7) -> dict:
-    value = db.scalar(select(func.count()).select_from(base.subquery())) or 0
+def kpi(rows, now: datetime, days: int = 7) -> dict:
+    """Counts, last-week delta and a daily trend, computed in memory from the lightweight rows (one query serves every KPI)."""
+    found = [as_utc(r.found_at) for r in rows]
     since = now - timedelta(days=days)
-    delta = db.scalar(select(func.count()).select_from(base.where(Detection.found_at >= since).subquery())) or 0
     trend = []
     for i in range(days - 1, -1, -1):
         end = (now - timedelta(days=i)).replace(hour=23, minute=59, second=59, microsecond=0)
-        trend.append(db.scalar(select(func.count()).select_from(base.where(Detection.found_at <= end).subquery())) or 0)
-    return {"value": value, "delta_week": delta, "trend": trend}
+        trend.append(sum(1 for f in found if f <= end))
+    return {"value": len(rows), "delta_week": sum(1 for f in found if f >= since), "trend": trend}
 
 
 def build(db: Session, brand: Brand, mode: str, now: datetime) -> dict:
+    """Two queries instead of ~60: the database is often far away, so every round trip counts."""
     now = as_utc(now)
-    scoped = select(Detection).where(Detection.brand_id == brand.id, Detection.source == mode)
-    open_q = scoped.where(Detection.status.in_(OPEN_STATUSES))
-    visible = scoped.where(Detection.status.in_((*OPEN_STATUSES, "dismissed")))
+    light = db.execute(
+        select(Detection.id, Detection.type, Detection.category, Detection.platform, Detection.status, Detection.band, Detection.severity,
+               Detection.score, Detection.found_at).where(Detection.brand_id == brand.id, Detection.source == mode)
+    ).all()
+    open_rows = [r for r in light if r.status in OPEN_STATUSES]
+    visible = [r for r in light if r.status in (*OPEN_STATUSES, "dismissed")]
 
-    by_type = _group(db, open_q, Detection.type)
+    by_type = _count_by(open_rows, "type")
     type_counts = {t: by_type.get(t, 0) for t in ALL_TYPES}
     pct = _percentages(type_counts)
-    by_platform = sorted(_group(db, open_q, Detection.platform).items(), key=lambda kv: (-kv[1], kv[0]))
-    by_status = _group(db, visible, Detection.status)
-    by_band = _group(db, open_q, Detection.band)
-    by_severity = _group(db, open_q, Detection.severity)
-    needs = db.scalars(scoped.where(Detection.status.in_(("new", "reviewing"))).order_by(Detection.score.desc(), Detection.id.desc()).limit(5)).all()
-    recent = db.scalars(open_q.order_by(Detection.found_at.desc(), Detection.id.desc()).limit(6)).all()
-    top = db.scalars(open_q.order_by(Detection.score.desc(), Detection.id.desc()).limit(1)).first()
+    by_platform = sorted(_count_by(open_rows, "platform").items(), key=lambda kv: (-kv[1], kv[0]))
+    by_status = _count_by(visible, "status")
+    by_band = _count_by(open_rows, "band")
+    by_severity = _count_by(open_rows, "severity")
+    needs_ids = [r.id for r in sorted((r for r in light if r.status in ("new", "reviewing")), key=lambda r: (-r.score, -r.id))[:5]]
+    recent_ids = [r.id for r in sorted(open_rows, key=lambda r: (as_utc(r.found_at), r.id), reverse=True)[:6]]
+    top_id = min(open_rows, key=lambda r: (-r.score, -r.id)).id if open_rows else None
+    wanted = set(needs_ids) | set(recent_ids) | ({top_id} if top_id else set())
+    full = {d.id: d for d in db.scalars(select(Detection).where(Detection.id.in_(wanted)))} if wanted else {}
+    needs = [full[i] for i in needs_ids]
+    recent = [full[i] for i in recent_ids]
+    top = full.get(top_id) if top_id else None
     total_open = sum(type_counts.values())
-    sample_rows = db.scalar(select(func.count()).select_from(visible.where(Detection.source == "sample").subquery())) or 0
+    sample_rows = len(visible) if mode == "sample" else 0
     return {
         "brand": {"id": brand.id, "name": brand.name},
         "data_mode": mode,
         "is_sample": mode == "sample",
         "includes_sample": sample_rows > 0,
         "kpis": {
-            "total_detections": kpi(db, open_q, now),
-            "social_impersonations": kpi(db, open_q.where(Detection.category == "social"), now),
-            "suspicious_apps": kpi(db, open_q.where(Detection.category == "apps"), now),
-            "web_threats": kpi(db, open_q.where(Detection.category == "web"), now),
+            "total_detections": kpi(open_rows, now),
+            "social_impersonations": kpi([r for r in open_rows if r.category == "social"], now),
+            "suspicious_apps": kpi([r for r in open_rows if r.category == "apps"], now),
+            "web_threats": kpi([r for r in open_rows if r.category == "web"], now),
             "official_assets": {"value": len(brand.accounts) + len(brand.apps)},
         },
         "counts": {
@@ -80,8 +92,7 @@ def build(db: Session, brand: Brand, mode: str, now: datetime) -> dict:
                 "apps": type_counts["fake_app"],
                 "web": sum(type_counts[t] for t in WEB_TYPES),
             },
-            "cleared": db.scalar(select(func.count()).select_from(select(Detection).where(
-                Detection.brand_id == brand.id, Detection.source == mode, Detection.status == "cleared").subquery())) or 0,
+            "cleared": sum(1 for r in light if r.status == "cleared"),
         },
         # the web type is listed only once something was found, so a workspace without web findings looks exactly as before
         "by_type": [{"type": t, "count": type_counts[t], "percent": pct[t]}

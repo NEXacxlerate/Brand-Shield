@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, func, literal_column, select, union_all, update
 from sqlalchemy.orm import Session
 
 from app.config.time import iso_z, utcnow
@@ -29,6 +29,7 @@ CATEGORIES = ("social", "apps", "web")
 BANDS = ("high", "medium", "low")
 OPEN_STATUSES = ("new", "reviewing", "confirmed")
 LISTED_STATUSES = ("new", "reviewing", "confirmed", "dismissed")  # shown in the lists; cleared and marked_official never are
+RETIRED = "retired"  # results of a previous brand identity: kept for the record, shown nowhere
 USER_STATUSES = ("reviewing", "confirmed", "dismissed")
 STATUS_ALIASES = {"keep_reviewing": "reviewing", "keep-reviewing": "reviewing", "reviewing": "reviewing", "confirm": "confirmed",
                   "confirmed": "confirmed", "dismiss": "dismissed", "dismissed": "dismissed"}
@@ -109,15 +110,24 @@ def _base(f: Filters, *, ignore_type: bool = False, ignore_platform: bool = Fals
     return q
 
 
-def _count_by(db: Session, q: Select, col) -> dict[str, int]:
-    sub = q.subquery()
-    rows = db.execute(select(getattr(sub.c, col.key), func.count()).group_by(getattr(sub.c, col.key))).all()
-    return {k: n for k, n in rows}
+def _counts(db: Session, specs: list[tuple[str, Select, Any]]) -> dict[str, dict[str, int]]:
+    """Several grouped counts in ONE round trip (UNION ALL). spec = (name, query, column to group by, or None for a plain count)."""
+    parts = []
+    for name, q, col in specs:
+        sub = q.subquery()
+        if col is None:
+            parts.append(select(literal_column(f"'{name}'").label("k"), literal_column("''").label("v"), func.count().label("n")).select_from(sub))
+        else:
+            c = getattr(sub.c, col.key)
+            parts.append(select(literal_column(f"'{name}'").label("k"), c.label("v"), func.count().label("n")).select_from(sub).group_by(c))
+    out: dict[str, dict[str, int]] = {name: {} for name, _, _ in specs}
+    for k, v, n in db.execute(union_all(*parts)).all():
+        out[k][v] = n
+    return out
 
 
 def list_detections(db: Session, f: Filters, sort: str, limit: int, offset: int) -> dict[str, Any]:
     q = _base(f)
-    total = db.scalar(select(func.count()).select_from(q.subquery())) or 0
     order = {
         "score_desc": (Detection.score.desc(), Detection.id.desc()),
         "score_asc": (Detection.score.asc(), Detection.id.desc()),
@@ -128,20 +138,27 @@ def list_detections(db: Session, f: Filters, sort: str, limit: int, offset: int)
     rows = list(db.scalars(q.order_by(*order).limit(limit).offset(offset)))
     # tab counts: same filters except the tab being counted (type / platform), so "All 6 / Fake profiles 3" add up
     no_tab = _base(f, ignore_type=True, ignore_platform=True)
-    by_type = _count_by(db, no_tab, Detection.type)
-    by_platform = _count_by(db, _base(f, ignore_platform=True), Detection.platform)
-    by_status = _count_by(db, _base(Filters(**{**f.__dict__, "statuses": None})), Detection.status)
+    c = _counts(db, [
+        ("total", q, None),
+        ("all", no_tab, None),
+        ("type", no_tab, Detection.type),
+        ("platform", _base(f, ignore_platform=True), Detection.platform),
+        ("status", _base(Filters(**{**f.__dict__, "statuses": None})), Detection.status),
+        ("category", _base(Filters(**{**f.__dict__, "category": None, "type": None, "platform": None})), Detection.category),
+        ("severity", _base(f), Detection.severity),
+        ("band", _base(f), Detection.band),
+    ])
     return {
-        "total": total,
+        "total": c["total"].get("", 0),
         "rows": rows,
         "counts": {
-            "all": db.scalar(select(func.count()).select_from(no_tab.subquery())) or 0,
-            "by_type": {t: by_type.get(t, 0) for t in ALL_TYPES},
-            "by_category": _count_by(db, _base(Filters(**{**f.__dict__, "category": None, "type": None, "platform": None})), Detection.category),
-            "by_severity": _count_by(db, _base(f), Detection.severity),
-            "by_platform": dict(sorted(by_platform.items())),
-            "by_status": by_status,
-            "by_band": _count_by(db, _base(f), Detection.band),
+            "all": c["all"].get("", 0),
+            "by_type": {t: c["type"].get(t, 0) for t in ALL_TYPES},
+            "by_category": c["category"],
+            "by_severity": c["severity"],
+            "by_platform": dict(sorted(c["platform"].items())),
+            "by_status": c["status"],
+            "by_band": c["band"],
         },
     }
 
@@ -477,3 +494,12 @@ def false_positive_items(db: Session, brand: Brand, category: str | None, source
             "status": "not_flagged", "last_seen_at": _iso(d.last_seen_at), "source": d.source,
         })
     return items
+
+
+def retire_results(db: Session, brand_id: int) -> int:
+    """The brand's name, aliases, keywords or domains changed: earlier findings were found for another identity.
+
+    They are not deleted (audit trail) but leave every list, count and report. marked_official rows stay: they only record allowlisted assets.
+    """
+    res = db.execute(update(Detection).where(Detection.brand_id == brand_id, Detection.status.notin_((RETIRED, "marked_official"))).values(status=RETIRED))
+    return res.rowcount or 0

@@ -67,6 +67,8 @@ export interface Verification {
 export interface Brand {
   id: number;
   name: string;
+  /** Only on the answer to a save that changed the name, aliases, keywords or domains. */
+  refresh?: { results_retired: number; rescan: 'started' | 'needed'; message: string } | null;
   description?: string | null;
   verifications?: Verification[];
   industry: string;

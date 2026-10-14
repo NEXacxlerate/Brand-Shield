@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy import Engine
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -23,6 +23,7 @@ from app.api import (
     sources,
 )
 from app.api import settings as settings_api
+from app.config import response_cache
 from app.config.config import Settings, get_settings
 from app.config.errors import install_error_handlers
 from app.config.logging import configure_logging
@@ -112,6 +113,29 @@ def create_app(
                     {"detail": "Too many requests. Slow down and retry shortly."}, status_code=429, headers={"Retry-After": "60"}
                 )
         return await call_next(request)
+
+    @app.middleware("http")
+    async def cache_reads(request: Request, call_next):
+        ttl = settings.response_cache_seconds
+        path = request.url.path
+        if ttl <= 0 or not path.startswith("/api"):
+            return await call_next(request)
+        if request.method == "GET" and path in response_cache.CACHEABLE:
+            key = response_cache.key_for(path, request.url.query, request.headers.get("authorization"))
+            hit = response_cache.get(key, ttl)
+            if hit is not None:
+                return Response(content=hit[0], media_type=hit[1], headers={"X-Cache": "hit"})
+            response = await call_next(request)
+            if response.status_code != 200:
+                return response
+            body = b"".join([chunk async for chunk in response.body_iterator])
+            media = response.media_type or "application/json"
+            response_cache.put(key, body, media)
+            return Response(content=body, status_code=200, media_type=media)
+        response = await call_next(request)
+        if request.method not in ("GET", "HEAD", "OPTIONS"):
+            response_cache.bust()  # any write: the next read recomputes
+        return response
 
     app.add_middleware(
         CORSMiddleware,

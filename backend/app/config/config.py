@@ -94,6 +94,7 @@ class Settings(BaseSettings):
     scan_max_logo_fetches: int = 25  # per scan
     screenshots_enabled: bool = False  # Playwright hook, OFF by default (package not installed)
     scheduler_enabled: bool = True  # in-process scheduler loop (never started when APP_ENV=test)
+    response_cache_seconds: int = 15  # env RESPONSE_CACHE_SECONDS; 0 = off (see app/config/response_cache.py)
     scan_interval_minutes: int | None = None  # env SCAN_INTERVAL_MINUTES; overrides the Settings page; 0 = off
     scheduler_poll_seconds: int = 60
     scheduler_max_queries_per_scan: int | None = None  # credit estimate; default = tavily_max_queries_per_scan

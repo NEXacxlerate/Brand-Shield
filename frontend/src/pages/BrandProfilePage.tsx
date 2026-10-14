@@ -62,6 +62,7 @@ export const BrandProfilePage: React.FC = () => {
 
   const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [refreshNote, setRefreshNote] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [logoError, setLogoError] = useState<string | null>(null);
   const [logoBusy, setLogoBusy] = useState(false);
@@ -121,6 +122,7 @@ export const BrandProfilePage: React.FC = () => {
       setNewAlias('');
       setNewKeyword('');
       setNewDomain('');
+      setRefreshNote(saved.refresh?.message ?? null);
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 3000);
     } catch (e) {
@@ -688,6 +690,11 @@ export const BrandProfilePage: React.FC = () => {
                   >
                     {saving ? 'Saving…' : savedSuccess ? 'Saved successfully ✓' : 'Save brand profile'}
                   </button>
+                  {refreshNote && (
+                    <p role="status" data-testid="brand-refresh-note" style={{ marginTop: 10, fontSize: 13, color: 'var(--text-muted)' }}>
+                      {refreshNote}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>

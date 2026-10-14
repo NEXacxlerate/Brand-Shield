@@ -1,16 +1,20 @@
 import logging
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.api.common import get_ctx
 from app.config.config import Settings
 from app.config.deps import get_current_user, get_settings_dep, get_url_checker, require_admin, require_writer
 from app.config.time import utcnow
+from app.core.collectors.selection import select_collectors
+from app.core.pipeline import lookalike
 from app.core.pipeline.logo import LogoError, process_logo, save_logo
+from app.core.pipeline.scan_pipeline import NoBrand, ScanAlreadyRunning, ScanContext, request_scan
 from app.core.pipeline.url_safety import UrlChecker
 from app.db.session import get_db
 from app.models import AssetVerification, Brand, BrandLogo, BrandPublisher, OfficialAccount, OfficialApp, User
@@ -35,9 +39,9 @@ from app.schemas.brand import (
     VerificationIn,
     VerificationOut,
 )
-from app.services import audit
+from app.services import audit, data_mode
 from app.services import validators as v
-from app.services.detections import sync_with_allowlist
+from app.services.detections import retire_results, sync_with_allowlist
 from app.services.profile_health import compute_profile_health
 
 router = APIRouter(prefix="/brands")
@@ -146,9 +150,17 @@ def get_brand(brand_id: int, _: User = Depends(get_current_user), db: Session = 
     return brand_out(get_brand_or_404(db, brand_id))
 
 
+IDENTITY_FIELDS = ("name", "aliases", "keywords", "domains")
+
+
 @router.put("/{brand_id}", response_model=BrandOut)
 def update_brand(
-    brand_id: int, body: BrandIdentity, user: User = Depends(require_writer), db: Session = Depends(get_db)
+    brand_id: int,
+    request: Request,
+    body: BrandIdentity,
+    user: User = Depends(require_writer),
+    db: Session = Depends(get_db),
+    ctx: ScanContext = Depends(get_ctx),
 ) -> BrandOut:
     brand = get_brand_or_404(db, brand_id)
     data = body.model_dump()
@@ -158,9 +170,29 @@ def update_brand(
     for k, val in data.items():
         setattr(brand, k, val)
     _touch(brand)
-    audit.record(db, user, "brand.updated", brand.name, "changed: " + (", ".join(changed) or "nothing"))
+    detail = "changed: " + (", ".join(changed) or "nothing")
+    refresh: dict | None = None
+    if any(k in changed for k in IDENTITY_FIELDS):
+        # Everything found so far was found for the old name / keywords / domains: retire it so no list mixes two brands,
+        # and rebuild the Look-alike Lab's built-in cases from the new name.
+        retired = retire_results(db, brand.id)
+        if "name" in changed:
+            lookalike.rebuild_default_cases(db, brand.name)
+        detail += f"; {retired} earlier results retired"
+        refresh = {"results_retired": retired, "rescan": "needed", "message": "Brand details changed: earlier results were retired. Run a scan to find matches for the new details."}
+    audit.record(db, user, "brand.updated", brand.name, detail)
     db.commit()
-    return brand_out(brand)
+    if refresh is not None:
+        mode = select_collectors(request.app.state.settings, data_mode.get_data_mode(db)).effective_mode
+        if mode == "sample":  # sample data costs nothing, so the lists refill at once; live scans spend credits, so they stay manual
+            try:
+                request_scan(ctx, db, brand_id=brand.id, scope="all", user=user)
+                refresh.update(rescan="started", message="Brand details changed: earlier results were retired and a new sample scan has started.")
+            except (ScanAlreadyRunning, NoBrand):
+                pass
+    out = brand_out(brand)
+    out.refresh = refresh
+    return out
 
 
 # ---------------------------------------------------------------- logo

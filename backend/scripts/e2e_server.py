@@ -20,6 +20,7 @@ for name in ("TAVILY_API_KEY", "SEARXNG_BASE_URL", "GEMINI_API_KEY", "REDIS_URL"
     os.environ.pop(name, None)  # a developer's shell must never reach the e2e run
 os.environ["APP_ENV"] = "test"  # also keeps the in-process scheduler off
 os.environ["SCHEDULER_ENABLED"] = "false"
+os.environ["RESPONSE_CACHE_SECONDS"] = "0"  # the browser tests read right after writing
 os.environ["SCAN_EXECUTOR"] = "thread"
 os.environ["DATABASE_URL"] = "sqlite:///" + Path(os.environ["E2E_DB_PATH"]).as_posix()
 os.environ["DATA_DIR"] = os.environ["E2E_DATA_DIR"]

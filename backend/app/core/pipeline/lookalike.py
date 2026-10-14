@@ -7,9 +7,10 @@ scored too, and only an exact official handle / URL / package id excludes a cand
 
 from __future__ import annotations
 
+import re
 import threading
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -22,27 +23,58 @@ from app.services import app_settings
 
 VERDICTS = ("flagged", "not_flagged", "official")
 
-# 12 labelled cases (7 look-alikes, 3 other businesses, 2 official). Written for the fictional brand "Acme Bank".
-DEFAULT_CASES: list[tuple[str, str]] = [
-    ("acrnebank", "flagged"),
-    ("Acme Bank Support", "flagged"),
-    ("acme-bank", "flagged"),
-    ("A C M E Bank", "flagged"),
-    ("acm3bank", "flagged"),
-    ("Acme Bnak", "flagged"),
-    ("acmebank_official", "flagged"),
-    ("Acme Bakery", "not_flagged"),
-    ("Acme Hotels", "not_flagged"),
-    ("Acme Weather", "not_flagged"),
-    ("Acme Bank", "official"),
-    ("@acmebank", "official"),
-]
+def default_cases(brand_name: str) -> list[tuple[str, str]]:
+    """12 labelled cases (7 look-alikes, 3 other businesses, 2 official) built from the brand's own name.
 
+    For "Acme Bank": acrnebank, Acme Bank Support, acme-bank, A C M E Bank, acm3bank, Acme Bnak, acmebank_official,
+    Acme Bakery / Hotels / Weather, Acme Bank, @acmebank. They are not filtered by what the matcher says: a failing case is information.
+    """
+    tokens = [t for t in re.split(r"\s+", brand_name.strip()) if t] or ["Brand"]
+    name = " ".join(tokens)
+    compact = re.sub(r"[^a-z0-9]", "", name.lower()) or "brand"
+    first = tokens[0]
+
+    def swap_glyph(text: str) -> str:
+        # visual digraphs first (m -> rn), then look-alike letters from other alphabets (Cyrillic o / a / e / i)
+        for a_, b_ in (("m", "rn"), ("w", "vv"), ("d", "cl"), ("o", "о"), ("a", "а"), ("e", "е"), ("i", "і")):
+            if a_ in text:
+                return text.replace(a_, b_, 1)
+        return text + "а"
+
+    def digit_swap(text: str) -> str:
+        for ch, d in (("e", "3"), ("a", "4"), ("o", "0"), ("i", "1")):
+            if ch in text:
+                return text.replace(ch, d, 1)
+        return text + "1"
+
+    last = tokens[-1]
+    transposed = (last[0] + last[2] + last[1] + last[3:]) if len(last) >= 3 else last  # Bank -> Bnak
+    separated = "-".join(t.lower() for t in tokens) if len(tokens) > 1 else compact[: len(compact) // 2] + "-" + compact[len(compact) // 2:]
+    spaced = " ".join(tokens[0].upper()) + (" " + " ".join(tokens[1:]) if len(tokens) > 1 else "")
+    cases = [
+        (swap_glyph(compact), "flagged"),
+        (f"{name} Support", "flagged"),
+        (separated, "flagged"),
+        (spaced, "flagged"),
+        (digit_swap(compact), "flagged"),
+        (" ".join([*tokens[:-1], transposed]), "flagged"),
+        (f"{compact}_official", "flagged"),
+        (f"{first} Bakery", "not_flagged"),
+        (f"{first} Hotels", "not_flagged"),
+        (f"{first} Weather", "not_flagged"),
+        (name, "official"),
+        (f"@{compact}", "official"),
+    ]
+    seen: set[str] = set()
+    return [(n, e) for n, e in cases if not (n.lower() in seen or seen.add(n.lower()))]
+
+
+DEFAULT_CASES = default_cases("Acme Bank")  # the demo brand's set (kept for tests and docs); real sets are built from the registered brand
 
 _SEED_LOCK = threading.Lock()
 
 
-def ensure_default_cases(db: Session) -> None:
+def ensure_default_cases(db: Session, brand_name: str | None = None) -> None:
     """Seed the 12 default cases once (only when the table is empty, so an admin's deletions are respected).
 
     Two requests can arrive together (a page that loads the list twice, React StrictMode in development). Without a lock
@@ -54,7 +86,8 @@ def ensure_default_cases(db: Session) -> None:
     with _SEED_LOCK:
         if db.scalar(select(LookalikeCase.id).limit(1)) is not None:  # another request seeded while we waited
             return
-        for name, expected in DEFAULT_CASES:
+        name_ = brand_name or db.scalar(select(Brand.name).where(Brand.archived_at.is_(None)).order_by(Brand.id).limit(1)) or "Acme Bank"
+        for name, expected in default_cases(name_):
             db.add(LookalikeCase(name=name, expected=expected, builtin=True, source="sample"))
         try:
             db.commit()
@@ -146,3 +179,10 @@ def confusion(items: list[dict]) -> dict:
         "not_flagged_expected": sum(i["expected"] == "not_flagged" for i in items),
         "official_expected": sum(i["expected"] == "official" for i in items),
     }
+
+
+def rebuild_default_cases(db: Session, brand_name: str) -> None:
+    """The brand was renamed: replace the built-in cases with ones written for the new name. Cases an admin added are kept."""
+    db.execute(delete(LookalikeCase).where(LookalikeCase.builtin.is_(True)))
+    for name, expected in default_cases(brand_name):
+        db.add(LookalikeCase(name=name, expected=expected, builtin=True, source="sample"))

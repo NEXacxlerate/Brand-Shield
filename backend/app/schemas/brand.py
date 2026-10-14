@@ -267,6 +267,7 @@ class BrandOut(BaseModel):
     official_assets: int
     updated_at: UtcDatetime
     source: str
+    refresh: dict | None = None  # set by PUT when name / aliases / keywords / domains changed: what happened to earlier results
 
 
 class BrandSummary(BaseModel):

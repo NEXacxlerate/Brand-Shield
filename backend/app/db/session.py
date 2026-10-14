@@ -1,3 +1,4 @@
+import os
 from collections.abc import Iterator
 
 from fastapi import Request
@@ -15,7 +16,17 @@ def make_engine(url: str) -> Engine:
         if in_memory:
             kwargs["poolclass"] = StaticPool
     elif url.startswith("postgresql"):
-        kwargs["pool_pre_ping"] = True
+        # Hosted poolers (Supabase session mode allows only 15 clients in total), far-away databases: small pool, and no
+        # extra round trip per request for a liveness ping; recycle idle connections before the pooler drops them instead.
+        kwargs["pool_size"] = int(os.environ.get("DB_POOL_SIZE") or 5)
+        kwargs["max_overflow"] = int(os.environ.get("DB_MAX_OVERFLOW") or 2)
+        kwargs["pool_recycle"] = int(os.environ.get("DB_POOL_RECYCLE") or 1800)
+        kwargs["pool_pre_ping"] = (os.environ.get("DB_PRE_PING") or "").lower() in ("1", "true", "yes")
+        # TCP keepalives keep the pooler / NAT from dropping idle connections (a new one costs 1-2 s to a far-away database)
+        connect_args: dict = {"keepalives": 1, "keepalives_idle": 30, "keepalives_interval": 10, "keepalives_count": 3}
+        if ":6543/" in url:  # Supabase transaction pooler: no server-side prepared statements
+            connect_args["prepare_threshold"] = None
+        kwargs["connect_args"] = connect_args
     engine = create_engine(url, **kwargs)
     if url.startswith("sqlite"):
 

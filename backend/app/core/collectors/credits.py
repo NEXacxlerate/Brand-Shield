@@ -9,6 +9,7 @@ usage (`usage.credits` in the response, when present) is stored in a second row 
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable
 from datetime import datetime
 
@@ -33,10 +34,12 @@ def month_key(now: datetime) -> str:
 
 
 class CreditLedger:
-    def __init__(self, session_factory: sessionmaker[Session], budget: int, *, now: Callable[[], datetime] = utcnow) -> None:
+    def __init__(self, session_factory: sessionmaker[Session], budget: int, *, now: Callable[[], datetime] = utcnow, cache_seconds: float = 0) -> None:
         self._sf = session_factory
         self.budget = max(0, int(budget))
         self._now = now
+        self._cache_seconds = cache_seconds  # >0 in the app: one page asks for the snapshot many times, each costing database round trips
+        self._cached: tuple[float, str, dict] | None = None
 
     # -- reads
     def _row_credits(self, db: Session, provider: str, month: str) -> int:
@@ -44,6 +47,14 @@ class CreditLedger:
 
     def snapshot(self) -> dict:
         month = month_key(self._now())
+        if self._cache_seconds and self._cached and self._cached[1] == month and time.monotonic() - self._cached[0] < self._cache_seconds:
+            return dict(self._cached[2])
+        snap = self._snapshot(month)
+        if self._cache_seconds:
+            self._cached = (time.monotonic(), month, snap)
+        return dict(snap)
+
+    def _snapshot(self, month: str) -> dict:
         with self._sf() as db:
             counted = self._row_credits(db, PROVIDER, month)
             reported = self._row_credits(db, REPORTED, month)
@@ -70,6 +81,7 @@ class CreditLedger:
                 db.rollback()
 
     def reserve(self, cost: int) -> bool:
+        self._cached = None
         """Atomically add `cost` if it fits in the budget. False means: do not call the API."""
         month = month_key(self._now())
         with self._sf() as db:
@@ -86,6 +98,7 @@ class CreditLedger:
             return res.rowcount == 1
 
     def refund(self, cost: int) -> None:
+        self._cached = None
         month = month_key(self._now())
         with self._sf() as db:
             db.execute(
@@ -96,6 +109,7 @@ class CreditLedger:
             db.commit()
 
     def record_reported(self, credits: int) -> None:
+        self._cached = None
         """Store the credits the API says it charged for one call (accumulated per month)."""
         if credits <= 0:
             return

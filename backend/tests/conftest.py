@@ -59,7 +59,7 @@ class FakeChecker:
 @pytest.fixture
 def settings(tmp_path) -> Settings:
     # _env_file=None: a developer's real server/.env (e.g. TAVILY_API_KEY) must not leak into tests
-    return Settings(_env_file=None, data_dir=tmp_path / "data", database_url="sqlite://")  # type: ignore[call-arg]
+    return Settings(_env_file=None, data_dir=tmp_path / "data", database_url="sqlite://", response_cache_seconds=0)  # type: ignore[call-arg]
 
 
 @pytest.fixture(autouse=True)

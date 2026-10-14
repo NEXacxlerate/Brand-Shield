@@ -17,6 +17,7 @@ Rules this module enforces:
 
 from __future__ import annotations
 
+import functools
 import logging
 import time
 from collections.abc import Callable
@@ -28,6 +29,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.config import response_cache
 from app.config.config import Settings
 from app.config.logging import Redactor
 from app.config.time import as_utc, iso_z
@@ -126,6 +128,20 @@ def running_scan(db: Session, brand_id: int) -> Scan | None:
     return db.scalars(select(Scan).where(Scan.brand_id == brand_id, Scan.state.in_(ACTIVE_STATES)).order_by(Scan.id.desc())).first()
 
 
+def _busts_cache(fn):
+    """A scan changes what the dashboard and lists show: drop cached pages when it is queued and again when it ends."""
+
+    @functools.wraps(fn)
+    def wrapper(*a, **k):
+        try:
+            return fn(*a, **k)
+        finally:
+            response_cache.bust()
+
+    return wrapper
+
+
+@_busts_cache
 def request_scan(ctx: ScanContext, db: Session, *, brand_id: int | None, scope: str, user: User | None) -> Scan:
     """Create a queued scan (audited) and hand it to the job dispatcher. Raises ScanAlreadyRunning / NoBrand."""
     brand = db.get(Brand, brand_id) if brand_id else db.scalars(select(Brand).where(Brand.archived_at.is_(None)).order_by(Brand.id)).first()
@@ -730,6 +746,7 @@ def _set_progress(ctx: ScanContext, scan_id: int, progress: int, message: str, s
             db.commit()
 
 
+@_busts_cache
 def run_scan(ctx: ScanContext, scan_id: int) -> None:
     """Run one queued scan to completion. Never raises: a crash marks the scan failed with a short summary."""
     t0 = ctx.perf()
