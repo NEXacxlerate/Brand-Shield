@@ -23,6 +23,8 @@ from app.api import (
     reports,
     scans,
     sources,
+    studio,
+    studio_ai,
 )
 from app.api import settings as settings_api
 from app.config import response_cache
@@ -40,6 +42,7 @@ from app.db.session import make_engine, make_session_factory
 from app.services.context import build_context
 from app.services.scheduler import SchedulerLoop
 from app.services.seed import seed_admin
+from app.services.studio_ai import StudioAI
 
 
 def create_app(
@@ -90,6 +93,10 @@ def create_app(
     app.state.session_factory = make_session_factory(engine)
     app.state.file_store = build_store(settings, app.state.session_factory)
     app.state.login_limiter = FailureLimiter(settings.login_max_failures, settings.login_window_seconds)
+    app.state.signup_ip_limiter = RequestLimiter(settings.signup_max_per_ip_per_hour, 3600)
+    app.state.signup_email_limiter = RequestLimiter(settings.signup_max_per_email_per_hour, 3600)
+    app.state.studio_ai = StudioAI(settings)
+    app.state.studio_ai_limiter = RequestLimiter(settings.studio_ai_rate_per_minute, 60)
     app.state.request_limiter = RequestLimiter(settings.api_rate_limit_per_minute, 60)
     app.state.url_checker = url_checker or UrlChecker(
         timeout=settings.url_check_timeout_seconds,
@@ -163,6 +170,8 @@ def create_app(
     for r in (scans, detections, dashboard, lookalike, settings_api, reports, evaluation, candidates, providers):
         api.include_router(r.router)
     api.include_router(candidates.images)
+    api.include_router(studio.router)
+    api.include_router(studio_ai.router)
     app.include_router(health.router)
     app.include_router(api)
     return app

@@ -49,6 +49,11 @@ class Settings(BaseSettings):
     login_max_failures: int = 5
     login_window_seconds: int = 900
 
+    # Self-service sign-up (POST /api/auth/register). No email verification. Limits are in memory, per process.
+    signup_enabled: bool = True
+    signup_max_per_ip_per_hour: int = 5
+    signup_max_per_email_per_hour: int = 3
+
     logo_max_bytes: int = 2 * 1024 * 1024
     url_check_timeout_seconds: float = 5.0
     url_check_max_redirects: int = 3
@@ -114,6 +119,7 @@ class Settings(BaseSettings):
     response_cache_seconds: int = 15  # env RESPONSE_CACHE_SECONDS; 0 = off (see app/config/response_cache.py)
     scan_interval_minutes: int | None = None  # env SCAN_INTERVAL_MINUTES; overrides the Settings page; 0 = off
     scheduler_poll_seconds: int = 60
+    scheduler_max_brands_per_run: int = 5  # most brands the scheduler / cron scans in one pass (each scan spends credits and time)
     scheduler_max_queries_per_scan: int | None = None  # credit estimate; default = tavily_max_queries_per_scan
 
     # URL reputation: Google Safe Browsing Lookup API v4. The key comes ONLY from GOOGLE_SAFE_BROWSING_API_KEY
@@ -124,6 +130,24 @@ class Settings(BaseSettings):
     safe_browsing_daily_budget: int = 5000
     safe_browsing_max_urls_per_scan: int = 100
     safe_browsing_cache_ttl_seconds: int = 3600
+
+    # Brand Studio AI proxy (/api/studio/ai/*). Keys stay on the server; signed-in users only. Names only in .env.example.
+    groq_api_key: SecretStr | None = None  # GROQ_API_KEY: chat (primary); without it chat falls back to Gemini (GEMINI_API_KEY)
+    studio_hf_api_key: SecretStr | None = None  # STUDIO_HF_API_KEY: image generation through the Hugging Face router (needs Inference Providers credits)
+    studio_groq_model: str = "openai/gpt-oss-120b"  # STUDIO_GROQ_MODEL (the model the Studio used)
+    studio_image_model: str = "Qwen/Qwen-Image"  # STUDIO_IMAGE_MODEL (the model the Studio used; informational + sent to providers that need it)
+    studio_image_route: str = "fal-ai/fal-ai/qwen-image"  # STUDIO_IMAGE_ROUTE: path under https://router.huggingface.co/ for that model
+    studio_ai_rate_per_minute: int = 20  # per user, chat + image together; in memory, single process
+    studio_daily_text_quota: int = 200  # per user per UTC day (stored in api_usage, so it survives restarts); 0 = no limit
+    studio_daily_image_quota: int = 50
+    studio_ai_timeout_seconds: float = 45.0
+    studio_image_timeout_seconds: float = 120.0
+    studio_ai_max_retries: int = 2  # after the first attempt; timeouts, connection errors and 5xx only
+    studio_ai_retry_backoff_seconds: float = 0.5
+    studio_max_messages: int = 40
+    studio_max_chars: int = 30000  # all message text together
+    studio_max_tokens: int = 4096
+    studio_max_prompt_chars: int = 2000  # image prompt
 
     # General API rate limit (requests per minute, per client IP and per login token). 0 = off. In-memory, single process only.
     api_rate_limit_per_minute: int = 600

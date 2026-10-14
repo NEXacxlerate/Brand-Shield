@@ -15,7 +15,7 @@ os.environ.update(
 )
 
 # A real key in the shell must never reach a test run.
-for _name in ("VERCEL", "STORAGE_BACKEND", "MIGRATION_DATABASE_URL", "CORS_ORIGIN_REGEX", "CRON_SECRET", "GOOGLE_SAFE_BROWSING_API_KEY", "TAVILY_API_KEY", "SEARXNG_BASE_URL", "GEMINI_API_KEY", "HUGGINGFACE_API_TOKEN", "REDIS_URL", "SCAN_INTERVAL_MINUTES", "SENTRY_DSN"):
+for _name in ("VERCEL", "STORAGE_BACKEND", "MIGRATION_DATABASE_URL", "CORS_ORIGIN_REGEX", "CRON_SECRET", "GOOGLE_SAFE_BROWSING_API_KEY", "TAVILY_API_KEY", "SEARXNG_BASE_URL", "GEMINI_API_KEY", "GROQ_API_KEY", "STUDIO_HF_API_KEY", "STUDIO_GROQ_MODEL", "STUDIO_IMAGE_MODEL", "STUDIO_IMAGE_ROUTE", "SIGNUP_ENABLED", "HUGGINGFACE_API_TOKEN", "REDIS_URL", "SCAN_INTERVAL_MINUTES", "SENTRY_DSN"):
     os.environ.pop(_name, None)
 
 # Optional: run the whole suite against PostgreSQL. Set TEST_DATABASE_URL (a throwaway database, never a real one) and every test engine
@@ -133,6 +133,16 @@ def make_user(db, email: str, role: str, password: str = "Some-Password-1", acti
     db.add(u)
     db.commit()
     return u
+
+
+def hand_brand_to(app, email: str) -> None:
+    """Tests written when there was one shared brand: give every existing brand to `email` (a brand belongs to one account)."""
+    from app.models import Brand
+
+    with app.state.session_factory() as session:
+        uid = session.query(User).filter(User.email == email).one().id
+        session.query(Brand).update({Brand.owner_id: uid})
+        session.commit()
 
 
 @pytest.fixture

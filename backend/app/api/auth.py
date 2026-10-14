@@ -3,6 +3,7 @@ from datetime import timedelta
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config.config import Settings
@@ -17,7 +18,7 @@ from app.config.security import (
 from app.config.time import as_utc, utcnow
 from app.db.session import get_db
 from app.models import Brand, RefreshToken, User
-from app.schemas.auth import LoginRequest, OkResponse, RefreshRequest, TokenResponse, UserOut
+from app.schemas.auth import LoginRequest, OkResponse, RefreshRequest, RegisterRequest, TokenResponse, UserOut
 from app.services import audit
 
 router = APIRouter()
@@ -25,7 +26,7 @@ _DUMMY_HASH = hash_password("not-a-real-password")  # equalises timing for unkno
 
 
 def user_out(db: Session, user: User) -> UserOut:
-    brand_id = db.scalar(select(Brand.id).order_by(Brand.id).limit(1))
+    brand_id = db.scalar(select(Brand.id).where(Brand.owner_id == user.id, Brand.archived_at.is_(None)).order_by(Brand.id).limit(1))
     return UserOut(
         id=user.id, name=user.name, email=user.email, role=user.role, active=user.active, default_brand_id=brand_id
     )
@@ -70,6 +71,34 @@ def login(
     limiter.reset(key)
     tokens = _issue(db, settings, user)
     audit.record(db, user, "auth.login", user.email)
+    db.commit()
+    return tokens
+
+
+@router.post("/auth/register", response_model=TokenResponse, status_code=201)
+def register(
+    body: RegisterRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings_dep),
+) -> TokenResponse:
+    """Public self-service sign-up: an `analyst` account that owns its own brand workspace. No email verification (docs/DECISIONS.md)."""
+    if not settings.signup_enabled:
+        raise HTTPException(403, "Sign-up is disabled")
+    ip = request.client.host if request.client else "-"
+    if not request.app.state.signup_ip_limiter.allow(ip) or not request.app.state.signup_email_limiter.allow(body.email):
+        raise HTTPException(429, "Too many sign-up attempts. Try again later.")
+    if db.scalar(select(User.id).where(User.email == body.email)):
+        raise HTTPException(409, "An account with this email already exists.")
+    user = User(name=body.name, email=body.email, password_hash=hash_password(body.password), role="analyst", active=True)
+    db.add(user)
+    try:
+        db.flush()
+    except IntegrityError as exc:  # two sign-ups with the same email at once
+        db.rollback()
+        raise HTTPException(409, "An account with this email already exists.") from exc
+    tokens = _issue(db, settings, user)
+    audit.record(db, user, "auth.registered", user.email)
     db.commit()
     return tokens
 
