@@ -12,6 +12,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 
 const API_PORT = Number(process.env.E2E_API_PORT || 8765);
 const WEB_PORT = Number(process.env.E2E_WEB_PORT || 5174);
+const STUDIO_PORT = Number(process.env.E2E_STUDIO_PORT || 3100); // not 3000: a developer may already run Brand Studio there
 // This file is also loaded by the test worker: values created by the main process are inherited through the environment, never regenerated.
 const tmp = process.env.E2E_TMP_DIR ?? mkdtempSync(path.join(tmpdir(), 'brandshield-e2e-'));
 process.env.E2E_TMP_DIR = tmp;
@@ -72,7 +73,19 @@ export default defineConfig({
       reuseExistingServer: false,
       stdout: 'ignore',
       stderr: 'pipe',
-      env: { VITE_API_URL: `http://127.0.0.1:${API_PORT}`, PATH: process.env.PATH ?? '', SYSTEMROOT: process.env.SYSTEMROOT ?? '' },
+      // STUDIO_API_PROXY: Brand Studio (served through this origin) calls relative /api URLs, which this dev server forwards to the test API.
+      env: { VITE_API_URL: `http://127.0.0.1:${API_PORT}`, STUDIO_DEV_URL: `http://127.0.0.1:${STUDIO_PORT}`, STUDIO_API_PROXY: `http://127.0.0.1:${API_PORT}`, PATH: process.env.PATH ?? '', SYSTEMROOT: process.env.SYSTEMROOT ?? '' },
+    },
+    {
+      // Brand Studio dev server (base /studio/); the BrandShield dev server above proxies /studio to it.
+      command: `npx vite --port ${STUDIO_PORT} --strictPort`,
+      cwd: path.resolve(here, '..', 'studio'),
+      url: `http://127.0.0.1:${STUDIO_PORT}/studio/`,
+      timeout: 90_000,
+      reuseExistingServer: false,
+      stdout: 'ignore',
+      stderr: 'pipe',
+      env: { STUDIO_API_PROXY: `http://127.0.0.1:${API_PORT}`, PATH: process.env.PATH ?? '', SYSTEMROOT: process.env.SYSTEMROOT ?? '' },
     },
   ],
 });

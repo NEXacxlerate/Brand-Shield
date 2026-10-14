@@ -4,13 +4,15 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Target, Users, Database, Lock, Check } from 'lucide-react';
 import { ApiError } from '../api/client';
 import { sm } from '../api/sm';
+import { safeStudioNext } from '../utils/studio';
 import '../components/common/States.css';
 import './LoginPage.css';
 import './RegisterPage.css';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const from = (useLocation().state as { from?: string } | null)?.from;
+  const location = useLocation();
+  const from = (location.state as { from?: string } | null)?.from;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [keepSignedIn, setKeepSignedIn] = useState(true);
@@ -30,7 +32,9 @@ export const LoginPage: React.FC = () => {
     setBusy(true);
     try {
       await sm.login(email.trim(), password, keepSignedIn);
-      navigate('/protect-brand', { replace: true });
+      const next = safeStudioNext(location.search); // signed out inside Brand Studio: go back there
+      if (next) window.location.assign(next);
+      else navigate('/protect-brand', { replace: true });
     } catch (err) {
       // The server's own message is shown: "Incorrect email or password", the 429 rate-limit text, or the network message.
       setErrorMsg(err instanceof ApiError ? err.message : 'Failed to sign in. Please try again.');

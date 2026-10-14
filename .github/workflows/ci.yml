@@ -178,6 +178,9 @@ jobs:
       - name: Install frontend
         working-directory: frontend
         run: npm ci
+      - name: Install Brand Studio (the browser tests open it through the BrandShield dev server)
+        working-directory: studio
+        run: npm ci
       - name: Install Chromium for Playwright
         working-directory: frontend
         run: npx playwright install --with-deps chromium

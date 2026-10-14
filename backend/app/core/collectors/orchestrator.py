@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.config.time import as_utc, utcnow
@@ -157,8 +158,13 @@ def ensure_sources(db: Session) -> list[Source]:
             existing[platform] = row
             created = True
     if created:
-        db.commit()
-    return [existing[p] for p in SOURCE_PLATFORMS]
+        try:
+            db.commit()
+        except IntegrityError:
+            # Two requests met an empty table at the same moment (e.g. two new accounts opening their first page): the other one won.
+            db.rollback()
+            existing = {s.platform: s for s in db.scalars(select(Source))}
+    return [existing[p] for p in SOURCE_PLATFORMS if p in existing]
 
 
 def _scope_platforms(scope: str) -> frozenset[str]:

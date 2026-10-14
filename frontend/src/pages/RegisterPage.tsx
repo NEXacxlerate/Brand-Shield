@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Target, Users, Database, Lock, Check, Eye, EyeOff, X, Circle } from 'lucide-react';
 import { BrandMark, Wordmark } from '../components/common/BrandMark';
 import { ApiError } from '../api/client';
 import { sm } from '../api/sm';
+import { safeStudioNext } from '../utils/studio';
 import { checkPassword, passwordProblem } from '../utils/passwordPolicy';
 import '../components/common/States.css';
 import './LoginPage.css';
@@ -13,6 +14,7 @@ export const DUPLICATE_EMAIL_MESSAGE = 'An account with this email already exist
 
 export const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -48,7 +50,9 @@ export const RegisterPage: React.FC = () => {
     setBusy(true);
     try {
       await sm.register(cleanName, cleanEmail, password, keepSignedIn);
-      navigate('/protect-brand', { replace: true });
+      const next = safeStudioNext(location.search);
+      if (next) window.location.assign(next);
+      else navigate('/protect-brand', { replace: true });
     } catch (err) {
       if (!(err instanceof ApiError)) {
         setErrorMsg('Failed to create the account. Please try again.');
