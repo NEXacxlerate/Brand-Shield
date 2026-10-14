@@ -53,7 +53,7 @@ that one origin: `/api/*` goes to the backend, everything else to the frontend. 
 * **Where `crons` live in services mode.** The docs read list `crons` only as a top-level key and do not describe cron in services
   mode. This guide keeps it at the top level (a cron path is a public path, so `/api/cron/scan` goes through the same rewrite to the
   backend). If the dashboard shows no cron job after deploying, that is the first thing to check.
-* **`functions` inside the backend service**: key `api/index.py` (the file, as in the old `backend/vercel.json`), `maxDuration` 300
+* **`functions` inside the backend service**: key `api/index.py` (the file), `maxDuration` 300
   and `excludeFiles`. The docs say service `functions` use the normal syntax; whether the key must be the file or the module from
   `entrypoint` is not shown.
 * **`"entrypoint": "api.index:app"`** (module:variable, the form the docs show for Python, `main:app`). The JSON schema calls the
@@ -66,9 +66,6 @@ that one origin: `/api/*` goes to the backend, everything else to the frontend. 
 * **Top-level `headers` on responses that come from a service** (security headers, `Cache-Control` for `/assets/*` and `/config.js`).
   The docs say top-level headers stay top level and own public URL behaviour; they do not spell out that they apply to responses
   produced by a service. `vercel dev -L` did not show them.
-* Whether the old per-folder `backend/vercel.json` and `frontend/vercel.json` are ignored, merged or conflicting in services mode.
-  The docs read do not say. They are kept (the "two projects" alternative needs them); `backend/vercel.json` repeats the cron entry,
-  so if the dashboard ever shows the cron twice, delete the cron entry from `backend/vercel.json`.
 * How environment variables are shared between services (the docs only say services share "environment variables"). This guide
   assumes project variables reach the backend function; the frontend needs no build-time variable.
 * Service request limits and pricing beyond "same as Vercel Functions".
@@ -240,10 +237,3 @@ automatically after `SCAN_STALE_MINUTES` (30) so a new one can start.
   production rewrite engine.
 * Earlier: a simulation of the Vercel runtime with `VERCEL=1` (database store, inline scan, cron endpoint 401/200), and unit tests
   for the settings defaults, cron, entrypoint import and both file stores.
-
-## 8. Alternative: two projects
-
-`backend/vercel.json` and `frontend/vercel.json` are kept for the older layout (two Vercel projects, Root Directory `backend` and
-`frontend`, each with its own domain). There: set `VITE_API_URL` on the frontend project to the backend URL (build-time), set
-`CORS_ORIGINS` (and optionally `CORS_ORIGIN_REGEX`) on the backend project to the frontend origin, and do not use the root
-`vercel.json`. The app code works in both layouts.
