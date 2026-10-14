@@ -1,0 +1,22 @@
+# Files that must never be uploaded to Vercel (the function bundle is built from what is left).
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.env
+.env.*
+!.env.example
+# the local SQLite database and the CLIP model cache (hundreds of MB)
+data/
+*.db
+*.sqlite3
+tests/
+scripts/
+requirements-dev.txt
+requirements-extra.txt
+docker-entrypoint.sh
+Dockerfile
+.dockerignore
+README.md

@@ -18,9 +18,12 @@ def make_engine(url: str) -> Engine:
     elif url.startswith("postgresql"):
         # Hosted poolers (Supabase session mode allows only 15 clients in total), far-away databases: small pool, and no
         # extra round trip per request for a liveness ping; recycle idle connections before the pooler drops them instead.
-        kwargs["pool_size"] = int(os.environ.get("DB_POOL_SIZE") or 5)
-        kwargs["max_overflow"] = int(os.environ.get("DB_MAX_OVERFLOW") or 2)
-        kwargs["pool_recycle"] = int(os.environ.get("DB_POOL_RECYCLE") or 1800)
+        # On Vercel (VERCEL=1) every warm function instance holds its own pool, so each keeps at most 1 + 1 connections and recycles
+        # them early; explicit DB_* variables still win.
+        serverless = bool(os.environ.get("VERCEL"))
+        kwargs["pool_size"] = int(os.environ.get("DB_POOL_SIZE") or (1 if serverless else 5))
+        kwargs["max_overflow"] = int(os.environ.get("DB_MAX_OVERFLOW") or (1 if serverless else 2))
+        kwargs["pool_recycle"] = int(os.environ.get("DB_POOL_RECYCLE") or (300 if serverless else 1800))
         kwargs["pool_pre_ping"] = (os.environ.get("DB_PRE_PING") or "").lower() in ("1", "true", "yes")
         # TCP keepalives keep the pooler / NAT from dropping idle connections (a new one costs 1-2 s to a far-away database)
         connect_args: dict = {"keepalives": 1, "keepalives_idle": 30, "keepalives_interval": 10, "keepalives_count": 3}

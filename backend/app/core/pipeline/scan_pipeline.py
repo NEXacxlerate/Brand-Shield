@@ -102,6 +102,7 @@ class ScanContext:
     screenshot: ScreenshotProvider | None = None
     llm: ScamIntentLLM | None = None
     dispatcher: Any = None  # JobDispatcher, set by whoever builds the context
+    store: Any = None  # FileStore (local files or the database), set by build_context
     perf: Callable[[], float] = time.perf_counter
     text_providers: dict = field(default_factory=dict, repr=False)  # provider name -> provider (keeps its quota cool-down)
 
@@ -297,10 +298,10 @@ class _Env:
         self.aliases = list(brand.aliases or [])
         self.reputation: dict[str, ReputationResult] = {}  # canonical URL -> Safe Browsing result (web candidates, live only)
         self.reputation_note: dict[str, str] = {}  # canonical URL -> why it was not checked
-        self.official_logos = _load_brand_logos(ctx.settings, brand)  # [(label, image)]: the primary logo and every extra one
+        self.official_logos = _load_brand_logos(ctx.store, brand)  # [(label, image)]: the primary logo and every extra one
         self.image_impl, self.image_backend = _image_impl(ctx.settings)
         self.db = db
-        self.data_dir = ctx.settings.data_dir
+        self.store = ctx.store
         self.logo_fetches = 0
         self.text = build_text_service(ctx, db)
         self.llm_note = self.text.note
@@ -308,15 +309,15 @@ class _Env:
         self.today = ctx.now().date()
 
 
-def _load_brand_logos(settings: Settings, brand: Brand) -> list[tuple[str, Any]]:
+def _load_brand_logos(store, brand: Brand) -> list[tuple[str, Any]]:
     out: list[tuple[str, Any]] = []
     rows = [("primary logo", brand.logo_path), *[(lg.label or f"logo {lg.id}", lg.path) for lg in brand.logos]]
     for label, rel in rows:
-        path = evidence.safe_path(settings.data_dir, rel)
-        if path is None:
+        raw = evidence.read_file(store, rel)
+        if raw is None:
             continue
         try:
-            out.append((label, load_image(path.read_bytes())))
+            out.append((label, load_image(raw)))
         except Exception:  # noqa: BLE001 - a broken logo file just means "logo unavailable"
             continue
     return out
@@ -358,21 +359,17 @@ def _intake_image(env: _Env, c: Candidate):
     """The uploaded image of a manual / imported candidate (by id), or None."""
     image_id = c.extras.get("image_id")
     row = env.db.get(CandidateImage, image_id) if isinstance(image_id, int) else None
-    path = evidence.safe_path(env.data_dir, row.path) if row is not None else None
-    if path is None:
+    raw = evidence.read_file(env.store, row.path) if row is not None else None
+    if raw is None:
         return None
     try:
-        return load_image(path.read_bytes())
+        return load_image(raw)
     except Exception:  # noqa: BLE001
         return None
 
 
-def _read_logo_bytes(settings: Settings, brand: Brand) -> bytes | None:
-    path = evidence.safe_path(settings.data_dir, brand.logo_path)
-    try:
-        return path.read_bytes() if path is not None else None
-    except OSError:
-        return None
+def _read_logo_bytes(store, brand: Brand) -> bytes | None:
+    return evidence.read_file(store, brand.logo_path)
 
 
 def _logo_step(ctx: ScanContext, env: _Env, c: Candidate, counts: dict) -> tuple[float | None, dict]:
@@ -566,8 +563,8 @@ def _clear_reason(oc: Outcome) -> str:
 # persistence
 
 
-def _evidence_for(ctx: ScanContext, c: Candidate, now: datetime, previous: dict | None) -> dict:
-    sha, rel = evidence.save_snapshot(ctx.settings.data_dir, evidence.snapshot_payload(c))
+def _evidence_for(ctx: ScanContext, db: Session, c: Candidate, now: datetime, previous: dict | None) -> dict:
+    sha, rel = evidence.save_snapshot(ctx.store, evidence.snapshot_payload(c), db)
     ev = dict(previous or {})
     history = list(ev.pop("history", []) or [])
     if previous and previous.get("sha256") and previous.get("sha256") != sha:
@@ -580,7 +577,7 @@ def _evidence_for(ctx: ScanContext, c: Candidate, now: datetime, previous: dict 
         except Exception:  # noqa: BLE001 - optional hook
             png = None
         if png:
-            s_sha, s_rel = evidence.save_screenshot(ctx.settings.data_dir, png)
+            s_sha, s_rel = evidence.save_screenshot(ctx.store, png, db)
             ev["screenshot_path"], ev["screenshot_sha256"] = s_rel, s_sha
     ev.setdefault("screenshot_path", None)
     return ev
@@ -683,7 +680,7 @@ def upsert_detection(ctx: ScanContext, db: Session, scan: Scan | None, brand: Br
         det = Detection(brand_id=brand.id, canonical_key=key, found_at=now, first_seen_at=now, last_seen_at=now, last_scan_id=scan.id if scan else None, origin=origin_of(c),
                         score=oc.score.score, band=oc.score.band, type="", category="", platform=c.platform, status=new_status)
         _apply_fields(det, oc, now, new_status)
-        det.evidence = _evidence_for(ctx, c, now, None)
+        det.evidence = _evidence_for(ctx, db, c, now, None)
         det.score_history = []
         det.notes = []
         _push_history(det, oc.score.score, scan, now)
@@ -697,7 +694,7 @@ def upsert_detection(ctx: ScanContext, db: Session, scan: Scan | None, brand: Br
     old_score, old_status = det.score, det.status
     det.last_seen_at, det.last_scan_id = now, (scan.id if scan else det.last_scan_id)
     prev_evidence = det.evidence
-    det.evidence = _evidence_for(ctx, c, now, prev_evidence)
+    det.evidence = _evidence_for(ctx, db, c, now, prev_evidence)
     if det.evidence.get("sha256") != (prev_evidence or {}).get("sha256"):
         _event(db, det, now, kind="evidence", note="New evidence snapshot captured.")
     _push_history(det, oc.score.score, scan, now)
@@ -803,7 +800,7 @@ def _execute(ctx: ScanContext, scan_id: int, t0: float) -> None:
         brand_id, scope = scan.brand_id, scan.scope
         selection = select_collectors(ctx.settings, data_mode.get_data_mode(db))
         brand_query = load_brand_query(
-            db, brand_id, logo_bytes=(lambda b: _read_logo_bytes(ctx.settings, b)) if selection.effective_mode == "sample" else None
+            db, brand_id, logo_bytes=(lambda b: _read_logo_bytes(ctx.store, b)) if selection.effective_mode == "sample" else None
         )
         if brand_query is None:
             raise RuntimeError("brand missing")

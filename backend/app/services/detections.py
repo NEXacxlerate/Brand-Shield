@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 from sqlalchemy import Select, func, literal_column, select, union_all, update
@@ -18,6 +17,7 @@ from app.config.time import iso_z, utcnow
 from app.core.collectors.base import Candidate
 from app.core.pipeline import evidence
 from app.core.pipeline.matching import BrandAllowlist
+from app.core.storage import FileStore
 from app.models import Brand, Detection, DetectionEvent, OfficialAccount, OfficialApp, OfficialMatch, User
 from app.services import audit
 from app.services.validators import build_account_url, display_handle
@@ -283,9 +283,9 @@ def detail(db: Session, d: Detection, brand: Brand) -> dict:
     return out
 
 
-def evidence_bundle(d: Detection, data_dir: Path) -> dict:
+def evidence_bundle(d: Detection, store: FileStore) -> dict:
     ev = d.evidence or {}
-    snap, ok = evidence.read_snapshot(data_dir, ev.get("snapshot_path"), ev.get("sha256"))
+    snap, ok = evidence.read_snapshot(store, ev.get("snapshot_path"), ev.get("sha256"))
     return {
         "page_url": ev.get("page_url"), "captured_at": ev.get("captured_at"), "sha256": ev.get("sha256"),
         "hash_verified": ok, "snapshot": snap, "screenshot_available": bool(ev.get("screenshot_path")),

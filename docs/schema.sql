@@ -377,6 +377,16 @@ CREATE TABLE sources (
 );
 
 
+CREATE TABLE stored_files (
+	path VARCHAR(300) NOT NULL, 
+	content BYTEA NOT NULL, 
+	content_type VARCHAR(100) NOT NULL, 
+	size_bytes INTEGER NOT NULL, 
+	created_at TIMESTAMP WITH TIME ZONE NOT NULL, 
+	CONSTRAINT pk_stored_files PRIMARY KEY (path)
+);
+
+
 CREATE TABLE text_analysis_cache (
 	key VARCHAR(64) NOT NULL, 
 	provider VARCHAR(20) NOT NULL, 

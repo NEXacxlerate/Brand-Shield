@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import JSON, BigInteger, Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
+from sqlalchemy import JSON, BigInteger, Boolean, DateTime, ForeignKey, Index, Integer, LargeBinary, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.config.time import utcnow
@@ -167,4 +167,17 @@ class TextAnalysisCache(Base):
     key: Mapped[str] = mapped_column(String(64), primary_key=True)
     provider: Mapped[str] = mapped_column(String(20))
     value: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class StoredFile(Base):
+    """File content kept in the database (STORAGE_BACKEND=database, the default on Vercel). `path` is the same relative path the local
+    store would use under DATA_DIR, so rows that reference files (logo_path, snapshot_path ...) work with either backend."""
+
+    __tablename__ = "stored_files"
+
+    path: Mapped[str] = mapped_column(String(300), primary_key=True)
+    content: Mapped[bytes] = mapped_column(LargeBinary)
+    content_type: Mapped[str] = mapped_column(String(100), default="application/octet-stream")
+    size_bytes: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

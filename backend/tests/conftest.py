@@ -15,7 +15,7 @@ os.environ.update(
 )
 
 # A real key in the shell must never reach a test run.
-for _name in ("GOOGLE_SAFE_BROWSING_API_KEY", "TAVILY_API_KEY", "SEARXNG_BASE_URL", "GEMINI_API_KEY", "HUGGINGFACE_API_TOKEN", "REDIS_URL", "SCAN_INTERVAL_MINUTES", "SENTRY_DSN"):
+for _name in ("VERCEL", "STORAGE_BACKEND", "MIGRATION_DATABASE_URL", "CORS_ORIGIN_REGEX", "CRON_SECRET", "GOOGLE_SAFE_BROWSING_API_KEY", "TAVILY_API_KEY", "SEARXNG_BASE_URL", "GEMINI_API_KEY", "HUGGINGFACE_API_TOKEN", "REDIS_URL", "SCAN_INTERVAL_MINUTES", "SENTRY_DSN"):
     os.environ.pop(_name, None)
 
 # Optional: run the whole suite against PostgreSQL. Set TEST_DATABASE_URL (a throwaway database, never a real one) and every test engine

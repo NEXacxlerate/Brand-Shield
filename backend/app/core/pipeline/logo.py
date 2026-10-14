@@ -6,6 +6,8 @@ from pathlib import Path
 
 from PIL import Image, UnidentifiedImageError
 
+from app.core.storage import FileStore
+
 MAX_PIXELS = 25_000_000  # decompression-bomb guard
 MIN_SIDE = 256
 MIN_ASPECT, MAX_ASPECT = 0.8, 1.25
@@ -71,10 +73,8 @@ def process_logo(data: bytes, max_bytes: int) -> ProcessedLogo:
     return ProcessedLogo(clean, ext, media, width, height, hashlib.sha256(clean).hexdigest())
 
 
-def save_logo(data_dir: Path, brand_id: int, logo: ProcessedLogo) -> str:
-    """Write under data_dir/logos/brand_<id>/; the filename is derived from the hash, never user input."""
-    rel = Path("logos") / f"brand_{brand_id}" / f"{logo.sha256[:24]}.{logo.format}"
-    dest = data_dir / rel
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_bytes(logo.data)
-    return rel.as_posix()
+def save_logo(store: FileStore, brand_id: int, logo: ProcessedLogo) -> str:
+    """Write logos/brand_<id>/<hash>.<ext> into the file store; the filename is derived from the hash, never user input."""
+    rel = (Path("logos") / f"brand_{brand_id}" / f"{logo.sha256[:24]}.{logo.format}").as_posix()
+    store.write(rel, logo.data)
+    return rel

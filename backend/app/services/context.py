@@ -9,6 +9,7 @@ from app.core.collectors.selection import CollectorRuntime
 from app.core.pipeline.image_fetch import SafeFetcher
 from app.core.pipeline.scan_pipeline import ScanContext, run_scan
 from app.core.pipeline.screenshot import ScreenshotProvider, build_screenshot_provider
+from app.core.storage import FileStore, build_store
 from app.services.jobs import JobDispatcher
 
 
@@ -19,6 +20,7 @@ def build_context(
     *,
     fetcher: SafeFetcher | None = None,
     screenshot: ScreenshotProvider | None = None,
+    store: FileStore | None = None,
 ) -> ScanContext:
     ctx = ScanContext(
         settings=settings,
@@ -31,6 +33,7 @@ def build_context(
             max_bytes=settings.scan_logo_max_bytes,
         ),
         screenshot=screenshot if screenshot is not None else build_screenshot_provider(settings),
+        store=store or build_store(settings, session_factory),
     )
     ctx.dispatcher = JobDispatcher(settings, lambda scan_id: run_scan(ctx, scan_id))
     return ctx

@@ -2,21 +2,20 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.api.common import get_ctx, resolve_brand
+from app.api.common import file_response, get_ctx, resolve_brand
 from app.config.config import Settings
-from app.config.deps import get_current_user, get_settings_dep, require_writer
+from app.config.deps import get_current_user, get_settings_dep, get_store, require_writer
 from app.core.pipeline import candidate_intake as ci
 from app.core.pipeline.candidate_images import process_candidate_image, save_candidate_image
 from app.core.pipeline.logo import LogoError
 from app.core.pipeline.scan_pipeline import ScanContext
+from app.core.storage import MEDIA_BY_FORMAT, FileStore
 from app.db.session import get_db
 from app.models import CandidateImage, User
 from app.services import audit
@@ -81,6 +80,7 @@ def upload_image(
     user: User = Depends(require_writer),
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings_dep),
+    store: FileStore = Depends(get_store),
 ) -> dict:
     brand = resolve_brand(db, brand_id)
     data = file.file.read(settings.candidate_image_max_bytes + 1)
@@ -90,7 +90,7 @@ def upload_image(
         raise HTTPException(exc.status_code, exc.message) from exc
     row = db.query(CandidateImage).filter_by(brand_id=brand.id, sha256=img.sha256).first()
     if row is None:
-        rel = save_candidate_image(settings.data_dir, brand.id, img)
+        rel = save_candidate_image(store, brand.id, img)
         row = CandidateImage(brand_id=brand.id, purpose=purpose, path=rel, format=img.format, width=img.width, height=img.height,
                              size_bytes=len(img.data), sha256=img.sha256, hashes=img.hashes, created_by=user.id)
         db.add(row)
@@ -107,14 +107,12 @@ def upload_image(
 
 
 @images.get("/{image_id}/file")
-def get_image(image_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db), settings: Settings = Depends(get_settings_dep)) -> FileResponse:
+def get_image(image_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db), store: FileStore = Depends(get_store)) -> Response:
     row = db.get(CandidateImage, image_id)
-    root = Path(settings.data_dir).resolve()
-    path = (root / row.path).resolve() if row else None
-    if row is None or path is None or root not in path.parents or not path.is_file():
+    data = store.read(row.path) if row else None
+    if row is None or data is None:
         raise HTTPException(404, "Image not found")
-    media = {"png": "image/png", "jpg": "image/jpeg", "webp": "image/webp"}[row.format]
-    return FileResponse(path, media_type=media, headers={"X-Content-Type-Options": "nosniff", "Content-Disposition": "inline"})
+    return file_response(data, MEDIA_BY_FORMAT[row.format], {"X-Content-Type-Options": "nosniff", "Content-Disposition": "inline"})
 
 
 __all__ = ["images", "router"]

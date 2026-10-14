@@ -1,11 +1,17 @@
 """Application settings. Every value comes from environment variables (or server/.env)."""
+import os
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 SERVER_DIR = Path(__file__).resolve().parents[2]
+
+
+def is_vercel() -> bool:
+    """True on Vercel (the platform sets VERCEL=1 at build and run time). Everywhere else the defaults below are unchanged."""
+    return bool(os.environ.get("VERCEL"))
 
 
 class Settings(BaseSettings):
@@ -22,6 +28,14 @@ class Settings(BaseSettings):
     database_url: str = f"sqlite:///{(SERVER_DIR / 'data' / 'scammind.db').as_posix()}"
     data_dir: Path = SERVER_DIR / "data"
     cors_origins: str = "http://localhost:5173"  # comma separated
+    cors_origin_regex: str | None = None  # optional, e.g. https://.*\.vercel\.app for preview deployments (CORS_ORIGIN_REGEX)
+    # Where uploaded logos, candidate images and evidence snapshots live: local (files under DATA_DIR) | database (stored_files table,
+    # survives serverless). Default local; database on Vercel (see docs/DEPLOY_VERCEL.md).
+    storage_backend: str = "local"
+    # Optional session-mode / direct URL (port 5432) used ONLY by Alembic and scripts/migrate.py; DATABASE_URL is then free to be the
+    # Supabase transaction pooler (port 6543) at runtime.
+    migration_database_url: str | None = None
+    cron_secret: SecretStr | None = None  # CRON_SECRET: Vercel Cron sends it as "Authorization: Bearer <secret>"; unset = /api/cron/scan is off
 
     jwt_secret: str = Field(min_length=16)  # required, no default
     jwt_algorithm: str = "HS256"
@@ -124,6 +138,23 @@ class Settings(BaseSettings):
     sentry_environment: str | None = None  # default: APP_ENV
     sentry_traces_sample_rate: float = 0.0
 
+    @model_validator(mode="after")
+    def _vercel_defaults(self) -> "Settings":
+        """On Vercel only: serverless-friendly defaults. A value set explicitly (env var, .env or constructor) always wins."""
+        if not is_vercel():
+            return self
+        given = self.model_fields_set
+        for name, value in (
+            ("scan_executor", "inline"),  # no background threads / RQ worker: the scan runs inside the request
+            ("scheduler_enabled", False),  # no in-process loop: Vercel Cron calls /api/cron/scan instead
+            ("response_cache_seconds", 0),  # a per-instance cache would go stale across instances
+            ("storage_backend", "database"),  # the function file system is read-only (except /tmp) and not shared
+            ("data_dir", Path("/tmp/brandshield")),  # only /tmp is writable
+        ):
+            if name not in given:
+                setattr(self, name, value)
+        return self
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
@@ -149,3 +180,9 @@ class DatabaseSettings(BaseSettings):
         env_file=(SERVER_DIR / ".env", SERVER_DIR.parent / ".env"), extra="ignore", case_sensitive=False, env_ignore_empty=True
     )
     database_url: str = f"sqlite:///{(SERVER_DIR / 'data' / 'scammind.db').as_posix()}"
+    migration_database_url: str | None = None
+
+    @property
+    def migration_url(self) -> str:
+        """Alembic and scripts.migrate use MIGRATION_DATABASE_URL (session mode, port 5432) when set, otherwise DATABASE_URL."""
+        return self.migration_database_url or self.database_url

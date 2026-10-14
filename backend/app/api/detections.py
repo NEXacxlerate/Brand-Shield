@@ -1,15 +1,14 @@
 from datetime import datetime
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.api.common import mode_of, resolve_brand
-from app.config.config import Settings
-from app.config.deps import get_current_user, get_settings_dep, require_writer
+from app.api.common import file_response, mode_of, resolve_brand
+from app.config.deps import get_current_user, get_store, require_writer
 from app.core.pipeline import evidence
+from app.core.storage import FileStore
 from app.db.session import get_db
 from app.models import Detection, User
 from app.services import detections as svc
@@ -139,20 +138,20 @@ def get_detection(detection_id: int, request: Request, _: User = Depends(get_cur
 
 @router.get("/{detection_id}/evidence")
 def get_evidence(
-    detection_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db), settings: Settings = Depends(get_settings_dep)
+    detection_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db), store: FileStore = Depends(get_store)
 ) -> dict:
-    return svc.evidence_bundle(_get(db, detection_id), settings.data_dir)
+    return svc.evidence_bundle(_get(db, detection_id), store)
 
 
 @router.get("/{detection_id}/evidence/screenshot")
 def get_screenshot(
-    detection_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db), settings: Settings = Depends(get_settings_dep)
-) -> FileResponse:
+    detection_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db), store: FileStore = Depends(get_store)
+) -> Response:
     d = _get(db, detection_id)
-    path = evidence.safe_path(settings.data_dir, (d.evidence or {}).get("screenshot_path"))
-    if path is None:
+    data = evidence.read_file(store, (d.evidence or {}).get("screenshot_path"))
+    if data is None:
         raise HTTPException(404, "No screenshot was captured (screenshots are off by default)")
-    return FileResponse(path, media_type="image/png", headers={"X-Content-Type-Options": "nosniff"})
+    return file_response(data, "image/png", {"X-Content-Type-Options": "nosniff"})
 
 
 def _status_response(db: Session, d: Detection, audit_id: int | None) -> dict:

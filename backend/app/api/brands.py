@@ -1,21 +1,20 @@
 import logging
-from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.api.common import get_ctx
+from app.api.common import file_response, get_ctx
 from app.config.config import Settings
-from app.config.deps import get_current_user, get_settings_dep, get_url_checker, require_admin, require_writer
+from app.config.deps import get_current_user, get_settings_dep, get_store, get_url_checker, require_admin, require_writer
 from app.config.time import utcnow
 from app.core.collectors.selection import select_collectors
 from app.core.pipeline import lookalike
 from app.core.pipeline.logo import LogoError, process_logo, save_logo
 from app.core.pipeline.scan_pipeline import NoBrand, ScanAlreadyRunning, ScanContext, request_scan
 from app.core.pipeline.url_safety import UrlChecker
+from app.core.storage import MEDIA_BY_FORMAT, FileStore
 from app.db.session import get_db
 from app.models import AssetVerification, Brand, BrandLogo, BrandPublisher, OfficialAccount, OfficialApp, User
 from app.schemas.auth import OkResponse
@@ -205,6 +204,7 @@ def upload_logo(
     user: User = Depends(require_writer),
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings_dep),
+    store: FileStore = Depends(get_store),
 ) -> LogoOut:
     brand = get_brand_or_404(db, brand_id)
     data = file.file.read(settings.logo_max_bytes + 1)  # never read more than the cap + 1 byte
@@ -213,7 +213,7 @@ def upload_logo(
     except LogoError as exc:
         raise HTTPException(exc.status_code, exc.message) from exc
     old = brand.logo_path
-    rel = save_logo(settings.data_dir, brand.id, logo)
+    rel = save_logo(store, brand.id, logo)
     brand.logo_path = rel
     brand.logo_format = logo.format
     brand.logo_width, brand.logo_height = logo.width, logo.height
@@ -223,7 +223,7 @@ def upload_logo(
     audit.record(db, user, "logo.replaced", brand.name, f"{logo.format} {logo.width}x{logo.height} sha256={logo.sha256[:12]}")
     db.commit()
     if old and old != rel:
-        (settings.data_dir / old).unlink(missing_ok=True)
+        store.delete(old)
     out = logo_out(brand)
     assert out is not None
     return out
@@ -234,17 +234,16 @@ def get_logo(
     brand_id: int,
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-    settings: Settings = Depends(get_settings_dep),
-) -> FileResponse:
+    store: FileStore = Depends(get_store),
+) -> Response:
     brand = get_brand_or_404(db, brand_id)
     if not brand.logo_path:
         raise HTTPException(404, "No logo uploaded")
-    root = Path(settings.data_dir).resolve()
-    path = (root / brand.logo_path).resolve()
-    if root not in path.parents or not path.is_file():
+    data = store.read(brand.logo_path)
+    if data is None:
         raise HTTPException(404, "Logo file is missing")
-    media = {"png": "image/png", "jpg": "image/jpeg", "webp": "image/webp"}[brand.logo_format or "png"]
-    return FileResponse(path, media_type=media, headers={"X-Content-Type-Options": "nosniff"})
+    media = MEDIA_BY_FORMAT[brand.logo_format or "png"]
+    return file_response(data, media, {"X-Content-Type-Options": "nosniff"})
 
 
 # ---------------------------------------------------------------- official accounts
@@ -440,7 +439,7 @@ def restore_brand(brand_id: int, user: User = Depends(require_admin), db: Sessio
 @router.post("/{brand_id}/logos", response_model=ExtraLogoOut, status_code=201)
 def add_logo(
     brand_id: int, label: str = "", file: UploadFile = File(...), user: User = Depends(require_writer), db: Session = Depends(get_db),
-    settings: Settings = Depends(get_settings_dep),
+    settings: Settings = Depends(get_settings_dep), store: FileStore = Depends(get_store),
 ) -> ExtraLogoOut:
     brand = get_brand_or_404(db, brand_id)
     data = file.file.read(settings.logo_max_bytes + 1)
@@ -452,7 +451,7 @@ def add_logo(
         raise HTTPException(409, "This logo is already registered")
     if len(brand.logos) >= 10:
         raise HTTPException(422, "At most 10 extra logos")
-    rel = save_logo(settings.data_dir, brand.id, logo)
+    rel = save_logo(store, brand.id, logo)
     row = BrandLogo(brand_id=brand.id, label=" ".join(label.split())[:120], path=rel, format=logo.format, width=logo.width, height=logo.height,
                     size_bytes=len(logo.data), sha256=logo.sha256)
     db.add(row)
@@ -465,14 +464,13 @@ def add_logo(
 
 @router.get("/{brand_id}/logos/{logo_id}/file")
 def get_extra_logo(brand_id: int, logo_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db),
-                   settings: Settings = Depends(get_settings_dep)) -> FileResponse:
+                   store: FileStore = Depends(get_store)) -> Response:
     brand = get_brand_or_404(db, brand_id)
     row = db.get(BrandLogo, logo_id)
-    root = Path(settings.data_dir).resolve()
-    path = (root / row.path).resolve() if row and row.brand_id == brand.id else None
-    if path is None or root not in path.parents or not path.is_file():
+    data = store.read(row.path) if row and row.brand_id == brand.id else None
+    if data is None:
         raise HTTPException(404, "Logo not found")
-    return FileResponse(path, media_type={"png": "image/png", "jpg": "image/jpeg", "webp": "image/webp"}[row.format], headers={"X-Content-Type-Options": "nosniff"})
+    return file_response(data, MEDIA_BY_FORMAT[row.format], {"X-Content-Type-Options": "nosniff"})
 
 
 @router.delete("/{brand_id}/logos/{logo_id}", response_model=OkResponse)

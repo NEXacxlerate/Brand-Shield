@@ -2,7 +2,7 @@
 
 Safe to run from several replicas at once: on PostgreSQL a session-level advisory lock serialises the runs, so the
 second one waits, then finds the database already at head and does nothing. SQLite (single process) needs no lock.
-Only DATABASE_URL is read (no JWT_SECRET etc. needed).
+Only MIGRATION_DATABASE_URL (if set) or DATABASE_URL is read (no JWT_SECRET etc. needed).
 """
 
 from __future__ import annotations
@@ -44,7 +44,7 @@ def upgrade(url: str, revision: str = "head") -> None:
 
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
-    url = DatabaseSettings().database_url
+    url = DatabaseSettings().migration_url
     log.info("applying migrations (alembic upgrade head)")
     upgrade(url)
     log.info("migrations are at head")

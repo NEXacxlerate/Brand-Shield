@@ -7,9 +7,10 @@ from sqlalchemy.orm import Session
 
 from app.api.common import mode_of, resolve_brand
 from app.config.config import Settings
-from app.config.deps import get_current_user, get_settings_dep, require_admin, require_writer
+from app.config.deps import get_current_user, get_settings_dep, get_store, require_admin, require_writer
 from app.core.pipeline import logo_compare, lookalike
 from app.core.pipeline.logo import LogoError
+from app.core.storage import FileStore
 from app.db.session import get_db
 from app.models import LookalikeCase, User
 from app.services import audit
@@ -88,6 +89,7 @@ def test_logo(
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings_dep),
+    store: FileStore = Depends(get_store),
 ) -> dict:
     """Compare an uploaded logo with every official logo (or one manually supplied reference). Nothing is stored; no score or detection is created."""
     brand = resolve_brand(db, brand_id)
@@ -100,7 +102,7 @@ def test_logo(
         if ref_data:
             refs = [("manual", "Manual reference", logo_compare.read_image(ref_data, cap, "reference logo"))]
         else:
-            refs = logo_compare.official_logos(settings, brand)
+            refs = logo_compare.official_logos(store, brand)
     except LogoError as exc:
         raise HTTPException(exc.status_code, exc.message) from exc
     if not refs:

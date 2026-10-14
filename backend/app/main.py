@@ -1,4 +1,5 @@
 import hashlib
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI, Request
@@ -12,6 +13,7 @@ from app.api import (
     auth,
     brands,
     candidates,
+    cron,
     dashboard,
     detections,
     evaluation,
@@ -24,7 +26,7 @@ from app.api import (
 )
 from app.api import settings as settings_api
 from app.config import response_cache
-from app.config.config import Settings, get_settings
+from app.config.config import Settings, get_settings, is_vercel
 from app.config.errors import install_error_handlers
 from app.config.logging import configure_logging
 from app.config.observability import init_sentry
@@ -33,6 +35,7 @@ from app.core.collectors.selection import CollectorRuntime
 from app.core.pipeline.image_fetch import SafeFetcher
 from app.core.pipeline.screenshot import ScreenshotProvider
 from app.core.pipeline.url_safety import UrlChecker
+from app.core.storage import build_store
 from app.db.session import make_engine, make_session_factory
 from app.services.context import build_context
 from app.services.scheduler import SchedulerLoop
@@ -52,22 +55,24 @@ def create_app(
     configure_logging(settings.log_level, settings.secret_values)
     init_sentry(settings)  # no-op unless SENTRY_DSN is set and sentry-sdk is installed
     engine = engine or make_engine(settings.database_url)
+    if is_vercel():
+        logging.getLogger("app").info(
+            "Vercel mode: executor=%s scheduler=%s storage=%s cache_s=%s (scans via Vercel Cron)",
+            settings.scan_executor, settings.scheduler_enabled, settings.storage_backend, settings.response_cache_seconds,
+        )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         try:
             settings.data_dir.mkdir(parents=True, exist_ok=True)
         except OSError:
-            import logging
-
-            logging.getLogger("app").error("DATA_DIR cannot be created or is not writable: /health reports data_dir=down")
+            if settings.storage_backend != "database":  # files then live in the database, DATA_DIR is only scratch space
+                logging.getLogger("app").error("DATA_DIR cannot be created or is not writable: /health reports data_dir=down")
         try:
             with app.state.session_factory() as db:
                 seed_admin(db, settings)
         except SQLAlchemyError:
             # Tables may not exist yet (migrations not applied). /health will report the problem.
-            import logging
-
             logging.getLogger("app").warning("admin seed skipped: database not ready (run alembic upgrade head)")
         loop = None
         # The scheduler loop only runs when enabled, and never under APP_ENV=test.
@@ -83,6 +88,7 @@ def create_app(
     app.state.settings = settings
     app.state.engine = engine
     app.state.session_factory = make_session_factory(engine)
+    app.state.file_store = build_store(settings, app.state.session_factory)
     app.state.login_limiter = FailureLimiter(settings.login_max_failures, settings.login_window_seconds)
     app.state.request_limiter = RequestLimiter(settings.api_rate_limit_per_minute, 60)
     app.state.url_checker = url_checker or UrlChecker(
@@ -92,7 +98,8 @@ def create_app(
     )
     app.state.collector_runtime = collector_runtime or CollectorRuntime(settings, app.state.session_factory)
     app.state.scan_ctx = build_context(
-        settings, app.state.session_factory, app.state.collector_runtime, fetcher=image_fetcher, screenshot=screenshot_provider
+        settings, app.state.session_factory, app.state.collector_runtime, fetcher=image_fetcher, screenshot=screenshot_provider,
+        store=app.state.file_store,
     )
     app.state.scheduler_loop = None
 
@@ -140,6 +147,7 @@ def create_app(
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
+        allow_origin_regex=settings.cors_origin_regex or None,
         allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -150,6 +158,7 @@ def create_app(
     api.include_router(auth.router)
     api.include_router(brands.router)
     api.include_router(audit.router)
+    api.include_router(cron.router)
     api.include_router(sources.router)
     for r in (scans, detections, dashboard, lookalike, settings_api, reports, evaluation, candidates, providers):
         api.include_router(r.router)

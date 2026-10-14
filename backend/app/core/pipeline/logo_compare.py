@@ -78,16 +78,16 @@ def read_image(data: bytes, max_bytes: int, what: str) -> Image.Image:
     return img
 
 
-def official_logos(settings: Settings, brand: Brand) -> list[tuple[str, str, Image.Image]]:
+def official_logos(store, brand: Brand) -> list[tuple[str, str, Image.Image]]:
     """[(id, label, image)] for the primary logo ('primary') and every extra one (its id), skipping missing or broken files."""
     rows = [("primary", "Primary logo", brand.logo_path), *[(str(lg.id), lg.label or f"Logo {lg.id}", lg.path) for lg in brand.logos]]
     out = []
     for lid, label, rel in rows:
-        path = evidence.safe_path(settings.data_dir, rel)
-        if path is None:
+        raw = evidence.read_file(store, rel)
+        if raw is None:
             continue
         try:
-            out.append((lid, label, load_image(path.read_bytes())))
+            out.append((lid, label, load_image(raw)))
         except Exception:  # noqa: BLE001 - a broken logo file just means "unavailable"
             continue
     return out

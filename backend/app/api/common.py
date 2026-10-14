@@ -1,4 +1,6 @@
-from fastapi import HTTPException, Request
+import hashlib
+
+from fastapi import HTTPException, Request, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -6,6 +8,11 @@ from app.core.pipeline.scan_pipeline import ScanContext
 from app.db.request_cache import memo
 from app.models import Brand
 from app.services import data_mode
+
+
+def file_response(data: bytes, media_type: str, headers: dict[str, str]) -> Response:
+    """Serve stored bytes (from either file store). Files are content-addressed, so the hash is a stable ETag."""
+    return Response(content=data, media_type=media_type, headers={**headers, "ETag": f'"{hashlib.sha256(data).hexdigest()[:32]}"'})
 
 
 def get_ctx(request: Request) -> ScanContext:

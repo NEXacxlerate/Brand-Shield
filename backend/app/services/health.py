@@ -117,7 +117,9 @@ def check_worker(settings: Settings, conn_factory: Callable[[Settings], Any] = _
     return _c(OK, workers=len(workers), queued=queued, last_heartbeat_age_seconds=age)
 
 
-def check_data_dir(settings: Settings) -> dict:
+def check_data_dir(settings: Settings, db: Session | None = None) -> dict:
+    if settings.storage_backend == "database" and db is not None:
+        return _check_database_store(db)
     path: Path = settings.data_dir
     probe = path / f".health-{uuid.uuid4().hex}"
     try:
@@ -133,6 +135,23 @@ def check_data_dir(settings: Settings) -> dict:
     if free_mb < MIN_FREE_MB:
         return _c(DEGRADED, writable=True, free_mb=free_mb, note=f"less than {MIN_FREE_MB} MB free")
     return _c(OK, writable=True, free_mb=free_mb)
+
+
+def _check_database_store(db: Session) -> dict:
+    """STORAGE_BACKEND=database: files live in the stored_files table, so prove it can be written, read back and deleted."""
+    from sqlalchemy.orm import sessionmaker
+
+    from app.core.storage import DatabaseFileStore
+
+    store = DatabaseFileStore(sessionmaker(bind=db.get_bind(), expire_on_commit=False))
+    rel = f"health/.probe-{uuid.uuid4().hex}"
+    try:
+        store.write(rel, b"ok")
+        ok = store.read(rel) == b"ok"
+        store.delete(rel)
+    except Exception as exc:  # noqa: BLE001 - e.g. migration 0009 not applied yet
+        return _c(DOWN, writable=False, backend="database", error=type(exc).__name__)
+    return _c(OK, writable=True, backend="database") if ok else _c(DOWN, writable=False, backend="database")
 
 
 def _age(ts: datetime | None, now: datetime) -> int | None:
@@ -194,7 +213,7 @@ def run_checks(db: Session, settings: Settings, *, redis_factory: Callable[[Sett
             checks["collectors"] = _c(DEGRADED, error=type(exc).__name__)
     checks["redis"] = check_redis(settings, redis_factory)
     checks["worker"] = check_worker(settings, redis_factory)
-    checks["data_dir"] = check_data_dir(settings)
+    checks["data_dir"] = check_data_dir(settings, db)
     return checks
 
 

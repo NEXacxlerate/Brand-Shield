@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.config.config import Settings
 from app.config.security import decode_token
 from app.core.pipeline.url_safety import UrlChecker
+from app.core.storage import FileStore
 from app.db.session import get_db
 from app.models import User
 
@@ -14,6 +15,10 @@ _bearer = HTTPBearer(auto_error=False)
 
 def get_settings_dep(request: Request) -> Settings:
     return request.app.state.settings
+
+
+def get_store(request: Request) -> FileStore:
+    return request.app.state.file_store
 
 
 def get_url_checker(request: Request) -> UrlChecker:

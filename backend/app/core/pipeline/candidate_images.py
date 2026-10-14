@@ -15,6 +15,7 @@ from PIL import Image, UnidentifiedImageError
 
 from app.core.engine.image_hashes import compute_hashes
 from app.core.pipeline.logo import _FORMATS, LogoError, sniff_format
+from app.core.storage import FileStore
 
 MAX_PIXELS = 25_000_000
 MIN_SIDE = 32
@@ -63,9 +64,7 @@ def process_candidate_image(data: bytes, max_bytes: int) -> ProcessedImage:
     return ProcessedImage(clean, ext, media, w, h, hashlib.sha256(clean).hexdigest(), hashes)
 
 
-def save_candidate_image(data_dir: Path, brand_id: int, img: ProcessedImage) -> str:
-    rel = Path("candidate_images") / f"brand_{brand_id}" / f"{img.sha256[:24]}.{img.format}"
-    dest = data_dir / rel
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_bytes(img.data)
-    return rel.as_posix()
+def save_candidate_image(store: FileStore, brand_id: int, img: ProcessedImage) -> str:
+    rel = (Path("candidate_images") / f"brand_{brand_id}" / f"{img.sha256[:24]}.{img.format}").as_posix()
+    store.write(rel, img.data)
+    return rel
