@@ -461,6 +461,22 @@ Server applies the Settings look-alike rules (section 11) and impersonation word
 ```
 Also `POST /api/lookalike/test-cases` `{ "name":"...","expected":"flagged" }` and `DELETE /api/lookalike/test-cases/{id}` [NEW, optional; the UI has no editor today].
 
+### POST /api/lookalike/test-logo  (Look-alike Lab, "Compare a logo")
+Any signed-in user (viewers too). `multipart/form-data`, optional `?brand_id=`. Pure: nothing is written to disk or to the database, no detection or score is created, the filename is never used.
+Fields: `file` (the logo to check, required) and `reference` (optional manual reference logo). With `reference` the logo is compared with that one image (label "Manual reference", `mode: "manual"`); without it, with the primary logo and every extra logo of the brand (`mode: "official"`).
+Upload rules (each image): PNG, JPEG or WebP decided from the bytes, at most 2 MB, 16 to 6000 px per side, 25 million pixels at most (decompression-bomb guard).
+Errors: `413` too large, `415` not a PNG/JPEG/WebP or corrupt (SVG refused), `422` too small or too large in pixels, or no official logo and no reference: "Add an official logo in Brand Registry or upload a reference logo."
+```json
+{ "similarity": 93.4, "verdict": "same_logo", "algorithm": "image-1", "mode": "official",
+  "best": { "id": "primary", "label": "Primary logo" },
+  "algorithms": { "phash": 96.0, "dhash": 90.0, "whash": 88.0, "colorhash": 70.0 },
+  "results": [ { "id": "primary", "label": "Primary logo", "similarity": 93.4, "verdict": "same_logo", "width": 512, "height": 512, "algorithms": { "...": 0 } } ],
+  "candidate": { "width": 300, "height": 300 },
+  "thresholds": { "same_logo": 90.0, "very_similar": 80.0, "somewhat_similar": 55.0 },
+  "explanation": "Hash similarity is a risk signal, not proof of reuse. ...", "warnings": [], "is_sample": false, "sample_note": null }
+```
+`similarity` is the number scans use (same engine and 0-100 scale; `IMAGE_SIMILARITY_BACKEND` applies, `algorithm` says which). `algorithms` are each hash on its own 0-100 scale (the colour mix is shown for information and is not part of the number). Verdict bands reuse the scorer's thresholds: 90 and up `same_logo` (where logo points peak), 80 and up `very_similar` (LIKELY_COPY_MIN), 55 and up `somewhat_similar` (SIMILAR_MIN, where logo points start), below 55 `different`. Warnings cover very small images, nearly single-colour images and colour-inverted logos (which score low). The page shows official thumbnails with `GET /api/brands/{id}/logo` and `/logos/{logo_id}/file` (Bearer header, fetched as blobs); "Add this reference as an official logo" (analysts and admins) calls `POST /api/brands/{id}/logos`.
+
 ### POST /api/lookalike/test-cases/run  [NEW]  (PDF: "Run on this page with the same logic as above")
 Runs every case through the same engine as `/lookalike/test` with current rules.
 ```json

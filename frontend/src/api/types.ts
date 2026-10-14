@@ -28,6 +28,16 @@ export interface LogoInfo {
   meets_requirements: boolean;
   sha256: string;
 }
+export interface ExtraLogo {
+  id: number;
+  label: string;
+  url: string;
+  format: string;
+  width: number;
+  height: number;
+  size_bytes: number;
+  sha256: string;
+}
 export interface OfficialAccount {
   id: number;
   platform: Platform;
@@ -76,6 +86,7 @@ export interface Brand {
   keywords: string[];
   domains: string[];
   logo: LogoInfo | null;
+  extra_logos?: ExtraLogo[];
   official_accounts: OfficialAccount[];
   official_apps: OfficialApp[];
   profile_health: { percent: number; message: string; checks: HealthCheck[]; missing: { key: string; label: string; why: string | null }[] };
@@ -617,4 +628,37 @@ export interface ImportReport {
   updated: number;
   official: number;
   results: ImportRow[];
+}
+
+// ---- logo comparison (Look-alike Lab) -------------------------------------------
+export type LogoVerdict = 'same_logo' | 'very_similar' | 'somewhat_similar' | 'different';
+export interface LogoAlgorithms {
+  phash: number;
+  dhash: number;
+  whash: number;
+  colorhash: number;
+}
+export interface LogoCompareRow {
+  id: string;
+  label: string;
+  similarity: number;
+  verdict: LogoVerdict;
+  width: number;
+  height: number;
+  algorithms: LogoAlgorithms;
+}
+export interface LogoCompareResult {
+  similarity: number;
+  verdict: LogoVerdict;
+  algorithm: string;
+  mode: 'official' | 'manual';
+  best: { id: string; label: string };
+  algorithms: LogoAlgorithms;
+  results: LogoCompareRow[];
+  candidate: { width: number; height: number };
+  thresholds: { same_logo: number; very_similar: number; somewhat_similar: number };
+  explanation: string;
+  warnings: string[];
+  is_sample: boolean;
+  sample_note: string | null;
 }

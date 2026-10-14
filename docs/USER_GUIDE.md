@@ -344,6 +344,13 @@ The Lab ignores which platform a name came from; and when you register an alias 
 
 In **Test cases**, admins can add or remove cases through the API (`POST /api/lookalike/test-cases`, `DELETE /api/lookalike/test-cases/{id}`); the page itself shows and runs them. If you register `acmebank_official` as an official handle, the built-in case with that name will then (correctly) say Official and show a fail.
 
+**Compare a logo.** The card at the bottom of the Lab checks how closely a logo resembles your official ones. Nothing is saved and no detection is created.
+1. Look at "Official logos you are comparing against". If there are none, add one in Brand Registry or switch on "Use a different reference logo".
+2. Drop the logo to check (PNG, JPEG or WebP, up to 2 MB) into the first box. Optionally tick "Use a different reference logo" and add the picture to compare against instead.
+3. Press Compare. You get a percentage, a verdict, both pictures side by side, a bar per method and, when you have several official logos, a row for each.
+
+Reading the number: 90 and up is the same logo, 80 to 89 very similar, 55 to 79 somewhat similar (worth a look, scans add risk points from here), below 55 different. It is the same number scans use. It measures how alike two pictures look, so it is a risk signal, not proof of reuse. A colour-inverted logo scores low, and a big crop can too, so check by eye. When you used a manual reference, analysts and admins can press "Add this reference as an official logo".
+
 ### 5.7 Source Health
 
 ![Source Health](img/08-source-health.png)

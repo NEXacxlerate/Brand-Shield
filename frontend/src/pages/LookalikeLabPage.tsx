@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Check } from 'lucide-react';
+import { LogoCompareCard } from '../components/common/LogoCompareCard';
 import { Header } from '../components/layout/Header';
 import { Empty, ErrorBox, Loading, NoBrand, Notice, SampleNote } from '../components/common/States';
 import { sm } from '../api/sm';
@@ -269,6 +270,8 @@ export const LookalikeLabPage: React.FC = () => {
               </table>
             </div>
           </div>
+
+          <LogoCompareCard brand={brand} missing={missing} canWrite={canWrite} />
 
           <SampleNote brandName={brandName} />
         </div>

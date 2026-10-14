@@ -21,6 +21,8 @@ import type {
   FalsePositiveItem,
   LogoInfo,
   LookalikeResult,
+  LogoCompareResult,
+  ExtraLogo,
   UrlExamples,
   UrlTestResult,
   Me,
@@ -74,6 +76,12 @@ export const sm = {
     return request<LogoInfo>(`/api/brands/${id}/logo`, { method: 'POST', form });
   },
   logoBlob: (id: number, signal?: Sig) => request<Blob>(`/api/brands/${id}/logo`, { blob: true, signal }),
+  extraLogoBlob: (id: number, logoId: number, signal?: Sig) => request<Blob>(`/api/brands/${id}/logos/${logoId}/file`, { blob: true, signal }),
+  addExtraLogo: (id: number, file: File, label: string) => {
+    const form = new FormData();
+    form.append('file', file);
+    return request<ExtraLogo>(`/api/brands/${id}/logos${qs({ label })}`, { method: 'POST', form });
+  },
   addAccount: (id: number, platform: string, handle: string) =>
     request<OfficialAccount>(`/api/brands/${id}/accounts`, { method: 'POST', json: { platform, handle } }),
   removeAccount: (id: number, accountId: number) => request<{ ok: boolean }>(`/api/brands/${id}/accounts/${accountId}`, { method: 'DELETE' }),
@@ -134,6 +142,12 @@ export const sm = {
   // ---- look-alike
   lookalikeTest: (name: string, signal?: Sig) => request<LookalikeResult>('/api/lookalike/test', { method: 'POST', json: { name }, signal }),
   lookalikeTestUrl: (url: string, signal?: Sig) => request<UrlTestResult>('/api/lookalike/test-url', { method: 'POST', json: { url }, signal }),
+  compareLogo: (file: File, reference: File | null, brandId?: number, signal?: Sig) => {
+    const form = new FormData();
+    form.append('file', file);
+    if (reference) form.append('reference', reference);
+    return request<LogoCompareResult>(`/api/lookalike/test-logo${qs({ brand_id: brandId })}`, { method: 'POST', form, signal });
+  },
   testUrls: (signal?: Sig) => request<UrlExamples>('/api/lookalike/test-urls', { signal }),
   testCases: (signal?: Sig) => request<TestCaseList>('/api/lookalike/test-cases', { signal }),
   runTestCases: () => request<TestCaseRun>('/api/lookalike/test-cases/run', { method: 'POST' }),
