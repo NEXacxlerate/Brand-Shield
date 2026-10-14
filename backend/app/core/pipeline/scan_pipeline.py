@@ -145,8 +145,13 @@ def _busts_cache(fn):
 @_busts_cache
 def request_scan(ctx: ScanContext, db: Session, *, brand_id: int | None, scope: str, user: User | None) -> Scan:
     """Create a queued scan (audited) and hand it to the job dispatcher. Raises ScanAlreadyRunning / NoBrand."""
-    brand = db.get(Brand, brand_id) if brand_id else db.scalars(select(Brand).where(Brand.archived_at.is_(None)).order_by(Brand.id)).first()
-    if brand is None or brand.archived_at is not None:
+    # A signed-in user only ever scans a brand they own; the scheduler (user None) names the brand itself.
+    if brand_id:
+        brand = db.get(Brand, brand_id)
+    else:
+        owned = select(Brand).where(Brand.archived_at.is_(None)).order_by(Brand.id)
+        brand = db.scalars(owned.where(Brand.owner_id == user.id) if user is not None else owned).first()
+    if brand is None or brand.archived_at is not None or (user is not None and brand.owner_id != user.id):
         raise NoBrand()
     now = ctx.now()
     fail_stale_scans(db, brand.id, ctx.settings.scan_stale_minutes, now)
@@ -287,6 +292,7 @@ class _Env:
         self.threshold = app_settings.threshold_for(mon["sensitivity"])
         self.rules = mon["rules"]
         self.matcher = build_matcher(brand, words=mon["impersonation_words"])
+        self.brand_id = brand.id
         self.allow = BrandAllowlist(brand)
         self.assets = official_assets(brand)
         self.brand_profile = BrandProfileInput(name=brand.name, aliases=list(brand.aliases or []), description=brand.description,
@@ -359,6 +365,8 @@ def _intake_image(env: _Env, c: Candidate):
     """The uploaded image of a manual / imported candidate (by id), or None."""
     image_id = c.extras.get("image_id")
     row = env.db.get(CandidateImage, image_id) if isinstance(image_id, int) else None
+    if row is not None and row.brand_id != env.brand_id:  # another account's upload: never read it
+        row = None
     raw = evidence.read_file(env.store, row.path) if row is not None else None
     if raw is None:
         return None

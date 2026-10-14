@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.api.common import get_ctx, mode_of, resolve_brand
+from app.api.common import get_brand_or_404, get_ctx, mode_of, owns_brand, resolve_brand
 from app.config.deps import get_current_user, require_writer
 from app.config.time import iso_z
 from app.core.pipeline.scan_pipeline import NoBrand, ScanAlreadyRunning, ScanContext, request_scan, running_scan, scan_view
@@ -31,6 +31,8 @@ def start_scan(
 ):
     """Queue a scan. One scan per brand at a time: a second request gets 409 with the running scan."""
     body = body or ScanBody()
+    if body.brand_id:
+        get_brand_or_404(db, body.brand_id, user)  # someone else's brand is a 404, like everywhere else
     try:
         scan = request_scan(ctx, db, brand_id=body.brand_id, scope=body.scope, user=user)
     except NoBrand as exc:
@@ -44,9 +46,9 @@ def start_scan(
 
 
 @router.get("/jobs/{job_id}")
-def get_job(job_id: str, _: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+def get_job(job_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
     scan = db.scalar(select(Scan).where(Scan.job_id == job_id))
-    if scan is None:
+    if scan is None or not owns_brand(db, scan.brand_id, user):
         raise HTTPException(404, "Job not found")
     return scan_view(scan)
 
@@ -55,15 +57,15 @@ def get_job(job_id: str, _: User = Depends(get_current_user), db: Session = Depe
 def scan_status(
     request: Request,
     brand_id: int | None = None,
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     ctx: ScanContext = Depends(get_ctx),
 ) -> dict:
-    brand = resolve_brand(db, brand_id)
+    brand = resolve_brand(db, brand_id, user)
     last = db.scalars(select(Scan).where(Scan.brand_id == brand.id, Scan.state.in_(("completed", "partial"))).order_by(Scan.id.desc())).first()
     running = running_scan(db, brand.id)
     sync = db.scalar(select(func.max(Source.last_sync)))
-    sched = schedule_status(ctx, db)
+    sched = schedule_status(ctx, db, brand=brand)
     mode = mode_of(db, request)
     return {
         "last_scan_at": iso_z(last.finished_at) if last and last.finished_at else None,
@@ -83,10 +85,10 @@ def list_scans(
     brand_id: int | None = None,
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
-    brand = resolve_brand(db, brand_id)
+    brand = resolve_brand(db, brand_id, user)
     q = select(Scan).where(Scan.brand_id == brand.id)
     total = db.scalar(select(func.count()).select_from(q.subquery())) or 0
     rows = db.scalars(q.order_by(Scan.id.desc()).limit(limit).offset(offset)).all()
@@ -94,15 +96,15 @@ def list_scans(
 
 
 @router.get("/scans/latest")
-def latest_scan(brand_id: int | None = None, _: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
-    brand = resolve_brand(db, brand_id)
+def latest_scan(brand_id: int | None = None, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    brand = resolve_brand(db, brand_id, user)
     scan = db.scalars(select(Scan).where(Scan.brand_id == brand.id).order_by(Scan.id.desc())).first()
     return {"scan": scan_view(scan) if scan else None}
 
 
 @router.get("/scans/{scan_id}")
-def get_scan(scan_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+def get_scan(scan_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
     scan = db.get(Scan, scan_id)
-    if scan is None:
+    if scan is None or not owns_brand(db, scan.brand_id, user):
         raise HTTPException(404, "Scan not found")
     return scan_view(scan)

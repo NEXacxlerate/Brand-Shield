@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.api.common import mode_of, resolve_brand
+from app.api.common import mode_of, owns_brand, resolve_brand
 from app.config.deps import get_current_user, require_writer
 from app.config.time import iso_z, utcnow
 from app.db.session import get_db
@@ -81,9 +81,9 @@ def _preview_params(types: str | None, ids: str | None) -> tuple[list[str] | Non
 @router.get("/preview")
 def preview(
     request: Request, from_: date | None = Query(None, alias="from"), to: date | None = None, types: str | None = None, status: str | None = None,
-    ids: str | None = None, include_evidence: bool = True, brand_id: int | None = None, _: User = Depends(get_current_user), db: Session = Depends(get_db),
+    ids: str | None = None, include_evidence: bool = True, brand_id: int | None = None, user: User = Depends(get_current_user), db: Session = Depends(get_db),
 ) -> dict:
-    brand = resolve_brand(db, brand_id)
+    brand = resolve_brand(db, brand_id, user)
     tl, il = _preview_params(types, ids)
     mode, dets, rows = _preview_rows(request, db, brand, from_, to, tl, status, il)
     return {
@@ -98,7 +98,7 @@ def preview_html(
     request: Request, from_: date | None = Query(None, alias="from"), to: date | None = None, types: str | None = None, status: str | None = None,
     ids: str | None = None, include_evidence: bool = True, brand_id: int | None = None, user: User = Depends(get_current_user), db: Session = Depends(get_db),
 ) -> HTMLResponse:
-    brand = resolve_brand(db, brand_id)
+    brand = resolve_brand(db, brand_id, user)
     tl, il = _preview_params(types, ids)
     _, dets, rows = _preview_rows(request, db, brand, from_, to, tl, status, il)
     body = svc.to_html(title="Brand Protection Report (preview)", brand_name=brand.name, status="draft", rows=rows, stats_=svc.stats(db, brand, dets),
@@ -112,7 +112,7 @@ def create_report(body: ReportIn, request: Request, user: User = Depends(require
     """Creates a DRAFT from the selected detections (or, by default, the confirmed ones). Nothing is sent anywhere."""
     if body.format == "pdf":
         raise HTTPException(422, "PDF export is not available (no PDF library is installed). Use html (printable, Print to PDF) or csv.")
-    brand = resolve_brand(db, body.brand_id)
+    brand = resolve_brand(db, body.brand_id, user)
     mode, dets, rows = _preview_rows(request, db, brand, body.from_, body.to, body.types, body.status, body.detection_ids)
     if not rows:
         raise HTTPException(422, "No detections match. Select detections or confirm some first.")
@@ -138,33 +138,33 @@ def create_report(body: ReportIn, request: Request, user: User = Depends(require
 @router.get("")
 def list_reports(
     limit: int = Query(10, ge=1, le=100), offset: int = Query(0, ge=0), brand_id: int | None = None,
-    _: User = Depends(get_current_user), db: Session = Depends(get_db),
+    user: User = Depends(get_current_user), db: Session = Depends(get_db),
 ) -> dict:
-    brand = resolve_brand(db, brand_id)
+    brand = resolve_brand(db, brand_id, user)
     q = select(Report).where(Report.brand_id == brand.id)
     total = db.scalar(select(func.count()).select_from(q.subquery())) or 0
     rows = db.scalars(q.order_by(Report.id.desc()).limit(limit).offset(offset)).all()
     return {"total": total, "items": [report_out(db, r) for r in rows]}
 
 
-def _get(db: Session, report_id: int) -> Report:
+def _get(db: Session, report_id: int, user: User) -> Report:
     r = db.get(Report, report_id)
-    if r is None:
+    if r is None or not owns_brand(db, r.brand_id, user):
         raise HTTPException(404, "Report not found")
     return r
 
 
 @router.get("/{report_id}")
-def get_report(report_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
-    r = _get(db, report_id)
+def get_report(report_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    r = _get(db, report_id, user)
     out = report_out(db, r)
     out["rows"] = [{k: row[k] for k in ("n", "id", "name", "platform", "type", "score", "status")} for row in (r.snapshot or [])]
     return out
 
 
 @router.get("/{report_id}/preview")
-def report_preview(report_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db)) -> HTMLResponse:
-    r = _get(db, report_id)
+def report_preview(report_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> HTMLResponse:
+    r = _get(db, report_id, user)
     return HTMLResponse(svc.report_html(db, r, db.get(Brand, r.brand_id)), headers=_HTML_HEADERS)
 
 
@@ -173,20 +173,20 @@ def _attachment(content: str, media: str, filename: str, headers: dict | None = 
 
 
 @router.get("/{report_id}/export.csv")
-def export_csv(report_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Response:
-    r = _get(db, report_id)
+def export_csv(report_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Response:
+    r = _get(db, report_id, user)
     return _attachment(svc.report_csv(r), "text/csv; charset=utf-8", r.filename.rsplit(".", 1)[0] + ".csv")
 
 
 @router.get("/{report_id}/export.html")
-def export_html(report_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Response:
-    r = _get(db, report_id)
+def export_html(report_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Response:
+    r = _get(db, report_id, user)
     return _attachment(svc.report_html(db, r, db.get(Brand, r.brand_id)), "text/html; charset=utf-8", r.filename.rsplit(".", 1)[0] + ".html", _HTML_HEADERS)
 
 
 @router.get("/{report_id}/download")
-def download(report_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Response:
-    r = _get(db, report_id)
+def download(report_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Response:
+    r = _get(db, report_id, user)
     if r.format == "csv":
         return _attachment(svc.report_csv(r), "text/csv; charset=utf-8", r.filename)
     return _attachment(svc.report_html(db, r, db.get(Brand, r.brand_id)), "text/html; charset=utf-8", r.filename, _HTML_HEADERS)
@@ -195,7 +195,7 @@ def download(report_id: int, _: User = Depends(get_current_user), db: Session = 
 @router.post("/{report_id}/approve")
 def approve(report_id: int, user: User = Depends(require_writer), db: Session = Depends(get_db)) -> dict:
     """A person approves the draft. This only records the approval: nothing is sent anywhere."""
-    r = _get(db, report_id)
+    r = _get(db, report_id, user)
     if r.status == "approved":
         raise HTTPException(409, "This report is already approved")
     r.status, r.approved_by, r.approved_at = "approved", user.id, utcnow()

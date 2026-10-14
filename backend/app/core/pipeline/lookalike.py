@@ -75,25 +75,26 @@ DEFAULT_CASES = default_cases("Acme Bank")  # the demo brand's set (kept for tes
 _SEED_LOCK = threading.Lock()
 
 
-def ensure_default_cases(db: Session, brand_name: str | None = None) -> None:
-    """Seed the 12 default cases once (only when the table is empty, so an admin's deletions are respected).
+def ensure_default_cases(db: Session, brand: Brand) -> None:
+    """Seed the 12 default cases for THIS brand once (only when it has none, so an admin's deletions are respected).
 
     Two requests can arrive together (a page that loads the list twice, React StrictMode in development). Without a lock
-    both would see an empty table and insert 12 rows each (24 cases). The lock serialises the check-then-insert inside this
-    process; across several API processes the partial unique index from migration 0004 makes the loser's insert fail and be ignored.
+    both would see no cases and insert 12 rows each (24 cases). The lock serialises the check-then-insert inside this
+    process; across several API processes the partial unique index (brand_id, name; migrations 0004 and 0010) makes the loser's insert fail and be ignored.
     """
-    if db.scalar(select(LookalikeCase.id).limit(1)) is not None:
+    has = select(LookalikeCase.id).where(LookalikeCase.brand_id == brand.id).limit(1)
+    if db.scalar(has) is not None:
         return
     with _SEED_LOCK:
-        if db.scalar(select(LookalikeCase.id).limit(1)) is not None:  # another request seeded while we waited
+        if db.scalar(has) is not None:  # another request seeded while we waited
             return
-        name_ = brand_name or db.scalar(select(Brand.name).where(Brand.archived_at.is_(None)).order_by(Brand.id).limit(1)) or "Brand"
+        brand_id, name_ = brand.id, brand.name
         for name, expected in default_cases(name_):
-            db.add(LookalikeCase(name=name, expected=expected, builtin=True, source="sample"))
+            db.add(LookalikeCase(brand_id=brand_id, name=name, expected=expected, builtin=True, source="sample"))
         try:
             db.commit()
         except IntegrityError:
-            # Another process seeded first (partial unique index uq_lookalike_cases_builtin_name, migration 0004).
+            # Another process seeded first (partial unique index uq_lookalike_cases_builtin_name).
             db.rollback()
 
 
@@ -153,8 +154,8 @@ def evaluate_name(db: Session, brand: Brand, name: str, platform: str | None = N
 
 def run_cases(db: Session, brand: Brand) -> dict:
     """Run every stored case through `evaluate_name`. The result is computed, never copied from `expected`."""
-    ensure_default_cases(db)
-    cases = list(db.scalars(select(LookalikeCase).order_by(LookalikeCase.id)))
+    ensure_default_cases(db, brand)
+    cases = list(db.scalars(select(LookalikeCase).where(LookalikeCase.brand_id == brand.id).order_by(LookalikeCase.id)))
     items, passed = [], 0
     for c in cases:
         r = evaluate_name(db, brand, c.name)
@@ -182,11 +183,11 @@ def confusion(items: list[dict]) -> dict:
     }
 
 
-def rebuild_default_cases(db: Session, brand_name: str) -> None:
-    """The brand was renamed: replace the built-in cases with ones written for the new name. Cases an admin added are kept."""
-    db.execute(delete(LookalikeCase).where(LookalikeCase.builtin.is_(True)))
+def rebuild_default_cases(db: Session, brand_id: int, brand_name: str) -> None:
+    """The brand was renamed: replace ITS built-in cases with ones written for the new name. Cases an admin added are kept."""
+    db.execute(delete(LookalikeCase).where(LookalikeCase.brand_id == brand_id, LookalikeCase.builtin.is_(True)))
     for name, expected in default_cases(brand_name):
-        db.add(LookalikeCase(name=name, expected=expected, builtin=True, source="sample"))
+        db.add(LookalikeCase(brand_id=brand_id, name=name, expected=expected, builtin=True, source="sample"))
 
 
 # ---- Web Threats lab: domain / URL tester ----------------------------------------------------------------------------

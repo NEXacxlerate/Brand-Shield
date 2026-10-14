@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.api.common import file_response, mode_of, resolve_brand
+from app.api.common import file_response, mode_of, owns_brand, resolve_brand
 from app.config.deps import get_current_user, get_store, require_writer
 from app.core.pipeline import evidence
 from app.core.storage import FileStore
@@ -35,9 +35,9 @@ class MarkOfficialBody(BaseModel):
     publisher: str | None = Field(default=None, max_length=120)
 
 
-def _get(db: Session, detection_id: int) -> Detection:
+def _get(db: Session, detection_id: int, user: User) -> Detection:
     d = db.get(Detection, detection_id)
-    if d is None:
+    if d is None or not owns_brand(db, d.brand_id, user):
         raise HTTPException(404, "Detection not found")
     return d
 
@@ -75,10 +75,10 @@ def list_detections(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     brand_id: int | None = None,
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
-    brand = resolve_brand(db, brand_id)
+    brand = resolve_brand(db, brand_id, user)
     mode = mode_of(db, request)
     dtype, cat = _wrap(lambda: svc.normalize_type(type))
     statuses = None
@@ -102,10 +102,10 @@ def excluded(
     request: Request,
     category: Literal["social", "apps", "web"] | None = None,
     brand_id: int | None = None,
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
-    brand = resolve_brand(db, brand_id)
+    brand = resolve_brand(db, brand_id, user)
     mode = mode_of(db, request)
     items = svc.excluded_items(db, brand, category, None)
     return {"total": len(items), "data_mode": mode, "is_sample": mode == "sample", "items": items}
@@ -117,19 +117,19 @@ def false_positives(
     category: Literal["social", "apps", "web"] | None = None,
     source: Literal["live", "sample", "all"] | None = None,
     brand_id: int | None = None,
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
-    brand = resolve_brand(db, brand_id)
+    brand = resolve_brand(db, brand_id, user)
     mode = mode_of(db, request)
     items = svc.false_positive_items(db, brand, category, _source_filter(source, mode))
     return {"total": len(items), "data_mode": mode, "is_sample": mode == "sample", "items": items}
 
 
 @router.get("/{detection_id}")
-def get_detection(detection_id: int, request: Request, _: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
-    d = _get(db, detection_id)
-    brand = resolve_brand(db, d.brand_id)
+def get_detection(detection_id: int, request: Request, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    d = _get(db, detection_id, user)
+    brand = resolve_brand(db, d.brand_id, user)
     mode = mode_of(db, request)
     out = svc.detail(db, d, brand)
     out.update({"data_mode": mode, "is_sample": mode == "sample"})
@@ -138,47 +138,47 @@ def get_detection(detection_id: int, request: Request, _: User = Depends(get_cur
 
 @router.get("/{detection_id}/evidence")
 def get_evidence(
-    detection_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db), store: FileStore = Depends(get_store)
+    detection_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db), store: FileStore = Depends(get_store)
 ) -> dict:
-    return svc.evidence_bundle(_get(db, detection_id), store)
+    return svc.evidence_bundle(_get(db, detection_id, user), store)
 
 
 @router.get("/{detection_id}/evidence/screenshot")
 def get_screenshot(
-    detection_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db), store: FileStore = Depends(get_store)
+    detection_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db), store: FileStore = Depends(get_store)
 ) -> Response:
-    d = _get(db, detection_id)
+    d = _get(db, detection_id, user)
     data = evidence.read_file(store, (d.evidence or {}).get("screenshot_path"))
     if data is None:
         raise HTTPException(404, "No screenshot was captured (screenshots are off by default)")
     return file_response(data, "image/png", {"X-Content-Type-Options": "nosniff"})
 
 
-def _status_response(db: Session, d: Detection, audit_id: int | None) -> dict:
-    out = svc.detail(db, d, resolve_brand(db, d.brand_id))
+def _status_response(db: Session, d: Detection, audit_id: int | None, user: User) -> dict:
+    out = svc.detail(db, d, resolve_brand(db, d.brand_id, user))
     out["audit_id"] = audit_id
     return out
 
 
 @router.post("/{detection_id}/status")
 def set_status(detection_id: int, body: StatusBody, user: User = Depends(require_writer), db: Session = Depends(get_db)) -> dict:
-    d = _get(db, detection_id)
+    d = _get(db, detection_id, user)
     d, audit_id = _wrap(lambda: svc.change_status(db, d, user, body.status, body.note))
-    return _status_response(db, d, audit_id)
+    return _status_response(db, d, audit_id, user)
 
 
 @router.post("/{detection_id}/resolution")
 def set_resolution(detection_id: int, body: ResolutionBody, user: User = Depends(require_writer), db: Session = Depends(get_db)) -> dict:
-    d = _get(db, detection_id)
+    d = _get(db, detection_id, user)
     d, audit_id = _wrap(lambda: svc.set_resolution(db, d, user, body.resolution, body.note))
-    return _status_response(db, d, audit_id)
+    return _status_response(db, d, audit_id, user)
 
 
 def _shortcut(to: str):
     def endpoint(detection_id: int, body: NoteBody | None = None, user: User = Depends(require_writer), db: Session = Depends(get_db)) -> dict:
-        d = _get(db, detection_id)
+        d = _get(db, detection_id, user)
         d, audit_id = _wrap(lambda: svc.change_status(db, d, user, to, (body.note if body else "")))
-        return _status_response(db, d, audit_id)
+        return _status_response(db, d, audit_id, user)
 
     return endpoint
 
@@ -193,8 +193,8 @@ def mark_official(
     detection_id: int, body: MarkOfficialBody | None = None, user: User = Depends(require_writer), db: Session = Depends(get_db)
 ) -> dict:
     body = body or MarkOfficialBody()
-    d = _get(db, detection_id)
-    brand = resolve_brand(db, d.brand_id)
+    d = _get(db, detection_id, user)
+    brand = resolve_brand(db, d.brand_id, user)
     res = _wrap(lambda: svc.mark_official(db, brand, d, user, body.note, body.publisher))
     return {"detection": svc.detail(db, d, brand), "allowlist_entry": res["allowlist_entry"], "official_assets": res["official_assets"],
             "audit_id": res["audit_id"]}

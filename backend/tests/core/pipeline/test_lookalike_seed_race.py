@@ -6,13 +6,16 @@ from sqlalchemy import func, select
 from app.core.pipeline import lookalike
 from app.db.base import Base
 from app.db.session import make_engine, make_session_factory
-from app.models import LookalikeCase
+from app.models import Brand, LookalikeCase
 
 
 def test_concurrent_first_use_seeds_exactly_twelve_cases(tmp_path):
     engine = make_engine(f"sqlite:///{(tmp_path / 'race.db').as_posix()}")
     Base.metadata.create_all(engine)
     factory = make_session_factory(engine)
+    with factory() as db:
+        db.add(Brand(name="Acme Bank"))
+        db.commit()
     barrier = threading.Barrier(6)
     errors: list[Exception] = []
 
@@ -20,7 +23,7 @@ def test_concurrent_first_use_seeds_exactly_twelve_cases(tmp_path):
         try:
             with factory() as db:
                 barrier.wait(timeout=5)
-                lookalike.ensure_default_cases(db)
+                lookalike.ensure_default_cases(db, db.scalars(select(Brand)).one())
         except Exception as exc:  # noqa: BLE001
             errors.append(exc)
 

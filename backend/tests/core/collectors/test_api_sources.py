@@ -150,6 +150,8 @@ def test_retry_flow_unavailable_then_recovers_and_online_is_409(client, admin_h,
     assert client.post(f"/api/sources/{sid}/retry", headers=viewer_h).status_code == 403
     assert client.post("/api/sources/9999/retry", headers=admin_h).status_code == 404
 
+    own = client.post("/api/brands", json={"name": "Analyst Co"}, headers=analyst_h)  # a retry runs for the caller's own brand
+    assert own.status_code == 201
     world.tavily_status = 500
     r = client.post(f"/api/sources/{sid}/retry?confirm=true", headers=analyst_h)
     assert r.status_code == 202, r.text

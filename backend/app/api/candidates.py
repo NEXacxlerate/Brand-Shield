@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, Up
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.api.common import file_response, get_ctx, resolve_brand
+from app.api.common import file_response, get_ctx, owns_brand, resolve_brand
 from app.config.config import Settings
 from app.config.deps import get_current_user, get_settings_dep, get_store, require_writer
 from app.core.pipeline import candidate_intake as ci
@@ -25,7 +25,7 @@ images = APIRouter(prefix="/candidate-images")
 
 
 def _single(kind: str, body, brand_id: int | None, user: User, db: Session, ctx: ScanContext) -> dict:
-    brand = resolve_brand(db, brand_id)
+    brand = resolve_brand(db, brand_id, user)
     report = ci.run_rows(ctx, db, brand, user, kind, [body.model_dump(mode="json")], "manual", dry_run=False)
     r = report["results"][0]
     if r["status"] == "error":
@@ -61,7 +61,7 @@ def import_candidates(
     settings: Settings = Depends(get_settings_dep),
 ) -> dict:
     """Strict-schema import with per-row errors and a partial-success report. Valid rows are saved even when others fail."""
-    brand = resolve_brand(db, brand_id)
+    brand = resolve_brand(db, brand_id, user)
     data = file.file.read(settings.import_max_bytes + 1)  # never read more than the cap + 1 byte
     if len(data) > settings.import_max_bytes:
         raise HTTPException(413, f"The file is larger than {settings.import_max_bytes // 1024} KB")
@@ -82,7 +82,7 @@ def upload_image(
     settings: Settings = Depends(get_settings_dep),
     store: FileStore = Depends(get_store),
 ) -> dict:
-    brand = resolve_brand(db, brand_id)
+    brand = resolve_brand(db, brand_id, user)
     data = file.file.read(settings.candidate_image_max_bytes + 1)
     try:
         img = process_candidate_image(data, settings.candidate_image_max_bytes)
@@ -107,9 +107,9 @@ def upload_image(
 
 
 @images.get("/{image_id}/file")
-def get_image(image_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db), store: FileStore = Depends(get_store)) -> Response:
+def get_image(image_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db), store: FileStore = Depends(get_store)) -> Response:
     row = db.get(CandidateImage, image_id)
-    data = store.read(row.path) if row else None
+    data = store.read(row.path) if row is not None and owns_brand(db, row.brand_id, user) else None
     if row is None or data is None:
         raise HTTPException(404, "Image not found")
     return file_response(data, MEDIA_BY_FORMAT[row.format], {"X-Content-Type-Options": "nosniff", "Content-Disposition": "inline"})

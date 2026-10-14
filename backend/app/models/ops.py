@@ -147,10 +147,11 @@ class LookalikeCase(Base):
     __tablename__ = "lookalike_cases"
     # The built-in cases are seeded once: a second concurrent seeder hits this index instead of inserting 12 more rows.
     __table_args__ = (
-        Index("uq_lookalike_cases_builtin_name", "name", unique=True, sqlite_where=_BUILTIN_CASE, postgresql_where=_BUILTIN_CASE),
+        Index("uq_lookalike_cases_builtin_name", "brand_id", "name", unique=True, sqlite_where=_BUILTIN_CASE, postgresql_where=_BUILTIN_CASE),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    brand_id: Mapped[int | None] = mapped_column(ForeignKey("brands.id", ondelete="CASCADE"), nullable=True, index=True)  # cases belong to one brand
     name: Mapped[str] = mapped_column(String(200))
     expected: Mapped[str] = mapped_column(String(15))  # flagged | not_flagged | official
     builtin: Mapped[bool] = mapped_column(Boolean, default=False)

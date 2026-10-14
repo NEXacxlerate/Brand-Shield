@@ -19,6 +19,7 @@ import math
 import threading
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from sqlalchemy import select
 
@@ -94,11 +95,15 @@ WAITING_FOR_ASSETS = (
 )
 
 
-def schedule_inputs(ctx: ScanContext, db) -> dict:
-    """Read everything `decide_schedule` needs from settings, scans and the credit ledger."""
+_FIRST: Any = object()  # "no brand given": the oldest active brand (only for callers that are not about one user)
+
+
+def schedule_inputs(ctx: ScanContext, db, brand: Brand | None = _FIRST) -> dict:
+    """Read everything `decide_schedule` needs from settings, scans and the credit ledger, for one brand (None = no brand yet)."""
     mon = app_settings.get_monitoring(db)
     minutes, source = app_settings.interval_minutes(ctx.settings.scan_interval_minutes, mon)
-    brand = db.scalars(select(Brand).where(Brand.archived_at.is_(None)).order_by(Brand.id)).first()
+    if brand is _FIRST:
+        brand = db.scalars(select(Brand).where(Brand.archived_at.is_(None)).order_by(Brand.id)).first()
     last = running = None
     if brand is not None:
         last = db.scalar(select(Scan.created_at).where(Scan.brand_id == brand.id).order_by(Scan.id.desc()).limit(1))
@@ -116,10 +121,10 @@ def schedule_inputs(ctx: ScanContext, db) -> dict:
     }
 
 
-def schedule_status(ctx: ScanContext, db, now: datetime | None = None) -> dict:
-    """Public description of the schedule (dashboard, GET /scan/status, Settings)."""
+def schedule_status(ctx: ScanContext, db, now: datetime | None = None, brand: Brand | None = _FIRST) -> dict:
+    """Public description of the schedule for one brand (dashboard, GET /scan/status, Settings): pass the signed-in user's own brand."""
     now = now or ctx.now()
-    inp = schedule_inputs(ctx, db)
+    inp = schedule_inputs(ctx, db, brand)
     enabled = ctx.settings.scheduler_enabled and inp["interval_minutes"] > 0 and inp["brand"] is not None
     waiting = inp["brand"] is not None and inp["official_assets"] == 0 and inp["interval_minutes"] > 0
     d = decide_schedule(now=now, interval_minutes=inp["interval_minutes"], last_scan_at=inp["last_scan_at"], running=inp["running"],
@@ -140,23 +145,45 @@ def schedule_status(ctx: ScanContext, db, now: datetime | None = None) -> dict:
 
 
 def scheduler_tick(ctx: ScanContext, now: datetime | None = None) -> ScheduleDecision:
-    """One pass of the loop: decide, and start a scan (started_by 'scheduler') when due. Never raises."""
+    """One pass of the loop: scan EVERY brand that is due (started_by 'scheduler'), oldest first. Never raises.
+
+    The credit-aware decision is shared: each brand's scan spends credits, so the ledger is re-read for every brand and the pass stops as soon as
+    credits run low (the decision says so). At most `scheduler_max_brands_per_run` scans are started per pass. Returns the first due decision when
+    something ran, otherwise the decision of the first brand (or "No brand profile yet.").
+    """
     now = now or utcnow()
     try:
         with ctx.session_factory() as db:
-            inp = schedule_inputs(ctx, db)
-            if inp["brand"] is None:
-                return ScheduleDecision(False, "No brand profile yet.", None, 0, inp["interval_minutes"])
-            if inp["official_assets"] == 0 and inp["interval_minutes"] > 0:
-                return ScheduleDecision(False, WAITING_FOR_ASSETS, None, inp["interval_minutes"], inp["interval_minutes"])
-            d = decide_schedule(now=now, interval_minutes=inp["interval_minutes"], last_scan_at=inp["last_scan_at"], running=inp["running"],
-                                credits_remaining=inp["credits_remaining"], cost_per_scan=inp["cost_per_scan"])
-            if d.run:
+            brand_ids = list(db.scalars(select(Brand.id).where(Brand.archived_at.is_(None)).order_by(Brand.id)))
+            if not brand_ids:
+                mon = app_settings.get_monitoring(db)
+                minutes, _src = app_settings.interval_minutes(ctx.settings.scan_interval_minutes, mon)
+                return ScheduleDecision(False, "No brand profile yet.", None, 0, minutes)
+            first: ScheduleDecision | None = None
+            ran: ScheduleDecision | None = None
+            started = 0
+            for brand_id in brand_ids:
+                brand = db.get(Brand, brand_id)
+                inp = schedule_inputs(ctx, db, brand)
+                if inp["official_assets"] == 0 and inp["interval_minutes"] > 0:
+                    d = ScheduleDecision(False, WAITING_FOR_ASSETS, None, inp["interval_minutes"], inp["interval_minutes"])
+                else:
+                    d = decide_schedule(now=now, interval_minutes=inp["interval_minutes"], last_scan_at=inp["last_scan_at"], running=inp["running"],
+                                        credits_remaining=inp["credits_remaining"], cost_per_scan=inp["cost_per_scan"])
+                first = first or d
+                if d.skipped_for_credits:
+                    return ran or d  # credits are low for everyone: stop the whole pass
+                if not d.run:
+                    continue
+                if started >= max(1, ctx.settings.scheduler_max_brands_per_run):
+                    break
                 try:
-                    request_scan(ctx, db, brand_id=inp["brand"].id, scope="all", user=None)
+                    request_scan(ctx, db, brand_id=brand.id, scope="all", user=None)
+                    started += 1
+                    ran = ran or d
                 except (ScanAlreadyRunning, NoBrand):
                     pass
-            return d
+            return ran or first or ScheduleDecision(False, "No brand profile yet.", None, 0, 0)
     except Exception:  # noqa: BLE001 - the loop must survive anything
         log.exception("scheduler tick failed")
         return ScheduleDecision(False, "Scheduler error (see log).", None, 0, 0)

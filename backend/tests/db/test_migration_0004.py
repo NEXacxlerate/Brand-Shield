@@ -42,7 +42,7 @@ def test_indexes_exist_and_are_partial_unique(migrated):
     scans = {i["name"]: i for i in insp.get_indexes("scans")}
     cases = {i["name"]: i for i in insp.get_indexes("lookalike_cases")}
     assert scans["uq_scans_one_active_per_brand"]["unique"] and scans["uq_scans_one_active_per_brand"]["column_names"] == ["brand_id"]
-    assert cases["uq_lookalike_cases_builtin_name"]["unique"] and cases["uq_lookalike_cases_builtin_name"]["column_names"] == ["name"]
+    assert cases["uq_lookalike_cases_builtin_name"]["unique"] and cases["uq_lookalike_cases_builtin_name"]["column_names"] == ["brand_id", "name"]
     assert "queued" in str(scans["uq_scans_one_active_per_brand"]["dialect_options"]["sqlite_where"])
 
 
@@ -65,12 +65,15 @@ def test_only_one_active_scan_per_brand(migrated):
 def test_builtin_case_names_are_unique_but_custom_ones_may_repeat(migrated):
     eng = make_engine(migrated)
     with eng.begin() as c:
-        _fill_row(c, "lookalike_cases", name="acrnebank", expected="flagged", builtin=1)
-        _fill_row(c, "lookalike_cases", name="my case", expected="flagged", builtin=0)
-        _fill_row(c, "lookalike_cases", name="my case", expected="flagged", builtin=0)
-        _fill_row(c, "lookalike_cases", name="acrnebank", expected="flagged", builtin=0)  # a custom copy of a built-in name is allowed
+        _fill_row(c, "brands", id=1, name="A")
+        _fill_row(c, "brands", id=2, name="B")
+        _fill_row(c, "lookalike_cases", brand_id=1, name="acrnebank", expected="flagged", builtin=1)
+        _fill_row(c, "lookalike_cases", brand_id=2, name="acrnebank", expected="flagged", builtin=1)  # built-in names are unique per brand
+        _fill_row(c, "lookalike_cases", brand_id=1, name="my case", expected="flagged", builtin=0)
+        _fill_row(c, "lookalike_cases", brand_id=1, name="my case", expected="flagged", builtin=0)
+        _fill_row(c, "lookalike_cases", brand_id=1, name="acrnebank", expected="flagged", builtin=0)  # a custom copy of a built-in name is allowed
     with pytest.raises(IntegrityError), eng.begin() as c:
-        _fill_row(c, "lookalike_cases", name="acrnebank", expected="flagged", builtin=1)
+        _fill_row(c, "lookalike_cases", brand_id=1, name="acrnebank", expected="flagged", builtin=1)
 
 
 def test_upgrade_cleans_existing_duplicates(tmp_path):
@@ -118,11 +121,15 @@ def test_ensure_default_cases_survives_a_second_seeder(tmp_path):
     eng = make_engine(f"sqlite:///{(tmp_path / 'seed.db').as_posix()}")
     Base.metadata.create_all(eng)
     sf = make_session_factory(eng)
+    with sf() as db:
+        db.add(Brand(name="Acme Bank"))
+        db.commit()
     with sf() as first:
-        lookalike.ensure_default_cases(first)
+        lookalike.ensure_default_cases(first, first.query(Brand).one())
     with sf() as second:
-        second.scalar = lambda *a, **k: None  # type: ignore[method-assign]  # pretends the table was empty when it checked
-        lookalike.ensure_default_cases(second)  # must not raise
+        brand = second.query(Brand).one()
+        second.scalar = lambda *a, **k: None  # type: ignore[method-assign]  # pretends the brand had no cases when it checked
+        lookalike.ensure_default_cases(second, brand)  # must not raise
     with sf() as db:
         assert db.query(LookalikeCase).count() == 12
 
@@ -168,4 +175,4 @@ def test_migrate_script_is_idempotent_on_sqlite(tmp_path):
     upgrade(url)
     upgrade(url)  # second run is a no-op
     with make_engine(url).connect() as c:
-        assert c.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0009"
+        assert c.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0011"

@@ -80,7 +80,10 @@ def test_get_missing_brand_404(client, admin_h):
     assert client.put("/api/brands/42", json={"name": "x"}, headers=admin_h).status_code == 404
 
 
-def test_viewer_can_read_but_not_edit(client, brand, viewer_h):
+def test_viewer_can_read_but_not_edit(client, app, brand, viewer_h):
+    from tests.conftest import hand_brand_to
+
+    hand_brand_to(app, "viewer@example.com")
     assert client.get(f"/api/brands/{brand['id']}", headers=viewer_h).status_code == 200
     assert client.put(f"/api/brands/{brand['id']}", json={"name": "x"}, headers=viewer_h).status_code == 403
 

@@ -93,15 +93,15 @@ def build(db: Session, brand, mode: str, refresh: bool) -> dict:
 
 @router.get("")
 def get_evaluation(
-    request: Request, brand_id: int | None = None, _: User = Depends(get_current_user), db: Session = Depends(get_db)
+    request: Request, brand_id: int | None = None, user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> dict:
-    return build(db, resolve_brand(db, brand_id), mode_of(db, request), refresh=False)
+    return build(db, resolve_brand(db, brand_id, user), mode_of(db, request), refresh=False)
 
 
 @router.post("/run")
 def run_evaluation(request: Request, brand_id: int | None = None, user: User = Depends(require_writer), db: Session = Depends(get_db)) -> dict:
     """Re-runs the synthetic evaluation (cache refreshed) and the labelled look-alike cases."""
-    brand = resolve_brand(db, brand_id)
+    brand = resolve_brand(db, brand_id, user)
     out = build(db, brand, mode_of(db, request), refresh=True)
     audit.record(db, user, "evaluation.run", brand.name, f"look-alike cases: {out['lookalike_tests']['summary']}")
     db.commit()

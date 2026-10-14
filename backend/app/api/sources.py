@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.api.common import own_brand
 from app.config.deps import get_current_user, require_admin, require_writer
 from app.config.time import as_utc, iso_z, utcnow
 from app.core.collectors.credits import credit_cost
@@ -124,7 +125,7 @@ def source_item(row: Source, selection: Selection, states: dict, now: datetime, 
 def list_sources(
     request: Request,
     kind: Literal["social", "store"] | None = Query(None),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     runtime: CollectorRuntime = Depends(get_runtime),
 ) -> dict:
@@ -134,7 +135,7 @@ def list_sources(
     now = utcnow()
     items = [source_item(r, selection, states, now, request.app.state.settings, runtime) for r in rows if kind is None or r.kind == kind]
     syncs = [as_utc(r.last_sync) for r in rows if r.last_sync]
-    sched = schedule_status(request.app.state.scan_ctx, db, now)
+    sched = schedule_status(request.app.state.scan_ctx, db, now, own_brand(db, user))
     return {
         "data_mode": selection.effective_mode,
         "requested_data_mode": selection.requested_mode,
@@ -194,7 +195,8 @@ def retry_source(
     item = source_item(row, selection, collector_states(db), utcnow())
     if item["status"] == "online" and row.last_sync is not None:
         raise HTTPException(409, "This source is online. Nothing to retry.")
-    brand = load_brand_query(db)
+    own = own_brand(db, user)
+    brand = load_brand_query(db, own.id) if own else None
     if brand is None:
         raise HTTPException(409, "Create the brand profile before retrying a source.")
     collectors = [c for c in runtime.build(selection) if row.platform in c.platforms]

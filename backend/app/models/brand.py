@@ -11,6 +11,7 @@ class Brand(Base):
     __tablename__ = "brands"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)  # the account that owns this brand
     name: Mapped[str] = mapped_column(String(120))
     industry: Mapped[str] = mapped_column(String(120), default="")
     aliases: Mapped[list] = mapped_column(JSON, default=list)

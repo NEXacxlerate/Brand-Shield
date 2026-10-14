@@ -101,7 +101,10 @@ def test_account_on_missing_brand_404(client, admin_h):
     assert r.status_code == 404
 
 
-def test_account_requires_auth_and_role(client, brand, viewer_h):
+def test_account_requires_auth_and_role(client, app, brand, viewer_h):
+    from tests.conftest import hand_brand_to
+
+    hand_brand_to(app, "viewer@example.com")
     body = {"platform": "x", "handle": "abcd"}
     assert client.post(f"/api/brands/{brand['id']}/accounts", json=body).status_code == 401
     assert client.post(f"/api/brands/{brand['id']}/accounts", json=body, headers=viewer_h).status_code == 403

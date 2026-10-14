@@ -58,7 +58,10 @@ def test_unauthenticated_401(client, brand):
     assert client.post(URL, files=files(enc(OFFICIAL))).status_code == 401
 
 
-def test_exact_copy_and_ordering(client, viewer_h, with_logo):
+def test_exact_copy_and_ordering(client, app, viewer_h, with_logo):
+    from tests.conftest import hand_brand_to
+
+    hand_brand_to(app, "viewer@example.com")
     copy = post(client, viewer_h, files=files(enc(OFFICIAL))).json()  # viewers may use the tester
     resized = post(client, viewer_h, files=files(enc(OFFICIAL.resize((150, 150))))).json()
     unrelated = post(client, viewer_h, files=files(enc(make_logo(99)))).json()

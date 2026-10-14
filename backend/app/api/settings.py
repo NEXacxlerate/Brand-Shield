@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.common import get_ctx, mode_of
+from app.api.common import get_ctx, mode_of, own_brand
 from app.config.deps import get_current_user, require_admin
 from app.config.time import iso_z
 from app.core.collectors.base import SOURCE_PLATFORMS
@@ -97,8 +97,8 @@ def _view(db: Session, request: Request, ctx: ScanContext, user: User) -> dict:
     notif = app_settings.get_notifications(db)
     rows = ensure_sources(db)
     row = db.scalar(select(Setting).where(Setting.key.in_(("monitoring", "notifications"))).order_by(Setting.updated_at.desc()))
-    brand = db.scalars(select(Brand).where(Brand.archived_at.is_(None)).order_by(Brand.id)).first()
-    sched = schedule_status(ctx, db)
+    brand = own_brand(db, user)
+    sched = schedule_status(ctx, db, brand=brand)
     sel_mode = mode_of(db, request)
     webhook = notif["webhook_url"]
     return {
@@ -185,12 +185,13 @@ def _message(sensitivity: int) -> str:
 
 @router.post("/sensitivity-preview")
 def sensitivity_preview(
-    body: PreviewBody, request: Request, _: User = Depends(get_current_user), db: Session = Depends(get_db)
+    body: PreviewBody, request: Request, user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> dict:
     """How many stored candidates (current data mode) would be sent to review at this sensitivity. Read-only."""
     mode = mode_of(db, request)
     threshold = app_settings.threshold_for(body.sensitivity)
-    rows = db.scalars(select(Detection).where(Detection.source == mode, Detection.status != "marked_official")).all()
+    mine = select(Brand.id).where(Brand.owner_id == user.id)  # only this account's own detections
+    rows = db.scalars(select(Detection).where(Detection.brand_id.in_(mine), Detection.source == mode, Detection.status != "marked_official")).all()
 
     would = sum(1 for d in rows if is_hit(d.score, threshold, d.reasons or [], ((d.details or {}).get("name_match") or {}).get("verdict"),
                                            lookalike=((d.details or {}).get("domain") or {}).get("verdict") == "lookalike"))

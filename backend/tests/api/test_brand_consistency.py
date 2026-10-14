@@ -59,7 +59,7 @@ def test_domain_examples_without_domains_are_derived():
     assert domain_examples("", [])["official_domain"] == "brand.com"
 
 
-def test_test_url_endpoint(client, admin_h, viewer_h):
+def test_test_url_endpoint(client, app, admin_h, viewer_h):
     _register_zenith(client, admin_h)
     post = lambda url, h=admin_h: client.post("/api/lookalike/test-url", json={"url": url}, headers=h)  # noqa: E731
     r = post("https://zenithpay.example/login").json()
@@ -78,6 +78,9 @@ def test_test_url_endpoint(client, admin_h, viewer_h):
     assert post("   ").status_code == 422
     assert post("a" * 2049).status_code == 422
     assert client.post("/api/lookalike/test-url", json={"url": "x.com"}).status_code == 401
+    from tests.conftest import hand_brand_to
+
+    hand_brand_to(app, "viewer@example.com")
     assert post("zenithpay.net", viewer_h).status_code == 200
     ex = client.get("/api/lookalike/test-urls", headers=viewer_h).json()
     assert ex["official_domain"] == "zenithpay.example" and ex["derived"] is False

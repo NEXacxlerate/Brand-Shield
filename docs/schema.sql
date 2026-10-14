@@ -79,6 +79,7 @@ CREATE INDEX ix_brand_publishers_brand_id ON brand_publishers (brand_id);
 
 CREATE TABLE brands (
 	id SERIAL NOT NULL, 
+	owner_id INTEGER, 
 	name VARCHAR(120) NOT NULL, 
 	industry VARCHAR(120) NOT NULL, 
 	aliases JSON NOT NULL, 
@@ -95,9 +96,11 @@ CREATE TABLE brands (
 	source VARCHAR(10) NOT NULL, 
 	created_at TIMESTAMP WITH TIME ZONE NOT NULL, 
 	updated_at TIMESTAMP WITH TIME ZONE NOT NULL, 
-	CONSTRAINT pk_brands PRIMARY KEY (id)
+	CONSTRAINT pk_brands PRIMARY KEY (id), 
+	CONSTRAINT fk_brands_owner_id_users FOREIGN KEY(owner_id) REFERENCES users (id) ON DELETE SET NULL
 );
 
+CREATE INDEX ix_brands_owner_id ON brands (owner_id);
 
 CREATE TABLE candidate_images (
 	id SERIAL NOT NULL, 
@@ -200,6 +203,7 @@ CREATE INDEX ix_detections_status ON detections (status);
 
 CREATE TABLE lookalike_cases (
 	id SERIAL NOT NULL, 
+	brand_id INTEGER, 
 	name VARCHAR(200) NOT NULL, 
 	expected VARCHAR(15) NOT NULL, 
 	builtin BOOLEAN NOT NULL, 
@@ -207,10 +211,12 @@ CREATE TABLE lookalike_cases (
 	created_by INTEGER, 
 	created_at TIMESTAMP WITH TIME ZONE NOT NULL, 
 	CONSTRAINT pk_lookalike_cases PRIMARY KEY (id), 
+	CONSTRAINT fk_lookalike_cases_brand_id_brands FOREIGN KEY(brand_id) REFERENCES brands (id) ON DELETE CASCADE, 
 	CONSTRAINT fk_lookalike_cases_created_by_users FOREIGN KEY(created_by) REFERENCES users (id) ON DELETE SET NULL
 );
 
-CREATE UNIQUE INDEX uq_lookalike_cases_builtin_name ON lookalike_cases (name) WHERE builtin;
+CREATE INDEX ix_lookalike_cases_brand_id ON lookalike_cases (brand_id);
+CREATE UNIQUE INDEX uq_lookalike_cases_builtin_name ON lookalike_cases (brand_id, name) WHERE builtin;
 
 CREATE TABLE official_accounts (
 	id SERIAL NOT NULL, 
@@ -386,6 +392,20 @@ CREATE TABLE stored_files (
 	CONSTRAINT pk_stored_files PRIMARY KEY (path)
 );
 
+
+CREATE TABLE studio_items (
+	id SERIAL NOT NULL, 
+	user_id INTEGER NOT NULL, 
+	type VARCHAR(20) NOT NULL, 
+	label VARCHAR(200) NOT NULL, 
+	data JSON, 
+	image_path VARCHAR(300), 
+	created_at TIMESTAMP WITH TIME ZONE NOT NULL, 
+	CONSTRAINT pk_studio_items PRIMARY KEY (id), 
+	CONSTRAINT fk_studio_items_user_id_users FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE
+);
+
+CREATE INDEX ix_studio_items_user_id ON studio_items (user_id);
 
 CREATE TABLE text_analysis_cache (
 	key VARCHAR(64) NOT NULL, 

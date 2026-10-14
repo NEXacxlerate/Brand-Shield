@@ -446,8 +446,11 @@ def test_every_endpoint_requires_authentication(client, sample):
         assert _call(client, method, path, body).status_code == 401, (method, path)
 
 
-def test_viewer_is_read_only(client, admin_h, viewer_h, sample):
+def test_viewer_is_read_only(client, app, admin_h, viewer_h, sample):
     run_scan(client, admin_h)
+    from tests.conftest import hand_brand_to
+
+    hand_brand_to(app, "viewer@example.com")
     for path in READ_ENDPOINTS:
         if path == "/api/audit":
             continue
@@ -459,9 +462,12 @@ def test_viewer_is_read_only(client, admin_h, viewer_h, sample):
         assert _call(client, method, path, body, viewer_h).status_code == 403, (method, path)
 
 
-def test_analyst_can_act_but_not_change_settings(client, admin_h, analyst_h, sample):
+def test_analyst_can_act_but_not_change_settings(client, app, admin_h, analyst_h, sample):
     run_scan(client, admin_h)
     det = all_detections(client, admin_h)[0]
+    from tests.conftest import hand_brand_to
+
+    hand_brand_to(app, "analyst@example.com")
     assert client.post(f"/api/detections/{det['id']}/confirm", headers=analyst_h).status_code == 200
     assert client.post("/api/scan", json={"scope": "all"}, headers=analyst_h).status_code == 202
     assert client.post("/api/reports", json={"format": "csv"}, headers=analyst_h).status_code == 201

@@ -19,7 +19,7 @@ DOCS = Path(__file__).resolve().parents[2] / "docs"
 PURPOSE = {
     "users": "People who can sign in (admin, analyst, viewer). The first admin is seeded from ADMIN_EMAIL / ADMIN_PASSWORD.",
     "refresh_tokens": "Rotating refresh tokens (hashed). Reuse of a rotated token revokes the user's tokens.",
-    "brands": "The protected brand: name, description, aliases, keywords, domains, logo and verification summary.",
+    "brands": "The protected brand of ONE account (owner_id): name, description, aliases, keywords, domains, logo and verification summary.",
     "brand_logos": "Extra official logos per brand. A candidate image is compared with all of them.",
     "brand_publishers": "Official publisher / developer identifiers per app store.",
     "official_accounts": "Official social handles. Anything listed here is never flagged (allowlist).",
@@ -35,7 +35,8 @@ PURPOSE = {
     "api_usage": "Monthly provider credit / request counters (Tavily credits, Safe Browsing requests).",
     "settings": "Key / value application settings (data mode, schedule, sensitivity, active text provider...).",
     "reports": "Draft and approved reports built from selected detections. Nothing is sent automatically.",
-    "lookalike_cases": "Labelled name cases for the Look-alike Lab test runner.",
+    "lookalike_cases": "Labelled name cases for the Look-alike Lab test runner, per brand (brand_id).",
+    "studio_items": "Items a user saved in Brand Studio (logo, palette, name, content, audit, sentiment), owner-only.",
     "text_analysis_cache": "Cached results of hosted AI text analysis, keyed by a hash of model, prompt and text.",
     "audit_log": "Who did what and when, for every mutating action.",
 }

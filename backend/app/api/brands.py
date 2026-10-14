@@ -5,7 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.api.common import file_response, get_ctx
+from app.api.common import file_response, get_brand_or_404, get_ctx
 from app.config.config import Settings
 from app.config.deps import get_current_user, get_settings_dep, get_store, get_url_checker, require_admin, require_writer
 from app.config.time import utcnow
@@ -45,13 +45,6 @@ from app.services.profile_health import compute_profile_health
 
 router = APIRouter(prefix="/brands")
 log = logging.getLogger("app.brands")
-
-
-def get_brand_or_404(db: Session, brand_id: int, include_archived: bool = False) -> Brand:
-    brand = db.get(Brand, brand_id)
-    if brand is None or (brand.archived_at is not None and not include_archived):
-        raise HTTPException(404, "Brand not found")
-    return brand
 
 
 def account_out(a: OfficialAccount, warning: str | None = None) -> AccountOut:
@@ -127,16 +120,17 @@ def _touch(b: Brand) -> None:
 
 
 @router.get("", response_model=list[BrandSummary])
-def list_brands(_: User = Depends(get_current_user), db: Session = Depends(get_db)) -> list[Brand]:
-    return list(db.scalars(select(Brand).where(Brand.archived_at.is_(None)).order_by(Brand.id)))
+def list_brands(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> list[Brand]:
+    """Only the signed-in user's own brands (no account, not even an admin, sees another account's brand)."""
+    return list(db.scalars(select(Brand).where(Brand.owner_id == user.id, Brand.archived_at.is_(None)).order_by(Brand.id)))
 
 
 @router.post("", response_model=BrandOut, status_code=201)
 def create_brand(body: BrandIdentity, user: User = Depends(require_writer), db: Session = Depends(get_db)) -> BrandOut:
-    # One ACTIVE brand per organisation for now (an archived brand does not count); the table keeps brands separate for later.
-    if db.scalar(select(func.count()).select_from(Brand).where(Brand.archived_at.is_(None))):
+    # One ACTIVE brand per account (an archived brand does not count). Other accounts have their own.
+    if db.scalar(select(func.count()).select_from(Brand).where(Brand.owner_id == user.id, Brand.archived_at.is_(None))):
         raise HTTPException(409, "A brand already exists. Edit it instead.")
-    brand = Brand(**body.model_dump())
+    brand = Brand(**body.model_dump(), owner_id=user.id)
     db.add(brand)
     db.flush()
     audit.record(db, user, "brand.created", brand.name)
@@ -145,8 +139,8 @@ def create_brand(body: BrandIdentity, user: User = Depends(require_writer), db: 
 
 
 @router.get("/{brand_id}", response_model=BrandOut)
-def get_brand(brand_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db)) -> BrandOut:
-    return brand_out(get_brand_or_404(db, brand_id))
+def get_brand(brand_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> BrandOut:
+    return brand_out(get_brand_or_404(db, brand_id, user))
 
 
 IDENTITY_FIELDS = ("name", "aliases", "keywords", "domains")
@@ -161,7 +155,7 @@ def update_brand(
     db: Session = Depends(get_db),
     ctx: ScanContext = Depends(get_ctx),
 ) -> BrandOut:
-    brand = get_brand_or_404(db, brand_id)
+    brand = get_brand_or_404(db, brand_id, user)
     data = body.model_dump()
     if "description" not in body.model_fields_set:
         data.pop("description")  # an older client that does not send it must not wipe it
@@ -176,7 +170,7 @@ def update_brand(
         # and rebuild the Look-alike Lab's built-in cases from the new name.
         retired = retire_results(db, brand.id)
         if "name" in changed:
-            lookalike.rebuild_default_cases(db, brand.name)
+            lookalike.rebuild_default_cases(db, brand.id, brand.name)
         detail += f"; {retired} earlier results retired"
         refresh = {"results_retired": retired, "rescan": "needed", "message": "Brand details changed: earlier results were retired. Run a scan to find matches for the new details."}
     audit.record(db, user, "brand.updated", brand.name, detail)
@@ -206,7 +200,7 @@ def upload_logo(
     settings: Settings = Depends(get_settings_dep),
     store: FileStore = Depends(get_store),
 ) -> LogoOut:
-    brand = get_brand_or_404(db, brand_id)
+    brand = get_brand_or_404(db, brand_id, user)
     data = file.file.read(settings.logo_max_bytes + 1)  # never read more than the cap + 1 byte
     try:
         logo = process_logo(data, settings.logo_max_bytes)
@@ -232,11 +226,11 @@ def upload_logo(
 @router.get("/{brand_id}/logo")
 def get_logo(
     brand_id: int,
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     store: FileStore = Depends(get_store),
 ) -> Response:
-    brand = get_brand_or_404(db, brand_id)
+    brand = get_brand_or_404(db, brand_id, user)
     if not brand.logo_path:
         raise HTTPException(404, "No logo uploaded")
     data = store.read(brand.logo_path)
@@ -250,8 +244,8 @@ def get_logo(
 
 
 @router.get("/{brand_id}/accounts", response_model=AccountList)
-def list_accounts(brand_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db)) -> AccountList:
-    brand = get_brand_or_404(db, brand_id)
+def list_accounts(brand_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> AccountList:
+    brand = get_brand_or_404(db, brand_id, user)
     return AccountList(total=len(brand.accounts), items=[account_out(a) for a in brand.accounts])
 
 
@@ -263,7 +257,7 @@ def add_account(
     db: Session = Depends(get_db),
     checker: UrlChecker = Depends(get_url_checker),
 ) -> AccountOut:
-    brand = get_brand_or_404(db, brand_id)
+    brand = get_brand_or_404(db, brand_id, user)
     key = body.handle.lower()
     exists = db.scalar(
         select(OfficialAccount.id).where(
@@ -304,7 +298,7 @@ def add_account(
 def remove_account(
     brand_id: int, account_id: int, user: User = Depends(require_writer), db: Session = Depends(get_db)
 ) -> OkResponse:
-    brand = get_brand_or_404(db, brand_id)
+    brand = get_brand_or_404(db, brand_id, user)
     account = db.get(OfficialAccount, account_id)
     if account is None or account.brand_id != brand.id:
         raise HTTPException(404, "Account not found")
@@ -319,8 +313,8 @@ def remove_account(
 
 
 @router.get("/{brand_id}/apps", response_model=AppList)
-def list_apps(brand_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db)) -> AppList:
-    brand = get_brand_or_404(db, brand_id)
+def list_apps(brand_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> AppList:
+    brand = get_brand_or_404(db, brand_id, user)
     return AppList(total=len(brand.apps), items=[app_out(a) for a in brand.apps])
 
 
@@ -328,7 +322,7 @@ def list_apps(brand_id: int, _: User = Depends(get_current_user), db: Session = 
 def add_app(
     brand_id: int, body: AppCreate, user: User = Depends(require_writer), db: Session = Depends(get_db)
 ) -> AppOut:
-    brand = get_brand_or_404(db, brand_id)
+    brand = get_brand_or_404(db, brand_id, user)
     key = body.package_id.lower()
     existing = db.scalar(select(OfficialApp).where(OfficialApp.brand_id == brand.id, OfficialApp.package_key == key))
     if existing is not None:
@@ -373,7 +367,7 @@ def update_app(
     brand_id: int, app_id: int, body: AppUpdate, user: User = Depends(require_writer), db: Session = Depends(get_db)
 ) -> AppOut:
     """Store the numeric App Store id of an official app (so the same listing arriving with only its id is not flagged)."""
-    brand = get_brand_or_404(db, brand_id)
+    brand = get_brand_or_404(db, brand_id, user)
     app = db.get(OfficialApp, app_id)
     if app is None or app.brand_id != brand.id:
         raise HTTPException(404, "App not found")
@@ -392,7 +386,7 @@ def update_app(
 def remove_app(
     brand_id: int, app_id: int, user: User = Depends(require_writer), db: Session = Depends(get_db)
 ) -> OkResponse:
-    brand = get_brand_or_404(db, brand_id)
+    brand = get_brand_or_404(db, brand_id, user)
     app = db.get(OfficialApp, app_id)
     if app is None or app.brand_id != brand.id:
         raise HTTPException(404, "App not found")
@@ -411,7 +405,7 @@ def archive_brand(
     brand_id: int, confirm: str = "", user: User = Depends(require_admin), db: Session = Depends(get_db)
 ) -> OkResponse:
     """Soft delete (admin): the brand disappears from lists and scans; nothing is erased and it can be restored. `confirm` must be the exact name."""
-    brand = get_brand_or_404(db, brand_id)
+    brand = get_brand_or_404(db, brand_id, user)
     if confirm != brand.name:
         raise HTTPException(409, "Type the exact brand name in `confirm` to archive it")
     brand.archived_at = utcnow()
@@ -422,10 +416,10 @@ def archive_brand(
 
 @router.post("/{brand_id}/restore", response_model=BrandOut)
 def restore_brand(brand_id: int, user: User = Depends(require_admin), db: Session = Depends(get_db)) -> BrandOut:
-    brand = get_brand_or_404(db, brand_id, include_archived=True)
+    brand = get_brand_or_404(db, brand_id, user, include_archived=True)
     if brand.archived_at is None:
         return brand_out(brand)
-    if db.scalar(select(func.count()).select_from(Brand).where(Brand.archived_at.is_(None))):
+    if db.scalar(select(func.count()).select_from(Brand).where(Brand.owner_id == user.id, Brand.archived_at.is_(None))):
         raise HTTPException(409, "Another brand is active; archive it first")
     brand.archived_at = None
     audit.record(db, user, "brand.restored", brand.name)
@@ -441,7 +435,7 @@ def add_logo(
     brand_id: int, label: str = "", file: UploadFile = File(...), user: User = Depends(require_writer), db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings_dep), store: FileStore = Depends(get_store),
 ) -> ExtraLogoOut:
-    brand = get_brand_or_404(db, brand_id)
+    brand = get_brand_or_404(db, brand_id, user)
     data = file.file.read(settings.logo_max_bytes + 1)
     try:
         logo = process_logo(data, settings.logo_max_bytes)
@@ -463,9 +457,9 @@ def add_logo(
 
 
 @router.get("/{brand_id}/logos/{logo_id}/file")
-def get_extra_logo(brand_id: int, logo_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db),
+def get_extra_logo(brand_id: int, logo_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db),
                    store: FileStore = Depends(get_store)) -> Response:
-    brand = get_brand_or_404(db, brand_id)
+    brand = get_brand_or_404(db, brand_id, user)
     row = db.get(BrandLogo, logo_id)
     data = store.read(row.path) if row and row.brand_id == brand.id else None
     if data is None:
@@ -475,7 +469,7 @@ def get_extra_logo(brand_id: int, logo_id: int, _: User = Depends(get_current_us
 
 @router.delete("/{brand_id}/logos/{logo_id}", response_model=OkResponse)
 def remove_logo(brand_id: int, logo_id: int, user: User = Depends(require_writer), db: Session = Depends(get_db)) -> OkResponse:
-    brand = get_brand_or_404(db, brand_id)
+    brand = get_brand_or_404(db, brand_id, user)
     row = db.get(BrandLogo, logo_id)
     if row is None or row.brand_id != brand.id:
         raise HTTPException(404, "Logo not found")
@@ -491,7 +485,7 @@ def remove_logo(brand_id: int, logo_id: int, user: User = Depends(require_writer
 
 @router.post("/{brand_id}/publishers", response_model=PublisherOut, status_code=201)
 def add_publisher(brand_id: int, body: PublisherCreate, user: User = Depends(require_writer), db: Session = Depends(get_db)) -> PublisherOut:
-    brand = get_brand_or_404(db, brand_id)
+    brand = get_brand_or_404(db, brand_id, user)
     key = (body.publisher_id or body.name).lower()
     if any(p.store == body.store and p.publisher_key == key for p in brand.publishers):
         raise HTTPException(409, "This publisher is already registered")
@@ -505,7 +499,7 @@ def add_publisher(brand_id: int, body: PublisherCreate, user: User = Depends(req
 
 @router.delete("/{brand_id}/publishers/{publisher_id}", response_model=OkResponse)
 def remove_publisher(brand_id: int, publisher_id: int, user: User = Depends(require_writer), db: Session = Depends(get_db)) -> OkResponse:
-    brand = get_brand_or_404(db, brand_id)
+    brand = get_brand_or_404(db, brand_id, user)
     row = db.get(BrandPublisher, publisher_id)
     if row is None or row.brand_id != brand.id:
         raise HTTPException(404, "Publisher not found")
@@ -538,7 +532,7 @@ def _asset_exists(brand: Brand, asset_type: str, key: str) -> bool:
 def set_verification(brand_id: int, body: VerificationIn, user: User = Depends(require_writer), db: Session = Depends(get_db)) -> VerificationOut:
     """Record that a person checked an official identifier (how, when, by whom). The app does not verify DNS or stores itself.
     Domains stay on the allowlist either way; a PUBLISHER id is only allowlisted once it is verified."""
-    brand = get_brand_or_404(db, brand_id)
+    brand = get_brand_or_404(db, brand_id, user)
     key = body.asset_key.strip().lower()
     if not _asset_exists(brand, body.asset_type, key):
         raise HTTPException(404, f"No such {body.asset_type} is registered for this brand")
