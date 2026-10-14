@@ -15,6 +15,7 @@ from app.core.providers.text import build_embedder, build_provider
 from app.db.session import get_db
 from app.models import User
 from app.services import app_settings, audit
+from app.services.seed import forbid_demo_admin
 
 router = APIRouter(prefix="/providers")
 
@@ -49,6 +50,7 @@ def providers(_: User = Depends(get_current_user), db: Session = Depends(get_db)
 @router.put("/active")
 def set_active(body: ActiveIn, request: Request, user: User = Depends(require_admin), db: Session = Depends(get_db),
                settings: Settings = Depends(get_settings_dep)) -> dict:
+    forbid_demo_admin(user, settings, "the AI provider is global and cannot be changed from the shared demo.")
     app_settings.put_setting(db, SETTING_KEY, body.provider, user)
     audit.record(db, user, "settings.provider_changed", "text provider", body.provider)
     db.commit()

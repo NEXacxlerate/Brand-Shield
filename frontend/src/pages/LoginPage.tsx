@@ -23,11 +23,14 @@ export const LoginPage: React.FC = () => {
   const envDemoPassword = (import.meta.env.VITE_DEMO_PASSWORD as string | undefined) || '';
   // The server advertises its shared demo account (DEMO_EMAIL / DEMO_PASSWORD on the backend); no password lives in the frontend bundle.
   const [serverDemo, setServerDemo] = useState<{ email: string; password: string } | null>(null);
+  const [serverAdminDemo, setServerAdminDemo] = useState<{ email: string; password: string } | null>(null);
   useEffect(() => {
     const ctl = new AbortController();
     sm.demo(ctl.signal)
       .then((d) => {
-        if (!ctl.signal.aborted && d.enabled && d.email && d.password) setServerDemo({ email: d.email, password: d.password });
+        if (ctl.signal.aborted) return;
+        if (d.enabled && d.email && d.password) setServerDemo({ email: d.email, password: d.password });
+        if (d.admin_enabled && d.admin?.email && d.admin?.password) setServerAdminDemo({ email: d.admin.email, password: d.admin.password });
       })
       .catch(() => undefined); // no demo (or the server is unreachable): the button simply does not show
     return () => ctl.abort();
@@ -179,23 +182,46 @@ export const LoginPage: React.FC = () => {
               <span className="checkbox-text">Keep me signed in on this device</span>
             </div>
 
-            {demoEmail && demoPassword && (
-              <button
-                type="button"
-                className="demo-credentials-btn"
-                data-testid="demo-credentials"
-                onClick={() => {
-                  setEmail(demoEmail);
-                  setPassword(demoPassword);
-                  setErrorMsg(null);
-                }}
-              >
-                Use demo credentials
-              </button>
+            {((demoEmail && demoPassword) || serverAdminDemo) && (
+              <div className="demo-credentials-row">
+                {demoEmail && demoPassword && (
+                  <button
+                    type="button"
+                    className="demo-credentials-btn"
+                    data-testid="demo-credentials"
+                    onClick={() => {
+                      setEmail(demoEmail);
+                      setPassword(demoPassword);
+                      setErrorMsg(null);
+                    }}
+                  >
+                    Use demo credentials
+                  </button>
+                )}
+                {serverAdminDemo && (
+                  <button
+                    type="button"
+                    className="demo-credentials-btn"
+                    data-testid="demo-admin-credentials"
+                    onClick={() => {
+                      setEmail(serverAdminDemo.email);
+                      setPassword(serverAdminDemo.password);
+                      setErrorMsg(null);
+                    }}
+                  >
+                    Use admin demo credentials
+                  </button>
+                )}
+              </div>
             )}
             {demoEmail && demoPassword && (
               <p className="demo-credentials-note" data-testid="demo-note">
                 Shared demo account: anything created with it can be seen by other visitors and may be reset at any time.
+              </p>
+            )}
+            {serverAdminDemo && (
+              <p className="demo-credentials-note" data-testid="demo-admin-note">
+                Shared demo administrator: it can change settings, but cannot switch to live data, change the AI provider, see other accounts&apos; activity or change the webhook.
               </p>
             )}
 

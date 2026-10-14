@@ -25,7 +25,7 @@ tester, test cases, logo comparison) · Source Health · Reports · Model Evalua
 ## The user flow
 
 1. **Create account** (`/register`) or **Sign in** (`/login`). One login serves BrandShield and Brand Studio (the same JWT session).
-   The login page has a **Use demo credentials** button when the operator sets `DEMO_EMAIL` / `DEMO_PASSWORD` (a shared, non-admin demo account).
+   The login page has a **Use demo credentials** button when the operator sets `DEMO_EMAIL` / `DEMO_PASSWORD` (a shared, non-admin demo account); `DEMO_ADMIN_EMAIL` / `DEMO_ADMIN_PASSWORD` add a second, guarded **demo administrator** button.
 2. You land on **Protect Your Brand** (`/protect-brand`).
 3. **Create a Brand** opens **Brand Studio** (`/studio/`): design the brand there and register it in BrandShield from Studio. Every account owns its own brand.
    **Protect a Brand** goes to BrandShield's `/setup` for a brand you already have.
@@ -149,6 +149,7 @@ Server (`backend/app/config/config.py`; names are case-insensitive, blank = not 
 | `SCAM_LLM_ENABLED`, `SCAM_LLM_PROVIDER`, `GEMINI_API_KEY`, `GEMINI_MODEL`, `HUGGINGFACE_API_TOKEN`, `HUGGINGFACE_MODEL` | no | `false`, `gemini`, unset, `gemini-3.5-flash-lite`, unset, unset | Optional hosted AI text check (never for sample data). Keys are secrets. See docs/USER_GUIDE.md. |
 | `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `SENTRY_TRACES_SAMPLE_RATE` | no | unset, `APP_ENV`, `0.0` | Optional error reporting; needs `pip install -r backend/requirements-extra.txt`. DSN is a secret. |
 | `DEMO_EMAIL`, `DEMO_PASSWORD` | no | unset | A **public** demo account (role analyst, never admin) advertised on the login page. Both set = button shown; `DEMO_EMAIL` must differ from `ADMIN_EMAIL`. Use a throwaway password. |
+| `DEMO_ADMIN_EMAIL`, `DEMO_ADMIN_PASSWORD` | no | unset | A **public, guarded demo administrator** (role admin, a dedicated account, never the real admin) for the **Use admin demo credentials** button. Both must be set and the email must differ from `ADMIN_EMAIL` and `DEMO_EMAIL`. It cannot use live/auto data mode, change the AI provider, see other accounts' audit rows or set the webhook. Use a throwaway password. |
 | `SIGNUP_ENABLED`, `SIGNUP_MAX_PER_IP_PER_HOUR`, `SIGNUP_MAX_PER_EMAIL_PER_HOUR` | no | `true`, `5`, `3` | Self-service **Create account** and its in-memory limits. No email verification. |
 | `GROQ_API_KEY`, `STUDIO_GROQ_MODEL` | no | unset, `openai/gpt-oss-120b` | Brand Studio text AI (server side only). Without a Groq key Studio chat falls back to `GEMINI_API_KEY`. Secrets. |
 | `POLLINATIONS_API_KEY`, `STUDIO_IMAGE_MODEL` | no | unset, `black-forest-labs/flux.1-schnell` | Brand Studio image generation via Pollinations (server side only). Without it Studio offers manual logo upload. Secret. |

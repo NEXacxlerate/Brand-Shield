@@ -2,7 +2,7 @@ import csv
 import io
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy import func, select
@@ -12,6 +12,7 @@ from app.config.deps import require_writer
 from app.config.time import UtcDatetime
 from app.db.session import get_db
 from app.models import AuditLog, User
+from app.services.seed import is_demo_admin
 
 router = APIRouter()
 
@@ -32,10 +33,10 @@ class AuditList(BaseModel):
     items: list[AuditItem]
 
 
-def _filtered(user: User, from_: datetime | None, to: datetime | None, actor: str | None, action: str | None):
-    """The admin sees every row; everyone else sees only the actions they performed themselves."""
+def _filtered(user: User, from_: datetime | None, to: datetime | None, actor: str | None, action: str | None, own_only: bool = False):
+    """The admin sees every row; everyone else (and the shared demo administrator, `own_only`) sees only the actions they performed themselves."""
     q = select(AuditLog)
-    if user.role != "admin":
+    if user.role != "admin" or own_only:
         q = q.where(AuditLog.actor_id == user.id)
     if from_:
         q = q.where(AuditLog.ts >= from_)
@@ -50,6 +51,7 @@ def _filtered(user: User, from_: datetime | None, to: datetime | None, actor: st
 
 @router.get("/audit", response_model=AuditList)
 def list_audit(
+    request: Request,
     from_: datetime | None = Query(None, alias="from"),
     to: datetime | None = None,
     actor: str | None = None,
@@ -59,7 +61,7 @@ def list_audit(
     user: User = Depends(require_writer),  # admin and analyst; viewers cannot read the audit log
     db: Session = Depends(get_db),
 ) -> AuditList:
-    q = _filtered(user, from_, to, actor, action)
+    q = _filtered(user, from_, to, actor, action, is_demo_admin(user, request.app.state.settings))
     total = db.scalar(select(func.count()).select_from(q.subquery())) or 0
     rows = db.scalars(q.order_by(AuditLog.id.desc()).limit(limit).offset(offset)).all()
     return AuditList(total=total, items=[AuditItem.model_validate(r, from_attributes=True) for r in rows])
@@ -71,11 +73,11 @@ def _safe_cell(value: str) -> str:
 
 
 @router.get("/audit/export.csv")
-def export_audit(user: User = Depends(require_writer), db: Session = Depends(get_db)) -> Response:
+def export_audit(request: Request, user: User = Depends(require_writer), db: Session = Depends(get_db)) -> Response:
     out = io.StringIO()
     w = csv.writer(out)
     w.writerow(["ts", "actor", "action", "target", "detail"])
-    for r in db.scalars(_filtered(user, None, None, None, None).order_by(AuditLog.id)):
+    for r in db.scalars(_filtered(user, None, None, None, None, is_demo_admin(user, request.app.state.settings)).order_by(AuditLog.id)):
         w.writerow([r.ts.strftime("%Y-%m-%dT%H:%M:%SZ"), _safe_cell(r.actor), r.action, _safe_cell(r.target), _safe_cell(r.detail)])
     return Response(
         out.getvalue(), media_type="text/csv", headers={"Content-Disposition": 'attachment; filename="audit-log.csv"'}

@@ -29,6 +29,7 @@ from app.db.session import get_db
 from app.models import Source, User
 from app.services import audit, data_mode
 from app.services.scheduler import schedule_status
+from app.services.seed import forbid_demo_admin
 
 router = APIRouter()
 
@@ -242,6 +243,8 @@ def put_data_mode(
     user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> dict:
+    if body.data_mode != "sample":
+        forbid_demo_admin(user, request.app.state.settings, "only sample data can be selected (live and auto spend search credits and change the demo for everyone).")
     data_mode.set_data_mode(db, body.data_mode, user)
     return current_selection(db, request).as_dict()
 

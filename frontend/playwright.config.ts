@@ -60,6 +60,8 @@ export default defineConfig({
         ADMIN_PASSWORD: process.env.E2E_ADMIN_PASSWORD,
         DEMO_EMAIL: 'demo@brandshield.app', // the public demo account the login page advertises
         DEMO_PASSWORD: 'Demo-Brand-2026!',
+        DEMO_ADMIN_EMAIL: 'demoadmin@brandshield.app', // the guarded public demo administrator
+        DEMO_ADMIN_PASSWORD: 'Demo-Admin-2026!',
         E2E_DB_PATH: process.env.E2E_DB_PATH,
         E2E_DATA_DIR: path.join(tmp, 'data'),
         E2E_PORT: String(API_PORT),

@@ -16,6 +16,7 @@ from app.db.session import get_db
 from app.models import Brand, Detection, Setting, User
 from app.services import app_settings, audit, data_mode
 from app.services.scheduler import schedule_status
+from app.services.seed import forbid_demo_admin, is_demo_admin
 
 router = APIRouter(prefix="/settings")
 
@@ -114,7 +115,7 @@ def _view(db: Session, request: Request, ctx: ScanContext, user: User) -> dict:
         },
         "scheduler": {**sched, "next_scan_at": iso_z(sched["next_scan_at"]) if sched["next_scan_at"] else None},
         # Notifications are stored preferences only: Phase 4 sends nothing anywhere.
-        "notifications": {**notif, "webhook_url": webhook if user.role == "admin" else "", "webhook_configured": bool(webhook),
+        "notifications": {**notif, "webhook_url": webhook if user.role == "admin" and not is_demo_admin(user, request.app.state.settings) else "", "webhook_configured": bool(webhook),
                           "delivery": "not_implemented"},
         "account": {"organization": brand.name if brand else "", "user": {"name": user.name, "email": user.email, "role": user.role}},
         "updated_at": iso_z(row.updated_at) if row else None,
@@ -131,6 +132,11 @@ def put_settings(
     body: SettingsIn, request: Request, user: User = Depends(require_admin), db: Session = Depends(get_db), ctx: ScanContext = Depends(get_ctx)
 ) -> dict:
     changed: list[str] = []
+    demo_settings = request.app.state.settings
+    if body.data_mode is not None and body.data_mode != "sample":
+        forbid_demo_admin(user, demo_settings, "only sample data can be selected (live and auto spend search credits and change the demo for everyone).")
+    if body.notifications is not None and body.notifications.webhook_url:
+        forbid_demo_admin(user, demo_settings, "the notifications webhook cannot be set (it could point at someone else's server).")
     if body.monitoring is not None:
         mon = app_settings.get_monitoring(db)
         new = {**mon, "rules": dict(mon["rules"])}
@@ -162,6 +168,8 @@ def put_settings(
         cur = app_settings.get_notifications(db)
         new_n = dict(cur)
         for k, val in body.notifications.model_dump(exclude_none=True).items():
+            if k == "webhook_url" and is_demo_admin(user, demo_settings):
+                continue  # the demo admin's view hides the stored URL, so an empty value from its form must not clear the real one
             if new_n[k] != val:
                 new_n[k] = val
                 changed.append(f"notifications.{k}")

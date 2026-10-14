@@ -79,11 +79,17 @@ On the sign-in page press **Use demo credentials** (it fills the form), then **S
 | Password | `<DEMO_PASSWORD>` |
 | Role | Analyst: can create a brand, scan, review detections, create and approve reports |
 
+**Admin demo (optional, when `DEMO_ADMIN_EMAIL` / `DEMO_ADMIN_PASSWORD` are set):** press **Use admin demo credentials**
+(email `<DEMO_ADMIN_EMAIL, e.g. demoadmin@brandshield.app>`, password `<DEMO_ADMIN_PASSWORD>`). This is a *shared demo administrator*
+for trying admin-only screens (Settings save, Model Evaluation, health details). It CAN change monitoring settings, sensitivity,
+schedule, platforms and impersonation words. It CANNOT switch to Live or Auto data, change the AI provider, see other accounts'
+audit entries (it sees only its own) or set the notifications webhook; those are refused with a clear message.
+
 Notes for evaluators:
 - The demo account is **shared**. Other evaluators may be using it, so the brand you create can be seen or changed by them.
   **To test in isolation, press "Create an account"** and register your own (any email, password of 10+ characters). Each account gets its
   own private brand and workspace.
-- Administrator-only controls (global settings, data mode) are shown read-only for these accounts. This is intentional.
+- Administrator-only controls (global settings, data mode) are shown read-only for the analyst demo and for self-registered accounts. This is intentional; use the admin demo above to try them.
 - The hosted deployment runs in **Sample data mode**: results come from a built-in generator that creates realistic look-alike
   profiles, apps and domains *for your brand's name*, all clearly labelled "Sample data". No real person or company is accused.
   Live mode (real web and app-store search) is supported and was verified, but is off for the public demo to protect API quotas.

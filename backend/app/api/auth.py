@@ -20,7 +20,7 @@ from app.db.session import get_db
 from app.models import Brand, RefreshToken, User
 from app.schemas.auth import LoginRequest, OkResponse, RefreshRequest, RegisterRequest, TokenResponse, UserOut
 from app.services import audit
-from app.services.seed import demo_enabled
+from app.services.seed import demo_admin_advertised, demo_enabled
 
 router = APIRouter()
 _DUMMY_HASH = hash_password("not-a-real-password")  # equalises timing for unknown emails
@@ -77,13 +77,20 @@ def login(
 
 
 @router.get("/auth/demo")
-def demo_credentials(response: Response, settings: Settings = Depends(get_settings_dep)) -> dict:
-    """The login page's "Use demo credentials" button. Deliberately PUBLIC: it hands out the credentials of the shared demo account
-    (role analyst, never admin) when DEMO_EMAIL and DEMO_PASSWORD are set, and nothing otherwise."""
+def demo_credentials(response: Response, db: Session = Depends(get_db), settings: Settings = Depends(get_settings_dep)) -> dict:
+    """The login page's demo buttons. Deliberately PUBLIC: it hands out the credentials of the shared demo account (role analyst) when
+    DEMO_EMAIL / DEMO_PASSWORD are set, and of the guarded demo administrator (`admin`, `admin_enabled`) when DEMO_ADMIN_* are set.
+    The real admin is never advertised, and nothing is returned for a demo that is disabled."""
     response.headers["Cache-Control"] = "no-store"
-    if not demo_enabled(settings):
-        return {"enabled": False}
-    return {"enabled": True, "email": settings.demo_email, "password": settings.demo_password}
+    out: dict = {"enabled": False}
+    if demo_enabled(settings):
+        out = {"enabled": True, "email": settings.demo_email, "password": settings.demo_password}
+    if demo_admin_advertised(db, settings):
+        out["admin_enabled"] = True
+        out["admin"] = {"email": settings.demo_admin_email, "password": settings.demo_admin_password}
+    else:
+        out["admin_enabled"] = False
+    return out
 
 
 @router.post("/auth/register", response_model=TokenResponse, status_code=201)

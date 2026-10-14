@@ -39,7 +39,7 @@ def test_enabled_returns_the_credentials_uncached(demo_client):
     c, _ = demo_client
     r = c.get("/api/auth/demo")
     assert r.status_code == 200
-    assert r.json() == {"enabled": True, "email": DEMO[0], "password": DEMO[1]}
+    assert r.json() == {"enabled": True, "email": DEMO[0], "password": DEMO[1], "admin_enabled": False}
     assert r.headers["cache-control"] == "no-store"
 
 
@@ -57,21 +57,21 @@ def test_disabled_without_settings_and_leaks_nothing(tmp_path):
     app, _ = make(tmp_path)
     with TestClient(app) as c:
         r = c.get("/api/auth/demo")
-        assert r.json() == {"enabled": False}
+        assert r.json() == {"enabled": False, "admin_enabled": False}
         assert c.post("/api/auth/login", json={"email": DEMO[0], "password": DEMO[1]}).status_code == 401
 
 
 def test_half_configured_is_disabled(tmp_path):
     app, _ = make(tmp_path, demo_email=DEMO[0])
     with TestClient(app) as c:
-        assert c.get("/api/auth/demo").json() == {"enabled": False}
+        assert c.get("/api/auth/demo").json() == {"enabled": False, "admin_enabled": False}
 
 
 def test_demo_email_equal_to_admin_email_is_refused(tmp_path):
     app, settings = make(tmp_path, demo_email=ADMIN[0], demo_password="Another-Demo-Pass1!")
     assert not demo_enabled(settings)
     with TestClient(app) as c:
-        assert c.get("/api/auth/demo").json() == {"enabled": False}
+        assert c.get("/api/auth/demo").json() == {"enabled": False, "admin_enabled": False}
         # the admin's own password still works and the demo password does not log in as the admin
         assert c.post("/api/auth/login", json={"email": ADMIN[0], "password": "Another-Demo-Pass1!"}).status_code == 401
         assert c.post("/api/auth/login", json={"email": ADMIN[0], "password": ADMIN[1]}).status_code == 200

@@ -20,8 +20,8 @@ export const authApi = {
     session.save({ access: r.access_token, refresh: r.refresh_token }, r.user, persist);
     return r.user;
   },
-  /** GET /api/auth/demo: the shared demo account the server advertises (if DEMO_EMAIL / DEMO_PASSWORD are set there). */
-  async demo(signal?: AbortSignal): Promise<{ enabled: boolean; email?: string; password?: string }> {
+  /** GET /api/auth/demo: the shared demo account the server advertises (if DEMO_EMAIL / DEMO_PASSWORD are set there), plus the guarded shared demo administrator (`admin`, if DEMO_ADMIN_* are set). */
+  async demo(signal?: AbortSignal): Promise<{ enabled: boolean; email?: string; password?: string; admin_enabled?: boolean; admin?: { email: string; password: string } }> {
     return request('/api/auth/demo', { anonymous: true, signal });
   },
   async logout(): Promise<void> {

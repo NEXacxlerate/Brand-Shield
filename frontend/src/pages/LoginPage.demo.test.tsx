@@ -49,4 +49,32 @@ describe('login demo credentials', () => {
     expect(screen.queryByTestId('demo-credentials')).not.toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
+
+  it('shows a second admin button only when the server advertises the demo administrator, and fills the form with it', async () => {
+    vi.stubEnv('VITE_DEMO_EMAIL', '');
+    vi.stubEnv('VITE_DEMO_PASSWORD', '');
+    mockFetch(() =>
+      jsonResponse(200, {
+        enabled: true, email: 'demo@brandshield.app', password: 'Demo-Brand-2026!',
+        admin_enabled: true, admin: { email: 'demoadmin@brandshield.app', password: 'Demo-Admin-2026!' },
+      }),
+    );
+    renderLogin();
+    const adminBtn = await screen.findByTestId('demo-admin-credentials');
+    expect(screen.getByTestId('demo-credentials')).toBeInTheDocument();
+    expect(screen.getByTestId('demo-admin-note')).toHaveTextContent(/cannot switch to live data, change the AI provider, see other accounts' activity or change the webhook/);
+    await userEvent.setup().click(adminBtn);
+    expect(screen.getByDisplayValue('demoadmin@brandshield.app')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Demo-Admin-2026!')).toBeInTheDocument();
+  });
+
+  it('hides the admin button when the server has no demo administrator', async () => {
+    vi.stubEnv('VITE_DEMO_EMAIL', '');
+    vi.stubEnv('VITE_DEMO_PASSWORD', '');
+    mockFetch(() => jsonResponse(200, { enabled: true, email: 'demo@brandshield.app', password: 'Demo-Brand-2026!', admin_enabled: false }));
+    renderLogin();
+    await screen.findByTestId('demo-credentials');
+    expect(screen.queryByTestId('demo-admin-credentials')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('demo-admin-note')).not.toBeInTheDocument();
+  });
 });
