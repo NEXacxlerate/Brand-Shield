@@ -34,6 +34,19 @@ class TestBody(BaseModel):
         return v
 
 
+class UrlBody(BaseModel):
+    url: str = Field(min_length=1, max_length=2048)
+    brand_id: int | None = None
+
+    @field_validator("url")
+    @classmethod
+    def _clean(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Type a domain or URL to test")
+        return v
+
+
 class CaseBody(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     expected: Literal["flagged", "not_flagged", "official"]
@@ -56,6 +69,18 @@ def test_name(body: TestBody, _: User = Depends(get_current_user), db: Session =
     """Runs the live matcher with the Settings rules. Pure: no side effects, safe to call on every keystroke."""
     brand = resolve_brand(db, body.brand_id)
     return lookalike.evaluate_name(db, brand, body.name, body.platform)
+
+
+@router.post("/test-url")
+def test_url(body: UrlBody, _: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    """Compare a typed domain / URL with the brand's official domains. Never opens it, no network, no reputation check."""
+    return lookalike.evaluate_url(db, resolve_brand(db, body.brand_id), body.url)
+
+
+@router.get("/test-urls")
+def url_examples(brand_id: int | None = None, _: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    brand = resolve_brand(db, brand_id)
+    return lookalike.domain_examples(brand.name, list(brand.domains or []))
 
 
 @router.get("/test-cases")

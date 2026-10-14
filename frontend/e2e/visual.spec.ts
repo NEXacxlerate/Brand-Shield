@@ -15,6 +15,7 @@ const PAGES: [string, string, string][] = [
   ['/social', '07-social', 'Excluded as official'],
   ['/apps', '08-apps', 'Excluded as official'],
   ['/lookalike', '09-lookalike', 'Test cases'],
+  ['/web', '09b-web-threats', 'How domains are compared'],
   ['/sources', '10-sources', 'Recent source events'],
   ['/reports', '11-reports', 'Recent exports'],
   ['/settings', '12-settings', 'Detection sensitivity'],

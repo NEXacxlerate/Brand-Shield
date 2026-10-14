@@ -21,6 +21,8 @@ import type {
   FalsePositiveItem,
   LogoInfo,
   LookalikeResult,
+  UrlExamples,
+  UrlTestResult,
   Me,
   OfficialAccount,
   OfficialApp,
@@ -131,6 +133,8 @@ export const sm = {
 
   // ---- look-alike
   lookalikeTest: (name: string, signal?: Sig) => request<LookalikeResult>('/api/lookalike/test', { method: 'POST', json: { name }, signal }),
+  lookalikeTestUrl: (url: string, signal?: Sig) => request<UrlTestResult>('/api/lookalike/test-url', { method: 'POST', json: { url }, signal }),
+  testUrls: (signal?: Sig) => request<UrlExamples>('/api/lookalike/test-urls', { signal }),
   testCases: (signal?: Sig) => request<TestCaseList>('/api/lookalike/test-cases', { signal }),
   runTestCases: () => request<TestCaseRun>('/api/lookalike/test-cases/run', { method: 'POST' }),
 

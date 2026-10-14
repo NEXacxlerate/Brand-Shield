@@ -385,6 +385,49 @@ export interface LookalikeResult {
   on_allowlist: boolean;
   edit_distance: number;
 }
+export type UrlVerdict = 'official' | 'lookalike' | 'related' | 'unrelated' | 'not_comparable';
+export interface UrlTestResult {
+  input: string;
+  brand: string;
+  verdict: UrlVerdict;
+  verdict_label: string;
+  headline: string;
+  explanation: string;
+  official_domains: string[];
+  has_official_domains: boolean;
+  compared_with: string | null;
+  parts: {
+    ok: boolean;
+    hostname: string | null;
+    hostname_unicode: string | null;
+    subdomain_labels: string[];
+    subdomain: string;
+    registrable_domain: string | null;
+    registrable_unicode: string | null;
+    domain_label: string;
+    tld: string;
+    is_idn: boolean;
+    punycode: string | null;
+    port: number | null;
+    has_credentials: boolean;
+    is_ip: boolean;
+    scheme: string | null;
+    warnings: string[];
+  };
+  techniques: string[];
+  score: number;
+  name_match_percent: number | null;
+  reasons: { signal: string; points: number; note: string }[];
+  reputation_checked: boolean;
+  reputation_note: string;
+}
+export interface UrlExamples {
+  brand: string;
+  official_domain: string;
+  derived: boolean;
+  note: string | null;
+  items: { input: string; expected: UrlVerdict; technique: string }[];
+}
 export interface TestCaseRun {
   total: number;
   passed: number;

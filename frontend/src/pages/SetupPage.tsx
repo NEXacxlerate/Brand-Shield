@@ -184,7 +184,7 @@ export const SetupPage: React.FC = () => {
                   className="setup-input"
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
-                  placeholder="Acme Bank"
+                  placeholder="Your brand name"
                 />
               </div>
 
@@ -198,7 +198,7 @@ export const SetupPage: React.FC = () => {
                   className="setup-input"
                   value={aliasesText}
                   onChange={(e) => setAliasesText(e.target.value)}
-                  placeholder="Acme, AcmeBank, Acme Bank India"
+                  placeholder="Brand, BrandPay, Brand Pay"
                 />
               </div>
 

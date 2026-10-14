@@ -292,7 +292,7 @@ Same layout as Social Monitoring for apps: chips for **Google Play**, **Apple Ap
 
 **Steps**
 
-1. Open **Look-alike Lab**. The top says "Comparing against: Acme Bank".
+1. Open **Look-alike Lab**. The top says "Comparing against: <your brand>" (examples below use the Acme Bank profile).
 2. Type a name (or press one of the example chips).
 3. Read the result card: **Flagged**, **Official**, or **Not flagged**, the **name match %**, the technique(s) found, and **How the name was normalized** (steps 1 to 5).
 4. Press **Run test cases** to run the 12 built-in cases: the badge shows how many pass ("12 of 12 pass" with the Acme Bank profile above).
@@ -668,7 +668,11 @@ Brand description (`PUT /api/brands/{id}` with `description`), extra official lo
 
 - **Sidebar names.** Overview (the dashboard), Brand Registry (brand profile), Social Threats, App Threats, Web Threats, Investigations, Look-alike Lab, Source Health, Reports, Model Evaluation, Settings. The routes (`/dashboard`, `/brand`, `/social`, `/apps`) are unchanged.
 - **Severity.** Next to the risk band, every detection shows a severity chip (Low, Medium, High, Critical) from the risk engine. In the detail panel, "Signal availability" lists each signal as Present, Clean or Unavailable and where it came from. **Unavailable means it could not be checked, not that it is safe.**
-- **Web Threats.** Look-alike domains and links with a severity filter. URLs are never opened; Safe Browsing runs only if a key is set.
+- **Web Threats.** A lab on top, then the look-alike domains and links with a severity filter. URLs are never opened; Safe Browsing runs only if a key is set.
+  - **The lab ("Test a domain or URL").** The header pill says "Comparing against: <your brand> · official domains: ...". Type a domain or URL (or press an example chip made from your own brand and domains) and, after a short pause, read: a verdict (**Official domain**, **Look-alike domain**, **Related: review**, **No look-alike signal** or **Cannot be compared**), a plain-language headline, how the address was split (subdomain, registrable domain, top-level domain, punycode form for look-alike letters, port, a `user@` prefix), the techniques found (top-level domain swap, look-alike letters, brand in the subdomain, added words, separators, typos), and the reasons.
+  - **Run examples** checks every example against its expected label and shows "N of M pass".
+  - **Reputation is not checked in the lab.** It only compares names and structure with your official domains and never opens the address; a clean answer is not a safety guarantee.
+  - **No official domain registered?** The page says so and links to Brand Registry. Examples then use a derived `<name>.com` and are labelled as derived.
 - **Investigations.** Every detection as a case. Filter by status, severity and resolution. Set the status, pick a resolution (true positive, false positive, resolved, monitoring) with an optional note, and Save. It is stored on the server, audited, and shown in the timeline after a refresh. Viewers see it read-only.
 - **Add candidate / Import.** On the Social, App and Web pages: "Add candidate" scores one entry typed by hand; "Import CSV / JSON" first runs a dry run (nothing saved) with a per-row error list, then "Import valid rows".
 - **Brand Registry.** A brand description field and a Verification status card: mark an official domain, account or app as verified (and by which method). This is your own record; the app does not check DNS or stores.

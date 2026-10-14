@@ -1,3 +1,28 @@
 .web-threats-wrap { display: flex; flex-direction: column; gap: 12px; }
 .web-threats-grid { display: grid; grid-template-columns: minmax(280px, 1fr) minmax(0, 1.6fr); gap: 16px; align-items: start; }
 @media (max-width: 900px) { .web-threats-grid { grid-template-columns: 1fr; } }
+
+/* Web Threats lab: reuses the Look-alike Lab classes; colours follow the theme tokens in both themes */
+.wt-lab { grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr); margin-bottom: 4px; }
+.wt-lab .compare-target { color: var(--accent); max-width: 100%; overflow-wrap: anywhere; }
+.wt-lab .test-name-card { grid-row: 1; }
+.wt-lab .lookalike-side-stack { grid-row: 1; }
+.wt-lab .step-timeline-row, .wt-part-row { grid-template-columns: 170px minmax(0, 1fr); border-top-color: var(--border-inner); }
+.wt-lab .step-timeline-val { overflow-wrap: anywhere; }
+.wt-result { background: var(--bg-inner); border: 1px solid var(--border-inner); }
+.wt-result .match-title { color: var(--text-main); overflow-wrap: anywhere; }
+.wt-result.v-lookalike { background: var(--red-bg); border-color: var(--red-border); }
+.wt-result.v-lookalike .match-title { color: var(--red-text); }
+.wt-result.v-official { background: var(--green-bg); border-color: var(--green-border); }
+.wt-result.v-official .match-title { color: var(--green-text); }
+.wt-result.v-related { background: var(--orange-bg); border-color: var(--orange-border); }
+.wt-result.v-related .match-title { color: var(--orange-text); }
+.wt-host { font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 18px; font-weight: 700; overflow-wrap: anywhere; padding: 8px 0; }
+.wt-host-sub { color: var(--text-dim); }
+.wt-host-name { color: var(--accent); background: var(--blue-bg); border-radius: 4px; padding: 1px 4px; }
+.wt-host-tld { color: var(--text-main); }
+.wt-reasons { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.5; color: var(--t-soft); }
+.wt-rep-note { margin: 0; font-size: 12px; color: var(--text-muted); }
+.wt-examples-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.wt-lab .preset-pill-btn { overflow-wrap: anywhere; text-align: left; }
+@media (max-width: 900px) { .wt-lab { grid-template-columns: 1fr; } .wt-lab .lookalike-side-stack { grid-column: 1; grid-row: auto; } }

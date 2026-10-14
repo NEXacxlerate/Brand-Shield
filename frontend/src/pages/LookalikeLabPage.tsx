@@ -9,6 +9,7 @@ import { useApi } from '../hooks/useApi';
 import { useBrand } from '../hooks/useBrand';
 import { useLookalike } from '../hooks/useLookalike';
 import { useMe } from '../hooks/useMe';
+import { brandExamples } from '../utils/brandExamples';
 import '../components/common/States.css';
 import './LookalikeLabPage.css';
 
@@ -19,19 +20,9 @@ export const LookalikeLabPage: React.FC = () => {
   const { brand, missing } = useBrand();
   const { canWrite } = useMe();
   const brandName = brand?.name ?? '';
-  const [testInput, setTestInput] = useState('acrnebank-refund');
+  const [testInput, setTestInput] = useState('');
   const live = useLookalike(testInput, !missing);
-
-  const presetNames = [
-    'acrnebank-refund',
-    'Acme Bank Support',
-    'acm3bank',
-    'A C M E Bank',
-    'Acme Bnak',
-    'Acme Bakery',
-    'Acme Hotels',
-    'Acme Bank',
-  ];
+  const ex = brandExamples(brandName);
 
   // Test cases: the list comes from the server; results only exist after "Run test cases" (computed by the real engine).
   const cases = useApi((signal) => sm.testCases(signal), []);
@@ -53,6 +44,13 @@ export const LookalikeLabPage: React.FC = () => {
       setRunning(false);
     }
   };
+
+  // Quick picks and the first input come from this brand's own test cases (built from the registered name).
+  const presetNames = (cases.data?.items ?? []).slice(0, 8).map((c) => c.name);
+  const firstPick = (cases.data?.items ?? []).find((c) => c.expected === 'flagged')?.name ?? presetNames[0] ?? '';
+  useEffect(() => {
+    if (firstPick) setTestInput((cur) => cur || firstPick);
+  }, [firstPick]);
 
   const r = live.result;
   const rows = run
@@ -148,27 +146,27 @@ export const LookalikeLabPage: React.FC = () => {
 
                 <div className="variation-item">
                   <div className="variation-head">Character swaps</div>
-                  <div className="variation-example">acrnebank → acmebank</div>
+                  <div className="variation-example">{ex.swap} → {ex.compact}</div>
                 </div>
 
                 <div className="variation-item">
                   <div className="variation-head">Digits and symbols for letters</div>
-                  <div className="variation-example">acm3bank → acmebank</div>
+                  <div className="variation-example">{ex.digit} → {ex.compact}</div>
                 </div>
 
                 <div className="variation-item">
                   <div className="variation-head">Added words</div>
-                  <div className="variation-example">acmebank-support, Acme Bank Official Helpline</div>
+                  <div className="variation-example">{ex.addedWord}, {ex.addedPhrase}</div>
                 </div>
 
                 <div className="variation-item">
                   <div className="variation-head">Spacing and separators</div>
-                  <div className="variation-example">A C M E Bank, acme_bank</div>
+                  <div className="variation-example">{ex.spaced}, {ex.separated}</div>
                 </div>
 
                 <div className="variation-item">
                   <div className="variation-head">Transposed or missing letters</div>
-                  <div className="variation-example">acmebnak, acmebnk</div>
+                  <div className="variation-example">{ex.transposed}, {ex.missing}</div>
                 </div>
               </div>
 
@@ -180,7 +178,7 @@ export const LookalikeLabPage: React.FC = () => {
                   <div className="avoid-rule">
                     <Check size={14} className="rule-chk" />
                     <span>
-                      Only one edit away from the brand counts. “Acme Bakery” is three away.
+                      Only close edits of the brand count. “{ex.other}” is a different business, not a typo of {brandName || 'the brand'}.
                     </span>
                   </div>
                   <div className="avoid-rule">

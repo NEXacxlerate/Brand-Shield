@@ -625,6 +625,7 @@ Dates: the frontend seed is "12 Oct 2026" relative; the seeder should generate t
 | POST /api/detections/{id}/status, /mark-official | Social, Apps | NEW | none |
 | GET /api/detections/excluded, /false-positives | Social, Apps | NEW | none |
 | GET /api/sources, PATCH /api/sources/{id}, POST /api/sources/{id}/retry, GET /api/sources/events | Sources, Dashboard, Social, Apps | NEW | none |
+| POST /api/lookalike/test-url, GET /api/lookalike/test-urls | Web Threats lab | NEW | none |
 | POST /api/lookalike/test, GET/POST/DELETE /api/lookalike/test-cases, POST /api/lookalike/test-cases/run | Look-alike | NEW | none |
 | GET/PUT /api/settings, POST /api/settings/sensitivity-preview | Settings | NEW | admin has /settings/integrations only |
 | GET /api/reports/preview, POST /api/reports, GET /api/reports, GET /api/reports/{id}/download, /preview | Reports | list/preview/download CALLED by orphan module (old shape); rest NEW | reports (old shape) |
@@ -830,6 +831,20 @@ A queued/running scan older than 30 minutes is failed automatically (dead worker
   "items": [ { "id": 1, "name": "acrnebank", "expected": "flagged", "result": "flagged", "pass": true, "match_percent": 96, "builtin": true } ] }
 ```
 `result` is computed by the same function as `/lookalike/test`, never copied from `expected`.
+
+**Web Threats lab (domain tester).** Same pattern as the name lab, for domains and URLs. Pure: nothing is opened, no network call, no Safe Browsing call (reputation is NOT checked here; the answer says so in `reputation_note`). The input is untrusted text; the page renders it as text.
+- **POST /api/lookalike/test-url** (any signed-in user) `{ "url": "zenithpay.net" }` (1 to 2048 characters after trimming, else 422). Compared with the brand's `domains` and aliases:
+```json
+{ "input": "zenithpay.net", "brand": "Zenith Pay", "verdict": "lookalike", "verdict_label": "Look-alike domain",
+  "headline": "...", "explanation": "...", "official_domains": ["zenithpay.com"], "has_official_domains": true, "compared_with": "zenithpay.com",
+  "parts": { "ok": true, "hostname": "zenithpay.net", "hostname_unicode": "zenithpay.net", "subdomain_labels": [], "subdomain": "", "registrable_domain": "zenithpay.net",
+             "domain_label": "zenithpay", "tld": "net", "is_idn": false, "punycode": null, "port": null, "has_credentials": false, "is_ip": false, "warnings": [] },
+  "techniques": ["Top-level domain swap"], "score": 40, "name_match_percent": 100,
+  "reasons": [ { "signal": "domain_similarity", "points": 40, "note": "..." } ],
+  "reputation_checked": false, "reputation_note": "Reputation (Google Safe Browsing) is NOT checked here: ..." }
+```
+`verdict`: `official | lookalike | related | unrelated | not_comparable` (Official domain, Look-alike domain, Related: review, No look-alike signal, Cannot be compared; an IP host or an unreadable input is `not_comparable`). `techniques` can include tld swap, homoglyph / IDN homograph, mixed alphabets, brand in subdomain, brand before `@`, added words, separator, typo.
+- **GET /api/lookalike/test-urls** (any signed-in user) -> examples generated from the registered brand (`domain_examples` in `app/core/pipeline/lookalike.py`): the official domain (expected `official`), brand-in-subdomain, added word, two TLD swaps, a Cyrillic homoglyph, its `xn--` form and a separator form (expected `lookalike`), and two unrelated domains (expected `unrelated`). `{ "brand", "official_domain", "derived", "note", "items": [ { "input", "expected", "technique" } ] }`. With no domain registered, `<compact name>.com` is derived and `derived` is true (with a `note`).
 
 ### 18.6 Settings
 

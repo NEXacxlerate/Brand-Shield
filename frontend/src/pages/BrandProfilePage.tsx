@@ -32,6 +32,7 @@ const message = (e: unknown, fallback: string) => (e instanceof ApiError ? e.mes
 
 export const BrandProfilePage: React.FC = () => {
   const { brand, loading, missing, error, reload } = useBrand();
+  const packageSlug = (brand?.name ?? 'yourbrand').toLowerCase().replace(/[^a-z0-9]/g, "") || 'yourbrand';
   const { canWrite } = useMe();
 
   const [companyName, setCompanyName] = useState('');
@@ -581,7 +582,7 @@ export const BrandProfilePage: React.FC = () => {
                           id="app-name"
                           type="text"
                           className="field-input"
-                          placeholder="Acme Pay"
+                          placeholder={`${brand?.name ?? 'Your brand'} Mobile`}
                           value={appName}
                           onChange={(e) => setAppName(e.target.value)}
                           required
@@ -593,7 +594,7 @@ export const BrandProfilePage: React.FC = () => {
                           id="app-package"
                           type="text"
                           className="field-input"
-                          placeholder="com.acme.pay"
+                          placeholder={`com.${packageSlug}.app`}
                           value={appPackage}
                           onChange={(e) => setAppPackage(e.target.value)}
                           required
@@ -607,7 +608,7 @@ export const BrandProfilePage: React.FC = () => {
                           id="app-publisher"
                           type="text"
                           className="field-input"
-                          placeholder="Acme Bank Ltd"
+                          placeholder={`${brand?.name ?? 'Your brand'} Ltd`}
                           value={appPublisher}
                           onChange={(e) => setAppPublisher(e.target.value)}
                           required

@@ -15,6 +15,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config.time import iso_z, utcnow
+from app.core.engine.domain_match import analyze_domain, make_domain_matcher, normalize_url, official_registrables
 from app.core.engine.name_match import BRAND_NAME, FLAGGED, TECHNIQUE_LABELS
 from app.core.engine.normalize import LEET_DIGITS, fold_text, prepare
 from app.core.pipeline.matching import RULE_LABELS, TECHNIQUE_RULE, BrandAllowlist, apply_rules, build_matcher
@@ -86,7 +87,7 @@ def ensure_default_cases(db: Session, brand_name: str | None = None) -> None:
     with _SEED_LOCK:
         if db.scalar(select(LookalikeCase.id).limit(1)) is not None:  # another request seeded while we waited
             return
-        name_ = brand_name or db.scalar(select(Brand.name).where(Brand.archived_at.is_(None)).order_by(Brand.id).limit(1)) or "Acme Bank"
+        name_ = brand_name or db.scalar(select(Brand.name).where(Brand.archived_at.is_(None)).order_by(Brand.id).limit(1)) or "Brand"
         for name, expected in default_cases(name_):
             db.add(LookalikeCase(name=name, expected=expected, builtin=True, source="sample"))
         try:
@@ -186,3 +187,112 @@ def rebuild_default_cases(db: Session, brand_name: str) -> None:
     db.execute(delete(LookalikeCase).where(LookalikeCase.builtin.is_(True)))
     for name, expected in default_cases(brand_name):
         db.add(LookalikeCase(name=name, expected=expected, builtin=True, source="sample"))
+
+
+# ---- Web Threats lab: domain / URL tester ----------------------------------------------------------------------------
+
+URL_VERDICTS = ("official", "lookalike", "related", "unrelated", "not_comparable")
+URL_VERDICT_LABEL = {"official": "Official domain", "lookalike": "Look-alike domain", "related": "Related: review",
+                     "unrelated": "No look-alike signal", "not_comparable": "Cannot be compared"}
+NOT_COMPARABLE_WHY = {
+    "empty": "Nothing to compare: type a domain or URL.", "too_long": "The input is too long to be a domain or URL.",
+    "control_characters_or_spaces": "The input contains spaces or control characters, so it is not a single domain or URL.",
+    "unparseable": "The input could not be read as a URL.", "unsupported_scheme": "Only http and https addresses can be compared.",
+    "no_host": "There is no host name in the input.", "invalid_host": "The host name is not valid.",
+}
+REPUTATION_NOTE = ("Reputation (Google Safe Browsing) is NOT checked here: this tester only compares the domain's name and structure with "
+                   "your official domains, and never opens the address. A real scan adds the reputation check when a key is set.")
+
+
+def domain_examples(brand_name: str, domains: list[str] | tuple[str, ...]) -> dict:
+    """Labelled example inputs for the domain tester, generated from the registered brand (pure).
+
+    With no official domain registered a plausible `<compact name>.com` is derived and `derived` is true, so the page can say so.
+    Expected labels: official, lookalike, unrelated. Like `default_cases`, they are not filtered by what the engine says.
+    """
+    compact = re.sub(r"[^a-z0-9]", "", brand_name.lower()) or "brand"
+    official = next((n.registrable_domain for n in official_registrables(list(domains)).values() if n.registrable_domain), None)
+    derived = official is None
+    official = official or f"{compact}.com"
+    label, _, suffix = official.partition(".")
+    swap_a, swap_b = ("net", "co") if not official.endswith((".net", ".co")) else ("org", "io")
+    glyph = next((label.replace(a, b, 1) for a, b in (("o", "о"), ("a", "а"), ("e", "е"), ("i", "і"), ("y", "у"), ("c", "с")) if a in label), None)
+    puny = normalize_url(f"{glyph}.{suffix}").host if glyph else None
+    words = [re.sub(r"[^a-z0-9]", "", t.lower()) for t in brand_name.split()]
+    words = [w for w in words if w]
+    half = max(1, len(label) // 2)
+    separated = (f"{'-'.join(words)}.{suffix}" if len(words) > 1 and "".join(words) == label
+                 else f"{label[:half]}-{label[half:]}.{suffix}" if len(label) >= 2 else f"{label}-pay.{suffix}")
+    first = words[0] if words else label
+    items: list[tuple[str, str, str]] = [
+        (official, "official", "The official domain itself"),
+        (f"{official}.verify-account.test", "lookalike", "Brand in the subdomain"),
+        (f"{label}-support.{suffix}", "lookalike", "Added word"),
+        (f"{label}.{swap_a}", "lookalike", "Top-level domain swap"),
+        (f"{label}.{swap_b}", "lookalike", "Top-level domain swap"),
+    ]
+    if glyph:
+        items.append((f"{glyph}.{suffix}", "lookalike", "Look-alike character from another alphabet"))
+    if puny and puny.startswith("xn--") or (puny and "xn--" in puny):
+        items.append((puny, "lookalike", "The same domain in punycode (xn--)"))
+    items += [(separated, "lookalike", "Separator inside the name"), (f"{first}bakery.com", "unrelated", "Another business"),
+              ("other-company.com", "unrelated", "Another business")]
+    seen: set[str] = set()
+    out = [{"input": i, "expected": e, "technique": t} for i, e, t in items if not (i in seen or seen.add(i))]
+    return {"brand": brand_name, "official_domain": official, "derived": derived, "items": out,
+            "note": (f"No official domain is registered, so {official} was derived from the brand name. Add real domains in Brand Registry."
+                     if derived else None)}
+
+
+def evaluate_url(db: Session, brand: Brand, raw: str) -> dict:
+    """Compare one typed domain / URL with the brand's official domains. Pure: no network, no Safe Browsing, nothing is opened."""
+    mon = app_settings.get_monitoring(db)
+    domains = list(brand.domains or [])
+    aliases = list(brand.aliases or [])
+    matcher = make_domain_matcher(brand.name, aliases, domains, words=list(mon["impersonation_words"]))
+    a = analyze_domain(raw, brand.name, domains, aliases=aliases, matcher=matcher)
+    u, comp = a.url, a.components
+    verdict = a.verdict if a.verdict in URL_VERDICTS else "unrelated"
+    techniques = [TECHNIQUE_LABELS.get(t, t) for t in comp.get("techniques", [])]
+    for flag, text in (("tld_swap", "Top-level domain swap"), ("brand_in_subdomain", "Brand in the subdomain"),
+                       ("userinfo_trick", "Brand before the @ sign"), ("mixed_script", "Mixed alphabets (possible homograph)")):
+        if comp.get(flag):
+            techniques.append(text)
+    if any(r.signal == "idn_homograph" for r in a.reasons):
+        techniques.append("Look-alike characters (IDN homograph)")
+    if any(r.signal == "added_words" for r in a.reasons):
+        techniques.append("Added words")
+    techniques = list(dict.fromkeys(techniques))
+    official_domains = sorted({n.registrable_domain for n in official_registrables(domains).values() if n.registrable_domain})
+    nm = comp.get("name_match") or {}
+    notes = " ".join(r.note for r in a.reasons[:2])
+    if verdict == "not_comparable":
+        headline = "Cannot compare this input"
+        explanation = NOT_COMPARABLE_WHY.get(comp.get("error", ""), comp.get("note") or "This input has no domain name to compare.")
+    elif verdict == "official":
+        headline = f"Official: {u.registrable_domain} is a registered domain of {brand.name}"
+        explanation = "The registrable domain is exactly one of your official domains. Subdomains and paths on it belong to the brand."
+    elif verdict == "lookalike":
+        headline = f"Look-alike of {brand.name}: {u.registrable_domain} is not an official domain"
+        explanation = "The real registrable domain is not on your list but its name or structure imitates the brand. " + notes
+    elif verdict == "related":
+        headline = f"Related to {brand.name}, worth a look"
+        explanation = "Some signals tie this domain to the brand but not enough to call it a look-alike. " + notes
+    else:
+        headline = f"No look-alike signal: {u.registrable_domain} does not imitate {brand.name}"
+        explanation = "The name and structure do not resemble the brand. This is not a safety statement: reputation is not checked here."
+    return {
+        "input": raw.strip()[:300], "brand": brand.name, "verdict": verdict, "verdict_label": URL_VERDICT_LABEL[verdict],
+        "headline": headline, "explanation": explanation.strip(), "official_domains": official_domains, "has_official_domains": bool(official_domains),
+        "compared_with": a.official_match or (official_domains[0] if official_domains and verdict in ("lookalike", "related") else None),
+        "parts": {
+            "ok": u.ok, "hostname": u.host, "hostname_unicode": u.host_unicode,
+            "subdomain_labels": [x for x in (u.subdomain_unicode or u.subdomain).split(".") if x],
+            "registrable_domain": u.registrable_domain, "registrable_unicode": u.registrable_unicode, "domain_label": u.label_unicode or u.domain_label,
+            "subdomain": u.subdomain_unicode or u.subdomain, "tld": u.suffix, "is_idn": u.has_idn, "punycode": u.host if u.has_idn else None,
+            "port": u.port, "has_credentials": u.userinfo is not None, "is_ip": u.is_ip, "scheme": u.scheme, "warnings": list(u.warnings),
+        },
+        "techniques": techniques, "score": a.score, "name_match_percent": nm.get("pct"),
+        "reasons": [{"signal": r.signal, "points": r.points, "note": r.note} for r in a.reasons],
+        "reputation_checked": False, "reputation_note": REPUTATION_NOTE,
+    }

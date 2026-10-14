@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Check } from 'lucide-react';
 import { Header } from '../components/layout/Header';
 import { CandidateTools } from '../components/monitor/CandidateTools';
 import { EvidenceBox, ReasonsBox, SeverityChip } from '../components/monitor/MonitorParts';
@@ -6,13 +8,51 @@ import { Empty, ErrorBox, Loading, NoBrand, Notice, SampleNote } from '../compon
 import { ApiError } from '../api/client';
 import { fmtDayTime, statusChip, statusLabel } from '../api/format';
 import { sm } from '../api/sm';
-import type { Severity } from '../api/types';
+import type { Severity, UrlExamples, UrlTestResult, UrlVerdict } from '../api/types';
 import { useApi } from '../hooks/useApi';
 import { useBrand } from '../hooks/useBrand';
 import { useMe } from '../hooks/useMe';
+import { useUrlTest } from '../hooks/useUrlTest';
+import '../components/common/States.css';
+import './LookalikeLabPage.css';
 import './WebThreatsPage.css';
 
 const SEVERITIES: Severity[] = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
+
+const VERDICT_LABEL: Record<UrlVerdict, string> = {
+  official: 'Official domain',
+  lookalike: 'Look-alike domain',
+  related: 'Related: review',
+  unrelated: 'No look-alike signal',
+  not_comparable: 'Cannot be compared',
+};
+const verdictChip = (v: UrlVerdict) => (v === 'lookalike' ? 'chip-red' : v === 'official' ? 'chip-green' : v === 'related' ? 'chip-orange' : 'chip-neutral');
+
+/** hostname = subdomain + registrable domain (name highlighted) + TLD. Everything is rendered as text, never as HTML. */
+const HostParts: React.FC<{ r: UrlTestResult }> = ({ r }) => {
+  const p = r.parts;
+  return (
+    <div className="wt-host" data-testid="host-parts">
+      {p.subdomain && <span className="wt-host-sub">{p.subdomain}.</span>}
+      <span className="wt-host-name">{p.domain_label}</span>
+      <span className="wt-host-tld">.{p.tld}</span>
+    </div>
+  );
+};
+
+const PartRow: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
+  <div className="step-timeline-row wt-part-row">
+    <span className="step-timeline-lbl">{label}</span>
+    <span className="step-timeline-val">{value}</span>
+  </div>
+);
+
+interface ExampleRun {
+  input: string;
+  expected: UrlVerdict;
+  result: UrlVerdict;
+  pass: boolean;
+}
 
 export const WebThreatsPage: React.FC = () => {
   const { brand, missing } = useBrand();
@@ -21,6 +61,41 @@ export const WebThreatsPage: React.FC = () => {
   const [selected, setSelected] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  // ---- the lab: compare a typed domain with this brand's official domains
+  const [testInput, setTestInput] = useState('');
+  const live = useUrlTest(testInput, !missing);
+  const examples = useApi<UrlExamples>((signal) => sm.testUrls(signal), [brand?.id]);
+  const [runs, setRuns] = useState<ExampleRun[] | null>(null);
+  const [running, setRunning] = useState(false);
+  const [runError, setRunError] = useState<string | null>(null);
+  useEffect(() => setRuns(null), [brand?.id]);
+  useEffect(() => {
+    if (examples.data) setTestInput((cur) => cur || (examples.data?.items[1]?.input ?? examples.data?.official_domain ?? ''));
+  }, [examples.data]);
+
+  const runExamples = async () => {
+    if (!examples.data) return;
+    setRunning(true);
+    setRunError(null);
+    try {
+      const out = await Promise.all(
+        examples.data.items.map(async (ex) => {
+          const r = await sm.lookalikeTestUrl(ex.input);
+          return { input: ex.input, expected: ex.expected, result: r.verdict, pass: r.verdict === ex.expected };
+        }),
+      );
+      setRuns(out);
+    } catch (e) {
+      setRunError(e instanceof ApiError ? e.message : 'Could not run the examples.');
+    } finally {
+      setRunning(false);
+    }
+  };
+  const officialDomains = brand?.domains ?? [];
+  const noDomains = !!brand && officialDomains.length === 0;
+  const r = live.result;
+  const passed = runs?.filter((x) => x.pass).length ?? 0;
 
   const list = useApi((signal) => sm.detections({ category: 'web', severity: severity || undefined }, signal), [severity]);
   const items = list.data?.items ?? [];
@@ -43,7 +118,7 @@ export const WebThreatsPage: React.FC = () => {
     }
   };
 
-  const header = <Header title="Web Threats" subtitle="Look-alike domains and links, scored by the web risk engine" />;
+  const header = <Header title="Web Threats" subtitle="Test a domain against your official domains, then review the web threats found" />;
   if (missing || list.error?.status === 404) {
     return (
       <>
@@ -60,6 +135,152 @@ export const WebThreatsPage: React.FC = () => {
       {header}
       <div className="panel-content">
         <div className="web-threats-wrap">
+          <div className="lookalike-page-wrap wt-lab">
+            <div className="card test-name-card">
+              <div className="test-name-head">
+                <h3 className="panel-card-title">Test a domain or URL</h3>
+                <span className="compare-target" data-testid="compare-target">
+                  Comparing against: {brand?.name ?? ''}
+                  {officialDomains.length > 0 && <> · official domains: {officialDomains.join(', ')}</>}
+                </span>
+              </div>
+              {noDomains && (
+                <Notice kind="info">
+                  No official domain is registered for {brand?.name}, so only the name is compared. <Link to="/brand">Add your official domains in Brand Registry</Link>.
+                </Notice>
+              )}
+              <div className="test-input-group">
+                <label className="test-lbl" htmlFor="wt-input">Domain or URL (never opened)</label>
+                <input
+                  id="wt-input"
+                  type="text"
+                  className="test-input-field"
+                  value={testInput}
+                  maxLength={2048}
+                  spellCheck={false}
+                  autoComplete="off"
+                  onChange={(e) => setTestInput(e.target.value)}
+                />
+              </div>
+              <div className="preset-pills-row">
+                {(examples.data?.items ?? []).map((ex) => (
+                  <button key={ex.input} type="button" className={`preset-pill-btn ${testInput === ex.input ? 'active' : ''}`} onClick={() => setTestInput(ex.input)} title={ex.technique}>
+                    {ex.input}
+                  </button>
+                ))}
+              </div>
+              {examples.data?.derived && examples.data.note && <p className="eval-sub">{examples.data.note}</p>}
+
+              <div className={`match-result-container wt-result v-${r?.verdict ?? 'none'}`} data-testid="match-result" aria-live="polite">
+                {live.error && <ErrorBox error={live.error} compact />}
+                {!r && !live.error && live.loading && testInput.trim() && <Loading what="Comparing the domain" />}
+                {!testInput.trim() && <Empty>Type a domain or URL to see how it compares with your official domains.</Empty>}
+                {r && testInput.trim() && (
+                  <>
+                    <div className="match-result-head">
+                      <h4 className="match-title" data-testid="verdict-headline">{r.headline}</h4>
+                      <p className="match-desc">{r.explanation}</p>
+                    </div>
+                    <div className="match-chips-row">
+                      <span className={`chip ${verdictChip(r.verdict)}`} data-testid="verdict-chip">{VERDICT_LABEL[r.verdict]}</span>
+                      {r.verdict !== 'not_comparable' && <span className="chip chip-purple">Domain score {r.score}/100</span>}
+                      {r.name_match_percent != null && <span className="chip chip-purple">Name match {r.name_match_percent}%</span>}
+                      {r.techniques.map((t) => (
+                        <span key={t} className="chip chip-blue" data-testid="technique">{t}</span>
+                      ))}
+                    </div>
+                    {r.parts.ok && r.parts.registrable_domain && (
+                      <div className="normalization-steps-box">
+                        <div className="steps-title">How the address was read</div>
+                        <HostParts r={r} />
+                        <div className="steps-timeline">
+                          <PartRow label="You typed" value={r.input} />
+                          <PartRow label="Hostname" value={r.parts.hostname ?? ''} />
+                          {r.parts.is_idn && <PartRow label="Shown to people as" value={r.parts.hostname_unicode ?? ''} />}
+                          <PartRow label="Subdomain" value={r.parts.subdomain_labels.length ? r.parts.subdomain_labels.join(' . ') : 'none'} />
+                          <PartRow label="Registrable domain" value={r.parts.registrable_domain} />
+                          <PartRow label="Top-level domain" value={`.${r.parts.tld}`} />
+                          <PartRow label="Compared with" value={r.compared_with ?? (r.official_domains.length ? 'no official domain matched' : 'brand name only')} />
+                          {(r.parts.port != null || r.parts.has_credentials) && (
+                            <PartRow
+                              label="Port / credentials"
+                              value={`${r.parts.port != null ? `port ${r.parts.port}` : 'default port'}${r.parts.has_credentials ? ', has a user@ prefix (a known trick)' : ''}`}
+                            />
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {r.reasons.length > 0 && (
+                      <ul className="wt-reasons" data-testid="reasons">
+                        {r.reasons.map((x, i) => (
+                          <li key={i}>
+                            {x.note} <span className="cell-muted">(+{x.points})</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <p className="wt-rep-note">{r.reputation_note}</p>
+                  </>
+                )}
+              </div>
+
+              <div className="wt-examples-head">
+                <span className={`pass-rate-chip ${!runs ? 'idle' : passed < runs.length ? 'fail' : ''}`} data-testid="pass-rate">
+                  {runs ? `${passed} of ${runs.length} pass` : examples.data ? `${examples.data.items.length} examples, not run yet` : 'Not run yet'}
+                </span>
+                <button type="button" className="btn-secondary btn-sm" onClick={() => void runExamples()} disabled={running || !examples.data}>
+                  {running ? 'Running…' : 'Run examples'}
+                </button>
+              </div>
+              {runError && <Notice onClose={() => setRunError(null)}>{runError}</Notice>}
+              {examples.error && <ErrorBox error={examples.error} onRetry={examples.reload} compact />}
+              {runs && (
+                <table className="test-cases-table" data-testid="example-results">
+                  <thead>
+                    <tr>
+                      <th>Example</th>
+                      <th>Expected</th>
+                      <th>Result</th>
+                      <th style={{ textAlign: 'center' }}>Pass</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {runs.map((x) => (
+                      <tr key={x.input}>
+                        <td className="case-name-cell">{x.input}</td>
+                        <td><span className={`chip ${verdictChip(x.expected)}`}>{VERDICT_LABEL[x.expected]}</span></td>
+                        <td><span className={`chip ${verdictChip(x.result)}`}>{VERDICT_LABEL[x.result]}</span></td>
+                        <td style={{ textAlign: 'center' }}>{x.pass ? <span className="pass-check">✓</span> : <span className="pass-cross">✗</span>}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <div className="lookalike-side-stack">
+              <div className="card avoid-flagging-card">
+                <h3 className="panel-card-title">How domains are compared</h3>
+                <div className="avoid-rules-list">
+                  {[
+                    'Only the registrable domain counts (the name plus its top-level domain, like example.com). A match on your official list is official, never by substring.',
+                    'Look-alikes are caught by a swapped top-level domain, look-alike letters (including other alphabets and xn-- punycode), added words, separators and typos.',
+                    'Your brand inside a subdomain, or before an @ sign, is a deception trick: the real site is the registrable domain.',
+                    'The address is never opened and no reputation service is called here. A clean result is not a safety guarantee.',
+                  ].map((t) => (
+                    <div className="avoid-rule" key={t}>
+                      <Check size={14} className="rule-chk" />
+                      <span>{t}</span>
+                    </div>
+                  ))}
+                </div>
+                <Link to="/brand" className="edit-brands-link">
+                  Edit official domains →
+                </Link>
+              </div>
+            </div>
+          </div>
+
           <div className="filters-action-bar">
             <div className="filter-tabs-group" role="group" aria-label="Severity filter">
               <button type="button" className={`filter-tab ${severity === '' ? 'active' : ''}`} onClick={() => setSeverity('')}>

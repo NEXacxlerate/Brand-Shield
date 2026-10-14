@@ -48,14 +48,14 @@ export const Notice: React.FC<{ kind?: 'error' | 'info'; children: React.ReactNo
 
 /**
  * The footer note shown on every data page, only while the API says the data is sample data.
- * The brand name comes from the API (the design says "Acme Bank" because that is the sample brand).
+ * The brand name comes from the API.
  */
 export const SampleNote: React.FC<{ brandName?: string | null }> = ({ brandName }) => {
   const sample = useIsSample();
   if (!sample) return null;
   return (
     <div className="page-bottom-note" data-testid="sample-note">
-      Sample data for the fictional brand {brandName || 'Acme Bank'}. Not real detections.
+      Sample data for the fictional brand {brandName || 'your brand'}. Not real detections.
     </div>
   );
 };
