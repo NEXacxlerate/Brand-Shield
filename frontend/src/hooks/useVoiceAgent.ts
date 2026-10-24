@@ -113,6 +113,7 @@ export function useVoiceAgent() {
   const startRef = useRef<() => void>(() => {}); // the latest startListening, for callbacks created before it
   const finalRef = useRef<(text: string) => void>(() => {});
   const bgRecRef = useRef<Recognition | null>(null); // always-on wake-word listener (runs when agent is off)
+  const armedRef = useRef(false); // the mic is never opened before the person presses the button for the first time
   const bgStartRef = useRef<() => void>(() => {}); // latest startBgListener, for callbacks created before it
   useEffect(() => {
     routeRef.current = location.pathname;
@@ -440,9 +441,9 @@ export function useVoiceAgent() {
 
   useEffect(() => { bgStartRef.current = startBgListener; }, [startBgListener]);
 
-  // Restart the background wake-word listener whenever the agent goes off (including on first mount).
+  // Restart the background wake-word listener whenever the agent goes off, once the person has turned the agent on at least once.
   useEffect(() => {
-    if (phase === 'off') bgStartRef.current();
+    if (phase === 'off' && armedRef.current) bgStartRef.current();
   }, [phase]);
 
   const turnOff = useCallback(() => {
@@ -463,6 +464,7 @@ export function useVoiceAgent() {
   }, [clearSilence, stopRecognition]);
 
   const turnOn = useCallback(() => {
+    armedRef.current = true;
     stopBgRec(); // stop background listener before opening the main mic session
     setError(null);
     setReply('');
