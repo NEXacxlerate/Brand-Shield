@@ -1,9 +1,9 @@
 from sqlalchemy import select
 
 from app.config.config import Settings
+from app.config.ratelimit import RequestLimiter
 from app.models import AuditLog, User
 from tests.conftest import login
-from app.config.ratelimit import RequestLimiter
 
 GOOD = {"name": "  Rita   Shah ", "email": "Rita.Shah@Example.com", "password": "Correct-Horse-9"}
 
