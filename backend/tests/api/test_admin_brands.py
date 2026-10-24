@@ -34,3 +34,15 @@ def test_non_admin_cannot_use_admin_brand_endpoints(client):
     assert client.get("/api/admin/brands", headers=user_h).status_code == 403
     assert client.delete(f"/api/admin/brands/{bid}?confirm=Initech", headers=user_h).status_code == 403
     assert client.get("/api/admin/brands").status_code == 401
+
+
+def test_list_hides_sample_and_demo_brands(client, db):
+    from app.models import Brand
+
+    admin = headers_for(client, *ADMIN)
+    _, real = _user_with_brand(client, "erin@example.com", "RealCo")
+    _, fake = _user_with_brand(client, "frank@example.com", "FakeCo")
+    db.get(Brand, fake).source = "sample"
+    db.commit()
+    ids = [r["id"] for r in client.get("/api/admin/brands", headers=admin).json()]
+    assert real in ids and fake not in ids

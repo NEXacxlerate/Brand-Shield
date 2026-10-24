@@ -5,7 +5,8 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.config.deps import require_admin
+from app.config.config import Settings
+from app.config.deps import get_settings_dep, require_admin
 from app.config.time import utcnow
 from app.db.session import get_db
 from app.models import Brand, User
@@ -29,11 +30,16 @@ class AdminBrandRow(BaseModel):
 
 
 @router.get("", response_model=list[AdminBrandRow])
-def list_all_brands(user: User = Depends(require_admin), db: Session = Depends(get_db)) -> list[AdminBrandRow]:
-    """Admin only: every brand registered by any account (admin or user), newest first. Deleted brands are not listed."""
-    rows = db.execute(
-        select(Brand, User).outerjoin(User, Brand.owner_id == User.id).where(Brand.archived_at.is_(None)).order_by(Brand.id.desc())
-    ).all()
+def list_all_brands(
+    user: User = Depends(require_admin), db: Session = Depends(get_db), settings: Settings = Depends(get_settings_dep)
+) -> list[AdminBrandRow]:
+    """Admin only: every real brand registered by any account, newest first. Deleted brands, sample-data brands and brands owned by
+    the public demo accounts are not listed."""
+    demo_emails = [e.lower() for e in (settings.demo_email, settings.demo_admin_email) if e]
+    q = select(Brand, User).outerjoin(User, Brand.owner_id == User.id).where(Brand.archived_at.is_(None), Brand.source != "sample")
+    if demo_emails:
+        q = q.where(User.email.is_(None) | User.email.not_in(demo_emails))
+    rows = db.execute(q.order_by(Brand.id.desc())).all()
     return [
         AdminBrandRow(
             id=b.id,
