@@ -1,0 +1,294 @@
+/* UrlScannerPage.css */
+
+.us-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* ── Input card ─────────────────────────────────────────────────────────────── */
+.us-input-card {
+  padding: 1.25rem 1.5rem;
+}
+
+.us-input-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.875rem;
+  flex-wrap: wrap;
+}
+
+.us-brand-tag {
+  margin-left: auto;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--text-dim);
+}
+
+.us-input-row {
+  display: flex;
+  gap: 0.625rem;
+}
+
+.us-url-input {
+  flex: 1;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-1);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-family: var(--font-mono, monospace);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.us-url-input:focus {
+  border-color: var(--accent);
+}
+
+.us-scan-btn {
+  white-space: nowrap;
+  padding: 0.625rem 1.25rem;
+}
+
+.us-input-note {
+  margin-top: 0.5rem;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
+/* ── Result card ────────────────────────────────────────────────────────────── */
+.us-result-card {
+  padding: 1.5rem;
+  border-left: 4px solid transparent;
+  transition: border-color 0.2s;
+}
+
+.us-verdict-official  { border-left-color: var(--green, #22c55e); }
+.us-verdict-lookalike { border-left-color: var(--red, #ef4444);   }
+.us-verdict-related   { border-left-color: var(--orange, #f97316); }
+.us-verdict-unrelated { border-left-color: var(--text-dim);        }
+.us-verdict-neutral   { border-left-color: var(--border);          }
+
+.us-verdict-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.us-verdict-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+}
+
+.us-verdict-official  .us-verdict-icon { color: var(--green, #22c55e);  }
+.us-verdict-lookalike .us-verdict-icon { color: var(--red, #ef4444);    }
+.us-verdict-related   .us-verdict-icon { color: var(--orange, #f97316); }
+.us-verdict-unrelated .us-verdict-icon { color: var(--text-dim);        }
+.us-verdict-neutral   .us-verdict-icon { color: var(--text-dim);        }
+
+.us-verdict-text {
+  flex: 1;
+}
+
+.us-verdict-label {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+.us-verdict-desc {
+  margin-top: 0.25rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.us-score-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--surface-2, var(--surface-1));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 0.875rem;
+  min-width: 64px;
+}
+
+.us-score-num {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.us-score-lbl {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+/* domain display */
+.us-domain-row {
+  display: flex;
+  align-items: baseline;
+  font-family: var(--font-mono, monospace);
+  font-size: 1rem;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+  gap: 0;
+}
+
+.us-domain-part { color: var(--text-secondary); }
+.us-label       { color: var(--text-primary); font-weight: 700; }
+.us-tld         { color: var(--text-secondary); }
+.us-subdomain   { color: var(--text-dim); }
+.us-port        { color: var(--text-dim); }
+
+/* chips row */
+.us-chips-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-bottom: 1rem;
+}
+
+/* signals */
+.us-signals {
+  border-top: 1px solid var(--border);
+  padding-top: 0.875rem;
+  margin-top: 0.125rem;
+  margin-bottom: 0.875rem;
+}
+
+.us-section-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  margin-bottom: 0.5rem;
+}
+
+.us-signal-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 0.3rem 0;
+  font-size: 0.82rem;
+  border-bottom: 1px solid var(--border-subtle, var(--border));
+}
+
+.us-signal-row:last-child { border-bottom: none; }
+
+.us-signal-note { color: var(--text-secondary); flex: 1; }
+.us-signal-pts  { color: var(--accent); font-weight: 600; white-space: nowrap; }
+
+/* parsed parts */
+.us-parts-details {
+  margin-top: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.us-parts-details summary {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  color: var(--text-secondary);
+  background: var(--surface-2, var(--surface-1));
+  user-select: none;
+}
+
+.us-parts-table {
+  padding: 0.625rem 0.75rem;
+}
+
+.us-part-row {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 0.5rem;
+  padding: 0.2rem 0;
+  font-size: 0.8rem;
+}
+
+.us-part-lbl { color: var(--text-dim); font-weight: 500; }
+.us-part-val { color: var(--text-primary); font-family: var(--font-mono, monospace); }
+
+/* warning / safe notes */
+.us-warning-note,
+.us-safe-note {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.875rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+}
+
+.us-warning-note {
+  background: rgba(239, 68, 68, 0.08);
+  color: var(--red, #ef4444);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.us-safe-note {
+  background: rgba(34, 197, 94, 0.08);
+  color: var(--green, #22c55e);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+/* ── Info card ──────────────────────────────────────────────────────────────── */
+.us-info-card {
+  padding: 1.25rem 1.5rem;
+}
+
+.us-info-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.75rem;
+}
+
+.us-info-list {
+  padding-left: 1.25rem;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  line-height: 1.7;
+}
+
+.us-link {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.us-link:hover {
+  text-decoration: underline;
+}
+
+/* ── Dark mode ──────────────────────────────────────────────────────────────── */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .us-url-input {
+    background: var(--surface-1);
+    color: var(--text-primary);
+  }
+}
+
+:root[data-theme="dark"] .us-url-input {
+  background: var(--surface-1);
+  color: var(--text-primary);
+}

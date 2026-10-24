@@ -15,6 +15,8 @@ from app.config.config import Settings
 from app.config.time import utcnow
 from app.core.collectors.base import Collector, default_client_factory
 from app.core.collectors.credits import CreditLedger
+from app.core.collectors.crtsh import CrtshCollector
+from app.core.collectors.tld_variants import TldVariantCollector
 from app.core.collectors.google_play import GooglePlayCollector, package_installed
 from app.core.collectors.itunes import ITunesCollector
 from app.core.collectors.sample import SampleCollector
@@ -24,7 +26,7 @@ from app.core.collectors.util import Clock, Sleep, SpacingLimiter, TTLCache
 from app.core.providers.safe_browsing import DailyLedger, SafeBrowsingClient
 
 DATA_MODES = ("live", "sample", "auto")
-CHAIN_ORDER = ("tavily", "searxng", "itunes", "google_play")
+CHAIN_ORDER = ("tavily", "searxng", "itunes", "google_play", "crtsh", "tld_variants")
 
 
 @dataclass
@@ -110,6 +112,8 @@ def select_collectors(
             "google_play", True, gp,
             "Optional google-play-scraper package installed." if gp else "Package not installed: reports 'unavailable (not_installed)'.",
         ),
+        ChainEntry("crtsh", True, True, "No key needed; queries Certificate Transparency logs for lookalike domains."),
+        ChainEntry("tld_variants", True, True, "No key needed; generates TLD-swapped variants of official brand domains (.in .net .us …)."),
     ]
     return Selection(data_mode, "live", why, entries)
 
@@ -188,4 +192,8 @@ class CollectorRuntime:
                         max_queries_per_scan=s.google_play_max_queries_per_scan,
                     )
                 )
+            elif e.name == "crtsh":
+                out.append(CrtshCollector(client_factory=self.client_factory()))
+            elif e.name == "tld_variants":
+                out.append(TldVariantCollector())
         return out

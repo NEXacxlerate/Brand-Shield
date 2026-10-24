@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Check } from 'lucide-react';
+import { Check, RefreshCw } from 'lucide-react';
 import { Header } from '../components/layout/Header';
 import { CandidateTools } from '../components/monitor/CandidateTools';
 import { EvidenceBox, ReasonsBox, SeverityChip } from '../components/monitor/MonitorParts';
@@ -12,6 +12,7 @@ import type { Severity, UrlExamples, UrlTestResult, UrlVerdict } from '../api/ty
 import { useApi } from '../hooks/useApi';
 import { useBrand } from '../hooks/useBrand';
 import { useMe } from '../hooks/useMe';
+import { useScan } from '../hooks/useScan';
 import { useUrlTest } from '../hooks/useUrlTest';
 import '../components/common/States.css';
 import './LookalikeLabPage.css';
@@ -71,7 +72,8 @@ export const WebThreatsPage: React.FC = () => {
   const [runError, setRunError] = useState<string | null>(null);
   useEffect(() => setRuns(null), [brand?.id]);
   useEffect(() => {
-    if (examples.data) setTestInput((cur) => cur || (examples.data?.items[1]?.input ?? examples.data?.official_domain ?? ''));
+    // Pre-fill with the brand's own registered domain, never a made-up look-alike. With none registered the field stays empty.
+    if (examples.data) setTestInput((cur) => cur || (examples.data?.derived ? '' : examples.data?.official_domain ?? ''));
   }, [examples.data]);
 
   const runExamples = async () => {
@@ -96,6 +98,8 @@ export const WebThreatsPage: React.FC = () => {
   const noDomains = !!brand && officialDomains.length === 0;
   const r = live.result;
   const passed = runs?.filter((x) => x.pass).length ?? 0;
+
+  const scan = useScan('all', () => { list.reload(); });
 
   const list = useApi((signal) => sm.detections({ category: 'web', severity: severity || undefined }, signal), [severity]);
   const items = list.data?.items ?? [];
@@ -151,7 +155,7 @@ export const WebThreatsPage: React.FC = () => {
               )}
               <div className="test-input-group">
                 <label className="test-lbl" htmlFor="wt-input">Domain or URL (never opened)</label>
-                <input
+                <input data-voice="test_url"
                   id="wt-input"
                   type="text"
                   className="test-input-field"
@@ -302,12 +306,35 @@ export const WebThreatsPage: React.FC = () => {
             <div className="card detections-list-card">
               <div className="panel-card-head">
                 <h3 className="panel-card-title">Suspicious domains</h3>
-                <span className="sort-hint">Sorted by risk</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {scan.scanning && (
+                    <span className="cell-muted" style={{ fontSize: '0.78rem' }}>
+                      {scan.progress}% — {scan.message}
+                    </span>
+                  )}
+                  {scan.last && !scan.scanning && (
+                    <span className="cell-muted" style={{ fontSize: '0.78rem' }}>Scan complete</span>
+                  )}
+                  {scan.error && <span className="chip chip-red" style={{ fontSize: '0.75rem' }}>{scan.error}</span>}
+                  <button
+                    type="button"
+                    className="btn-secondary btn-sm"
+                    disabled={scan.scanning || !canWrite}
+                    onClick={() => void scan.start()}
+                    title="Run a full scan to find new suspicious domains (TLD variants, Certificate Transparency)"
+                  >
+                    <RefreshCw size={13} style={{ marginRight: 4 }} />
+                    {scan.scanning ? 'Scanning…' : 'Scan now'}
+                  </button>
+                </div>
               </div>
               <div className="detections-scroll-list">
                 {list.loading && <Loading what="Loading web threats" />}
                 {list.error && <ErrorBox error={list.error} onRetry={list.reload} compact />}
-                {list.data && items.length === 0 && <Empty>No web threats{severity ? ' with this severity' : ''}. Add a URL by hand or run a scan with web checks enabled.</Empty>}
+                {list.data && items.length === 0 && !scan.scanning && (
+                  <Empty>No web threats{severity ? ' with this severity' : ''}. Click <strong>Scan now</strong> to find TLD variants and certificate-logged lookalike domains.</Empty>
+                )}
+                {list.data && items.length === 0 && scan.scanning && <Loading what="Scanning for web threats" />}
                 {items.map((it) => (
                   <div key={it.id} className={`detection-row-card ${row?.id === it.id ? 'active' : ''}`} onClick={() => setSelected(it.id)} data-testid="detection-row">
                     <div className="detection-row-left">

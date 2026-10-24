@@ -20,11 +20,13 @@ from app.api import (
     health,
     lookalike,
     providers,
+    r2,
     reports,
     scans,
     sources,
     studio,
     studio_ai,
+    voice,
 )
 from app.api import settings as settings_api
 from app.config import response_cache
@@ -43,6 +45,7 @@ from app.services.context import build_context
 from app.services.scheduler import SchedulerLoop
 from app.services.seed import seed_admin, seed_demo, seed_demo_admin
 from app.services.studio_ai import StudioAI
+from app.services.voice import VoiceAgent
 
 
 def create_app(
@@ -99,6 +102,8 @@ def create_app(
     app.state.signup_email_limiter = RequestLimiter(settings.signup_max_per_email_per_hour, 3600)
     app.state.studio_ai = StudioAI(settings)
     app.state.studio_ai_limiter = RequestLimiter(settings.studio_ai_rate_per_minute, 60)
+    app.state.voice_limiter = RequestLimiter(settings.voice_rate_per_minute, 60)
+    app.state.voice_agent = VoiceAgent(settings)
     app.state.request_limiter = RequestLimiter(settings.api_rate_limit_per_minute, 60)
     app.state.url_checker = url_checker or UrlChecker(
         timeout=settings.url_check_timeout_seconds,
@@ -172,8 +177,10 @@ def create_app(
     for r in (scans, detections, dashboard, lookalike, settings_api, reports, evaluation, candidates, providers):
         api.include_router(r.router)
     api.include_router(candidates.images)
+    api.include_router(r2.router)
     api.include_router(studio.router)
     api.include_router(studio_ai.router)
+    api.include_router(voice.router)
     app.include_router(health.router)
     app.include_router(api)
     return app

@@ -12,13 +12,16 @@ import {
   SlidersVertical,
   Headphones,
   Search,
-  ChevronsUpDown,
   Globe,
   SearchCheck,
   FlaskConical,
-  Palette,
+  Sparkles,
+  ArrowUpRight,
+  Shield,
+  ScanSearch,
 } from 'lucide-react';
-import { useBrand } from '../../hooks/useBrand';
+import { BrandSwitcher } from './BrandSwitcher';
+import { session } from '../../api/client';
 import { STUDIO_URL } from '../../utils/studio';
 import './Layout.css';
 
@@ -29,10 +32,7 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => {
   const location = useLocation();
-  const { brand } = useBrand();
-
-  const totalOfficialAssets = brand?.official_assets ?? 0;
-
+  const isAdmin = session.user()?.role === 'admin'; // Source Health, Model Evaluation and Settings are for administrators only
   const isNavActive = (path: string) => {
     return location.pathname === path;
   };
@@ -48,23 +48,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
       {/* 2. Search Box */}
       <div className="sidebar-search">
         <Search size={16} strokeWidth={2} color="var(--text-dim)" />
-        <input type="text" placeholder="Search detections" aria-label="Search detections" />
+        <input data-voice="search" type="text" placeholder="Search detections" aria-label="Search detections" />
         <span className="keycap">⌘K</span>
       </div>
 
       {/* 3. Active Brand Card */}
-      <NavLink to={brand ? "/brand" : "/setup"} className="sidebar-brand-card" onClick={onClose}>
-        <div className="brand-avatar-badge">
-          {(brand?.name || '?').charAt(0).toUpperCase()}
-        </div>
-        <div className="brand-info">
-          <span className="brand-name">{brand?.name ?? 'No brand yet'}</span>
-          <span className="brand-sub">
-            {brand ? `Active brand · ${totalOfficialAssets} official assets` : 'Set up your brand profile'}
-          </span>
-        </div>
-        <ChevronsUpDown size={15} className="brand-chevron" />
-      </NavLink>
+      <BrandSwitcher onNavigate={onClose} />
 
       {/* 4. Section Label */}
       <div className="sidebar-section-label">Main menu</div>
@@ -126,6 +115,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
         </NavLink>
 
         <NavLink
+          to="/r2"
+          className={`nav-item ${isNavActive('/r2') ? 'active' : ''}`}
+          onClick={onClose}
+        >
+          <Shield size={19} strokeWidth={1.8} />
+          <span>Risk Investigation</span>
+        </NavLink>
+
+        <NavLink
+          to="/url-scanner"
+          className={`nav-item ${isNavActive('/url-scanner') ? 'active' : ''}`}
+          onClick={onClose}
+        >
+          <ScanSearch size={19} strokeWidth={1.8} />
+          <span>Fake URL Scanner</span>
+        </NavLink>
+
+        <NavLink
           to="/lookalike"
           className={`nav-item ${isNavActive('/lookalike') ? 'active' : ''}`}
           onClick={onClose}
@@ -134,6 +141,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
           <span>Look-alike Lab</span>
         </NavLink>
 
+        {isAdmin && (
         <NavLink
           to="/sources"
           className={`nav-item ${isNavActive('/sources') ? 'active' : ''}`}
@@ -142,6 +150,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
           <Activity size={19} strokeWidth={1.8} />
           <span>Source Health</span>
         </NavLink>
+        )}
 
         <NavLink
           to="/reports"
@@ -151,6 +160,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
           <FileText size={19} strokeWidth={1.8} />
           <span>Reports</span>
         </NavLink>
+        {isAdmin && (
         <NavLink
           to="/evaluation"
           className={`nav-item ${isNavActive('/evaluation') ? 'active' : ''}`}
@@ -159,18 +169,26 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
           <FlaskConical size={19} strokeWidth={1.8} />
           <span>Model Evaluation</span>
         </NavLink>
-        {/* Brand Studio is a separate app on the same origin (full page load, same login) */}
-        <a href={STUDIO_URL} className="nav-item" onClick={onClose}>
-          <Palette size={19} strokeWidth={1.8} />
-          <span>Brand Studio</span>
-        </a>
+        )}
       </nav>
 
-      {/* Spacer */}
+      {/* Brand Studio: a separate app on the same origin (full page load, same login), shown as its own button */}
+      <a href={STUDIO_URL} className="studio-cta" onClick={onClose} data-voice-row>
+        <span className="studio-cta-icon">
+          <Sparkles size={18} strokeWidth={2} />
+        </span>
+        <span className="studio-cta-text">
+          <strong>Brand Studio</strong>
+          <small>Names, logos &amp; palettes</small>
+        </span>
+        <ArrowUpRight size={16} className="studio-cta-arrow" />
+      </a>
+
       <div className="sidebar-spacer" />
 
       {/* 6. Pinned Bottom Items */}
       <div className="sidebar-bottom">
+        {isAdmin && (
         <NavLink
           to="/settings"
           className={`nav-item ${isNavActive('/settings') ? 'active' : ''}`}
@@ -179,6 +197,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
           <SlidersVertical size={19} strokeWidth={1.8} />
           <span>Settings</span>
         </NavLink>
+        )}
 
         <button
           type="button"
