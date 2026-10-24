@@ -39,7 +39,7 @@ def test_upgrade_backfills_owner_and_cases_and_keeps_every_child_row(tmp_path):
         assert c.execute(text("SELECT count(*) FROM official_accounts")).scalar() == 1
         assert c.execute(text("SELECT count(*) FROM scans")).scalar() == 1
         assert c.execute(text("SELECT count(*) FROM detections")).scalar() == 1
-        assert c.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0014"
+        assert c.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0015"
         assert c.execute(text("PRAGMA foreign_keys")).scalar() == 1  # and the safety switch is back on afterwards
     insp = inspect(eng)
     assert "studio_items" in insp.get_table_names()
