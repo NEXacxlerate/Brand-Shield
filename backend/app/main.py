@@ -9,6 +9,7 @@ from sqlalchemy import Engine
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.api import (
+    admin_brands,
     audit,
     auth,
     brands,
@@ -171,6 +172,7 @@ def create_app(
     api = APIRouter(prefix="/api")
     api.include_router(auth.router)
     api.include_router(brands.router)
+    api.include_router(admin_brands.router)
     api.include_router(audit.router)
     api.include_router(cron.router)
     api.include_router(sources.router)

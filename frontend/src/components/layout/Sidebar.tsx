@@ -19,6 +19,7 @@ import {
   ArrowUpRight,
   Shield,
   ScanSearch,
+  Building2,
 } from 'lucide-react';
 import { BrandSwitcher } from './BrandSwitcher';
 import { session } from '../../api/client';
@@ -140,6 +141,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
           <ScanText size={19} strokeWidth={1.8} />
           <span>Look-alike Lab</span>
         </NavLink>
+
+        {isAdmin && (
+        <NavLink
+          to="/admin/brands"
+          className={`nav-item ${isNavActive('/admin/brands') ? 'active' : ''}`}
+          onClick={onClose}
+        >
+          <Building2 size={19} strokeWidth={1.8} />
+          <span>Brand Management</span>
+        </NavLink>
+        )}
 
         {isAdmin && (
         <NavLink

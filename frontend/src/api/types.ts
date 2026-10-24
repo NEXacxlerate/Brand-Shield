@@ -685,3 +685,16 @@ export interface LogoCompareResult {
   is_sample: boolean;
   sample_note: string | null;
 }
+
+export interface AdminBrandRow {
+  id: number;
+  name: string;
+  industry: string;
+  domains: string[];
+  owner_id: number | null;
+  owner_name: string | null;
+  owner_email: string | null;
+  owner_role: string | null;
+  created_at: string;
+  archived: boolean;
+}

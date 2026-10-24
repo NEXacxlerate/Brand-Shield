@@ -184,13 +184,13 @@ def test_migration_at_head_behind_and_unknown(settings, tmp_path):
     sf = make_session_factory(make_engine(url))
     with sf() as db:
         r = svc.check_migration(db, settings)
-        assert r["status"] == "ok" and r["current"] == r["expected"] == "0012"
+        assert r["status"] == "ok" and r["current"] == r["expected"] == "0014"
     # an older database
     url2 = f"sqlite:///{(tmp_path / 'old.db').as_posix()}"
     _upgrade(url2, "0003")
     with make_session_factory(make_engine(url2))() as db:
         r = svc.check_migration(db, settings)
-        assert r["status"] == "degraded" and r["current"] == "0003" and r["expected"] == "0012"
+        assert r["status"] == "degraded" and r["current"] == "0003" and r["expected"] == "0014"
 
 
 def test_migration_table_missing_unknown_outside_production_degraded_in_production(settings, app):

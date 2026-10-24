@@ -4,6 +4,7 @@ import { authApi } from './auth';
 import { downloadFile, request } from './client';
 import type { VoiceRequest, VoiceResponse } from '../utils/voice';
 import type {
+  AdminBrandRow,
   Brand,
   BrandIdentityInput,
   Category,
@@ -75,6 +76,8 @@ export const sm = {
   // ---- brand
   brands: (signal?: Sig) => request<{ id: number; name: string; active: boolean }[]>('/api/brands', { signal }),
   selectBrand: (id: number) => request<{ id: number; name: string; active: boolean }>(`/api/brands/${id}/select`, { method: 'POST' }),
+  adminBrands: (signal?: Sig) => request<AdminBrandRow[]>('/api/admin/brands', { signal }),
+  adminDeleteBrand: (id: number, name: string) => request<{ ok: boolean }>(`/api/admin/brands/${id}${qs({ confirm: name })}`, { method: 'DELETE' }),
   brand: (id: number, signal?: Sig) => request<Brand>(`/api/brands/${id}`, { signal }),
   createBrand: (body: Pick<BrandIdentityInput, 'name'> & Partial<BrandIdentityInput>) => request<Brand>('/api/brands', { method: 'POST', json: body }),
   updateBrand: (id: number, body: BrandIdentityInput) => request<Brand>(`/api/brands/${id}`, { method: 'PUT', json: body }),

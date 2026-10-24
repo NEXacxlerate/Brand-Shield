@@ -24,6 +24,7 @@ import { InvestigationsPage } from './pages/InvestigationsPage';
 import { EvaluationPage } from './pages/EvaluationPage';
 import { Round2Dashboard } from './pages/Round2Dashboard';
 import { UrlScannerPage } from './pages/UrlScannerPage';
+import { AdminBrandsPage } from './pages/AdminBrandsPage';
 
 const LandingPage = lazy(() => import('./landing/LandingPage').then((m) => ({ default: m.LandingPage })));
 
@@ -197,6 +198,7 @@ function App() {
             <Route path="/sources" element={<AppLayout><SourceHealthPage /></AppLayout>} />
             <Route path="/settings" element={<AppLayout><SettingsPage /></AppLayout>} />
             <Route path="/evaluation" element={<AppLayout><EvaluationPage /></AppLayout>} />
+            <Route path="/admin/brands" element={<AppLayout><AdminBrandsPage /></AppLayout>} />
           </Route>
         </Route>
 

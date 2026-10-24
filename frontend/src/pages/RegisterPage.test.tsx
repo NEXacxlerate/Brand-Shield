@@ -21,7 +21,7 @@ function renderRegister() {
 async function fill(password = 'correct horse battery', confirm = password) {
   const user = userEvent.setup();
   await user.type(screen.getByLabelText('Full name'), 'Rita Shah');
-  await user.type(screen.getByLabelText('Work email'), 'rita@company.com');
+  await user.type(screen.getByLabelText('Email'), 'rita@company.com');
   await user.type(screen.getByLabelText('Password'), password);
   await user.type(screen.getByLabelText('Confirm password'), confirm);
   await user.click(screen.getByRole('button', { name: /create account/i }));
