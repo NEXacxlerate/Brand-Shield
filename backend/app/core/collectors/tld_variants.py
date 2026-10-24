@@ -18,7 +18,6 @@ domain score clears the detection threshold.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
 from datetime import datetime
 
 from app.config.time import utcnow

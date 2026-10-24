@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Index, JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, text
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.config.time import utcnow
@@ -14,8 +14,8 @@ class Detection(Base):
     __table_args__ = (
         UniqueConstraint("brand_id", "canonical_key"),
         # Composite indexes for the monitoring list queries (brand + category/status filter + score sort)
-        Index("ix_det_brand_cat_status_score", "brand_id", "category", "status", text("score DESC")),
-        Index("ix_det_brand_status_score", "brand_id", "status", text("score DESC")),
+        Index("ix_det_brand_cat_status_score", "brand_id", "category", "status", "score"),
+        Index("ix_det_brand_status_score", "brand_id", "status", "score"),
         Index("ix_det_brand_found", "brand_id", "found_at"),
         Index("ix_det_brand_last_seen", "brand_id", "last_seen_at"),
     )

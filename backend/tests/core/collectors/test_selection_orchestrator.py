@@ -37,7 +37,7 @@ def test_auto_is_live_when_a_live_collector_is_configured(kwargs, gp, why):
 
 def test_live_chain_order_and_reasons():
     sel = select_collectors(S(tavily_api_key="k-123456", searxng_base_url="https://s.example.org"), "live", google_play_installed=lambda: False)
-    assert sel.names == ["tavily", "searxng", "itunes", "google_play"]
+    assert sel.names == ["tavily", "searxng", "itunes", "google_play", "crtsh", "tld_variants"]
     by = {e.name: e for e in sel.entries}
     assert by["tavily"].configured and "Key present" in by["tavily"].reason
     assert by["searxng"].active and by["searxng"].configured
@@ -48,7 +48,7 @@ def test_live_chain_order_and_reasons():
 def test_live_without_key_still_lists_tavily_as_unavailable_and_skips_unset_searxng():
     sel = select_collectors(S(), "live", google_play_installed=lambda: False)
     assert sel.effective_mode == "live"
-    assert sel.names == ["tavily", "itunes", "google_play"]
+    assert sel.names == ["tavily", "itunes", "google_play", "crtsh", "tld_variants"]
     assert not sel.entry("tavily").configured and "no_key" in sel.entry("tavily").reason
     assert not sel.entry("searxng").active and "not set" in sel.entry("searxng").reason
 
@@ -72,7 +72,7 @@ def test_runtime_builds_the_chain_in_order():
     s = S(tavily_api_key="k-123456", searxng_base_url="https://s.example.org")
     rt = CollectorRuntime(s, sf)
     sel = select_collectors(s, "live", google_play_installed=lambda: False)
-    assert [c.name for c in rt.build(sel)] == ["tavily", "searxng", "itunes", "google_play"]
+    assert [c.name for c in rt.build(sel)] == ["tavily", "searxng", "itunes", "google_play", "crtsh", "tld_variants"]
     assert [c.name for c in rt.build(select_collectors(s, "sample"))] == ["sample"]
 
 

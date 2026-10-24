@@ -4,8 +4,6 @@ Read-only with respect to Round 1 data.  All writes target the r2_* tables.
 """
 from __future__ import annotations
 
-from datetime import datetime
-
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 

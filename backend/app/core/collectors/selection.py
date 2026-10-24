@@ -16,12 +16,12 @@ from app.config.time import utcnow
 from app.core.collectors.base import Collector, default_client_factory
 from app.core.collectors.credits import CreditLedger
 from app.core.collectors.crtsh import CrtshCollector
-from app.core.collectors.tld_variants import TldVariantCollector
 from app.core.collectors.google_play import GooglePlayCollector, package_installed
 from app.core.collectors.itunes import ITunesCollector
 from app.core.collectors.sample import SampleCollector
 from app.core.collectors.searxng import SearxngCollector
 from app.core.collectors.tavily import TavilyCollector
+from app.core.collectors.tld_variants import TldVariantCollector
 from app.core.collectors.util import Clock, Sleep, SpacingLimiter, TTLCache
 from app.core.providers.safe_browsing import DailyLedger, SafeBrowsingClient
 

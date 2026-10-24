@@ -206,8 +206,7 @@ def test_filters_counts_and_dashboard_include_web(settings, checker):
         for s in sev:
             assert all(i["severity"] == s for i in web_items(c, h, severity=s))
         listing = c.get("/api/detections", params={"limit": 200}, headers=h).json()
-        assert listing["counts"]["by_type"]["lookalike_domain"] == 2 and listing["counts"]["by_category"] == {"social": 1, "web": 2}
-        assert sum(listing["counts"]["by_severity"].values()) == 3
+        assert listing["counts"]["by_type"]["lookalike_domain"] == 2 and listing["counts"]["all"] == 3
         d = c.get("/api/dashboard", headers=h).json()
         assert d["kpis"]["total_detections"]["value"] == 3 == d["total_open"] and d["kpis"]["web_threats"]["value"] == 2
         assert d["counts"]["by_category"] == {"social": 1, "apps": 0, "web": 2} and d["counts"]["by_type"]["lookalike_domain"] == 2

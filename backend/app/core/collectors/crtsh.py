@@ -24,7 +24,6 @@ import logging
 import re
 import time
 from collections.abc import Callable
-from datetime import datetime
 from typing import Any
 
 import httpx

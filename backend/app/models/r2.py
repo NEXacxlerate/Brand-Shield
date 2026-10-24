@@ -6,7 +6,7 @@ any Round 1 row.
 """
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Index, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, DateTime, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.config.time import utcnow
@@ -34,6 +34,7 @@ class R2Investigation(Base):
     __tablename__ = "r2_investigations"
     __table_args__ = (
         UniqueConstraint("detection_id", name="uq_r2inv_detection"),
+        Index("ix_r2inv_detection", "detection_id"),
         Index("ix_r2inv_brand_status", "brand_id", "status"),
         Index("ix_r2inv_brand_level", "brand_id", "risk_level"),
         Index("ix_r2inv_brand_score", "brand_id", "risk_score"),
@@ -41,14 +42,14 @@ class R2Investigation(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     # Round 1 reference — read-only pointer; the R1 row is never modified
-    detection_id: Mapped[int] = mapped_column(Integer, index=True, nullable=False)
-    brand_id: Mapped[int] = mapped_column(Integer, index=True, nullable=False)
+    detection_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    brand_id: Mapped[int] = mapped_column(Integer, nullable=False)
     # R2 risk assessment (independent of R1 scoring)
     risk_score: Mapped[int] = mapped_column(Integer, default=0)
     risk_level: Mapped[str] = mapped_column(String(10), default="LOW")
     score_breakdown: Mapped[dict] = mapped_column(JSON, default=dict)
     # Analyst workflow
-    status: Mapped[str] = mapped_column(String(20), default="new", index=True)
+    status: Mapped[str] = mapped_column(String(20), default="new")
     assigned_to: Mapped[str | None] = mapped_column(String(120), nullable=True)
     # Denormalized snapshot for fast listing (avoids a JOIN to R1 on every list request)
     platform: Mapped[str] = mapped_column(String(20), default="")
@@ -67,9 +68,10 @@ class R2InvestigationEvent(Base):
     """Append-only audit trail — never overwritten, never deleted."""
 
     __tablename__ = "r2_investigation_events"
+    __table_args__ = (Index("ix_r2evt_inv", "investigation_id"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    investigation_id: Mapped[int] = mapped_column(Integer, index=True, nullable=False)
+    investigation_id: Mapped[int] = mapped_column(Integer, nullable=False)
     action: Mapped[str] = mapped_column(String(40))
     from_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
     to_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
@@ -82,11 +84,12 @@ class R2Alert(Base):
     """High-risk alert — created once per investigation, never on page refresh."""
 
     __tablename__ = "r2_alerts"
+    __table_args__ = (Index("ix_r2alert_inv", "investigation_id"), Index("ix_r2alert_brand", "brand_id"))
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    investigation_id: Mapped[int] = mapped_column(Integer, index=True, nullable=False)
+    investigation_id: Mapped[int] = mapped_column(Integer, nullable=False)
     detection_id: Mapped[int] = mapped_column(Integer, nullable=False)
-    brand_id: Mapped[int] = mapped_column(Integer, index=True, nullable=False)
+    brand_id: Mapped[int] = mapped_column(Integer, nullable=False)
     risk_score: Mapped[int] = mapped_column(Integer)
     risk_level: Mapped[str] = mapped_column(String(10))
     platform: Mapped[str] = mapped_column(String(20), default="")
