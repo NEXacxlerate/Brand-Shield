@@ -247,10 +247,11 @@ def test_a_new_account_without_a_brand_gets_the_usual_404(client):
 def test_many_brands_per_account_and_many_accounts(client):
     a, b = _register(client, "A One", "a1@example.com"), _register(client, "B Two", "b2@example.com")
     assert client.post("/api/brands", json={"name": "Same Name"}, headers=a).status_code == 201
-    assert client.post("/api/brands", json={"name": "Same Name"}, headers=b).status_code == 201  # another account: fine, even with the same name
+    assert client.post("/api/brands", json={"name": "Same Name"}, headers=b).status_code == 409  # a brand name can only be registered once
+    assert client.post("/api/brands", json={"name": "Other Name"}, headers=b).status_code == 201
     assert client.post("/api/brands", json={"name": "Second"}, headers=a).status_code == 201
     other = client.get("/api/brands", headers=b).json()
-    assert len(other) == 1 and other[0]["name"] == "Same Name"  # a's second brand never shows up for b
+    assert len(other) == 1 and other[0]["name"] == "Other Name"  # a's brands never show up for b
     foreign = client.get("/api/brands", headers=a).json()[0]["id"]
     assert client.post(f"/api/brands/{foreign}/select", headers=b).status_code == 404  # cannot select another account's brand
 

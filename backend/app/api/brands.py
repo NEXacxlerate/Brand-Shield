@@ -139,11 +139,24 @@ def select_brand(brand_id: int, user: User = Depends(get_current_user), db: Sess
     return BrandSummary(id=brand.id, name=brand.name, active=True)
 
 
+def _norm_name(name: str) -> str:
+    return " ".join(name.casefold().split())
+
+
+def _ensure_name_free(db: Session, name: str, exclude_id: int | None = None) -> None:
+    """A brand name can be registered once across all accounts (case and spacing ignored); deleted brands free their name."""
+    key = _norm_name(name)
+    for bid, other in db.execute(select(Brand.id, Brand.name).where(Brand.archived_at.is_(None))):
+        if bid != exclude_id and _norm_name(other) == key:
+            raise HTTPException(409, "This brand is already registered by another account. A brand name can only be registered once.")
+
+
 @router.post("", response_model=BrandOut, status_code=201)
 def create_brand(body: BrandIdentity, user: User = Depends(require_writer), db: Session = Depends(get_db)) -> BrandOut:
     # An account can protect several brands (an archived one does not count towards the cap).
     if db.scalar(select(func.count()).select_from(Brand).where(Brand.owner_id == user.id, Brand.archived_at.is_(None))) >= MAX_BRANDS_PER_ACCOUNT:
         raise HTTPException(409, f"You can protect up to {MAX_BRANDS_PER_ACCOUNT} brands. Archive one first.")
+    _ensure_name_free(db, body.name)
     brand = Brand(**body.model_dump(), owner_id=user.id)
     db.add(brand)
     db.flush()
@@ -176,6 +189,8 @@ def update_brand(
     if "description" not in body.model_fields_set:
         data.pop("description")  # an older client that does not send it must not wipe it
     changed = [k for k, val in data.items() if getattr(brand, k) != val]
+    if "name" in changed:
+        _ensure_name_free(db, data["name"], exclude_id=brand.id)
     for k, val in data.items():
         setattr(brand, k, val)
     _touch(brand)
@@ -437,6 +452,7 @@ def restore_brand(brand_id: int, user: User = Depends(require_admin), db: Sessio
         return brand_out(brand)
     if db.scalar(select(func.count()).select_from(Brand).where(Brand.owner_id == user.id, Brand.archived_at.is_(None))) >= MAX_BRANDS_PER_ACCOUNT:
         raise HTTPException(409, f"You can protect up to {MAX_BRANDS_PER_ACCOUNT} brands. Archive one first.")
+    _ensure_name_free(db, brand.name, exclude_id=brand.id)
     brand.archived_at = None
     audit.record(db, user, "brand.restored", brand.name)
     db.commit()

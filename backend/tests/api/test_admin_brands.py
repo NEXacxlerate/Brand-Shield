@@ -46,3 +46,17 @@ def test_list_hides_sample_and_demo_brands(client, db):
     db.commit()
     ids = [r["id"] for r in client.get("/api/admin/brands", headers=admin).json()]
     assert real in ids and fake not in ids
+
+
+def test_same_brand_name_cannot_be_registered_twice(client):
+    admin = headers_for(client, *ADMIN)
+    h1, bid = _user_with_brand(client, "gina@example.com", "Umbrella")
+    r = client.post("/api/auth/register", json={"name": "Hal", "email": "hal@example.com", "password": "Correct-Horse-9"})
+    h2 = {"Authorization": f"Bearer {r.json()['access_token']}"}
+    dup = client.post("/api/brands", json={"name": "  umbrella  ", "domains": ["other.com"]}, headers=h2)
+    assert dup.status_code == 409
+    other = client.post("/api/brands", json={"name": "Other Brand", "domains": ["other.com"]}, headers=h2).json()["id"]
+    assert client.put(f"/api/brands/{other}", json={"name": "UMBRELLA", "domains": ["other.com"]}, headers=h2).status_code == 409
+    # deleting frees the name
+    assert client.delete(f"/api/admin/brands/{bid}?confirm=Umbrella", headers=admin).status_code == 200
+    assert client.post("/api/brands", json={"name": "Umbrella", "domains": ["u.com"]}, headers=h2).status_code == 201
