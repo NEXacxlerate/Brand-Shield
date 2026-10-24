@@ -198,7 +198,8 @@ export interface DetectionDetail extends DetectionRow, SampleFlags {
     rating?: number | null;
     rating_count?: number | null;
   } | null;
-  logo?: { status: string; similarity: number | null; reason: string | null } | null;
+  logo?: { status: string; similarity: number | null; reason: string | null; icon_url?: string | null } | null;
+  brand_logo_url?: string | null;
   publisher_differs?: boolean;
   official_publisher?: string | null;
   description?: { snippet: string | null; overlap_points: number } | null;

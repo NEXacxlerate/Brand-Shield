@@ -621,7 +621,7 @@ Server logs are printed in the API window (JSON lines, secrets removed). The fir
 
 ## 13. Limitations
 
-* One brand per workspace.
+* Up to 10 brands per account. Use the brand card at the top of the sidebar to switch, or "Add another brand" to create one.
 * No built-in way to add users (viewer, analyst) in the website.
 * Web-search discovery cannot see most social profiles, gives no profile pictures, and uses only a search snippet as the "bio". Logo comparison on live data works for **App Store** icons only.
 * Google Play search needs an optional package that is not installed by default; SearXNG is optional and not set up by default.

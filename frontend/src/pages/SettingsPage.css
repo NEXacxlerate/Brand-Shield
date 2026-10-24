@@ -235,43 +235,47 @@
   }
 }
 
-/* ── Light mode overrides ── */
+/* ── Light mode overrides (updated for petrol-teal palette) ── */
 :root[data-theme='light'] .settings-tab-btn {
-  background: rgba(0, 0, 40, 0.04);
-  border-color: var(--border-card);
+  background: #F7FAFA;
+  border-color: #E1E8E8;
   color: var(--t-mid);
 }
 :root[data-theme='light'] .settings-tab-btn.active {
-  background: rgba(74, 92, 224, 0.10);
-  border-color: var(--accent);
-  color: var(--text-main);
+  background: #E2F0F1;
+  border-color: #2C8795;
+  color: #0B5563;
 }
 :root[data-theme='light'] .settings-select {
-  background: var(--bg-inner);
-  border-color: var(--border-card);
+  background: #FFFFFF;
+  border-color: #CBD6D7;
   color: var(--text-main);
 }
 :root[data-theme='light'] .sensitivity-summary-note {
-  background: var(--bg-inner);
-  border-color: var(--border-card);
+  background: #F7FAFA;
+  border-color: #E1E8E8;
 }
 :root[data-theme='light'] .sensitivity-range-slider {
-  background: linear-gradient(90deg, var(--accent) var(--pct, 50%), var(--border-card) var(--pct, 50%));
+  background: linear-gradient(90deg, #2C8795 var(--pct, 50%), #E6ECEC var(--pct, 50%));
 }
 :root[data-theme='light'] .sensitivity-range-slider::-webkit-slider-thumb {
-  border-color: var(--bg-shell);
+  background: #2C8795;
+  border-color: #FFFFFF;
+  box-shadow: 0 0 0 1px #2C8795;
 }
 :root[data-theme='light'] .sensitivity-range-slider::-moz-range-thumb {
-  border-color: var(--bg-shell);
+  background: #2C8795;
+  border-color: #FFFFFF;
 }
 :root[data-theme='light'] .words-pill-wrap {
-  background: var(--bg-inner);
-  border-color: var(--border-card);
+  background: #FFFFFF;
+  border-color: #CBD6D7;
 }
 :root[data-theme='light'] .impersonation-word-pill {
-  background: rgba(0, 0, 40, 0.05);
-  border-color: rgba(0, 0, 40, 0.14);
+  background: #F7FAFA;
+  border-color: #E1E8E8;
+  color: var(--t-strong);
 }
 :root[data-theme='light'] .try-rules-link {
-  color: var(--accent);
+  color: #0B5563;
 }

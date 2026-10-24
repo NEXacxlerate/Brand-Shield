@@ -175,4 +175,4 @@ def test_migrate_script_is_idempotent_on_sqlite(tmp_path):
     upgrade(url)
     upgrade(url)  # second run is a no-op
     with make_engine(url).connect() as c:
-        assert c.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0011"
+        assert c.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0012"

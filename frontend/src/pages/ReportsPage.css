@@ -272,3 +272,42 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Light-mode overrides (petrol-teal palette) ── */
+:root[data-theme='light'] .export-select {
+  background: #FFFFFF;
+  border-color: #CBD6D7;
+  color: var(--text-main);
+}
+:root[data-theme='light'] .chk-input {
+  accent-color: #2C8795;
+}
+:root[data-theme='light'] .format-toggle-btn {
+  background: #F7FAFA;
+  border-color: #E1E8E8;
+  color: var(--t-mid);
+}
+:root[data-theme='light'] .format-toggle-btn.active {
+  background: #E2F0F1;
+  border-color: #2C8795;
+  color: #0B5563;
+}
+:root[data-theme='light'] .report-doc-badge {
+  background: linear-gradient(135deg, #0B5563, #2C8795);
+}
+:root[data-theme='light'] .report-stat-cell {
+  background: #F7FAFA;
+  border-color: #E1E8E8;
+}
+:root[data-theme='light'] .report-stat-cell:last-child {
+  background: #E4F4EC;
+  border-color: #B3DEC8;
+}
+:root[data-theme='light'] .sample-data-chip {
+  background: #F7FAFA;
+  border-color: #E1E8E8;
+}
+:root[data-theme='light'] .recent-export-item {
+  background: #F7FAFA;
+  border-color: #E1E8E8;
+}

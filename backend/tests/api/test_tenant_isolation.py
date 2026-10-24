@@ -244,12 +244,15 @@ def test_a_new_account_without_a_brand_gets_the_usual_404(client):
     assert client.post("/api/scan", json={"scope": "all"}, headers=h).status_code == 409  # the existing "create the brand first" answer
 
 
-def test_one_brand_per_account_but_many_accounts(client):
+def test_many_brands_per_account_and_many_accounts(client):
     a, b = _register(client, "A One", "a1@example.com"), _register(client, "B Two", "b2@example.com")
     assert client.post("/api/brands", json={"name": "Same Name"}, headers=a).status_code == 201
     assert client.post("/api/brands", json={"name": "Same Name"}, headers=b).status_code == 201  # another account: fine, even with the same name
-    r = client.post("/api/brands", json={"name": "Second"}, headers=a)
-    assert r.status_code == 409 and r.json() == {"detail": "A brand already exists. Edit it instead."}
+    assert client.post("/api/brands", json={"name": "Second"}, headers=a).status_code == 201
+    other = client.get("/api/brands", headers=b).json()
+    assert len(other) == 1 and other[0]["name"] == "Same Name"  # a's second brand never shows up for b
+    foreign = client.get("/api/brands", headers=a).json()[0]["id"]
+    assert client.post(f"/api/brands/{foreign}/select", headers=b).status_code == 404  # cannot select another account's brand
 
 
 def test_archive_and_restore_are_per_owner(w):
@@ -259,7 +262,7 @@ def test_archive_and_restore_are_per_owner(w):
     assert w.c.get("/api/dashboard", headers=w.a).status_code == 200
     # the admin may create a new brand now (their own old one is archived), without touching anyone else's
     assert w.c.post("/api/brands", json={"name": "Orbit Two"}, headers=w.admin).status_code == 201
-    assert w.c.post(f"/api/brands/{w.brand_admin['id']}/restore", headers=w.admin).status_code == 409  # "another brand is active" is about MY brands only
+    assert w.c.post(f"/api/brands/{w.brand_admin['id']}/restore", headers=w.admin).status_code == 200  # several brands are allowed
 
 
 def test_lookalike_cases_are_per_brand(w):

@@ -179,7 +179,7 @@ export const ReportsPage: React.FC = () => {
 
               <div className="export-field">
                 <label className="export-lbl" htmlFor="rp-range">Date range</label>
-                <select
+                <select data-voice="date_range"
                   id="rp-range"
                   className="export-select"
                   value={rangeKey}
@@ -220,7 +220,7 @@ export const ReportsPage: React.FC = () => {
               {/* Status */}
               <div className="export-field">
                 <label className="export-lbl" htmlFor="rp-status">Status</label>
-                <select
+                <select data-voice="status_filter"
                   id="rp-status"
                   className="export-select"
                   value={statusFilter}

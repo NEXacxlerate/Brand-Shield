@@ -13,6 +13,7 @@ import { AiStatusBanner } from './AiStatusBanner';
 import { LogoUpload } from './LogoUpload';
 import { AiError } from '../lib/ai';
 
+import { useRemembered } from '../lib/profile';
 export const LogoGenerator: React.FC = () => {
   const { isDark } = useTheme();
   const { user } = useAuth();
@@ -21,8 +22,8 @@ export const LogoGenerator: React.FC = () => {
 
 
 
-  const [brandName, setBrandName] = useState('');
-  const [style, setStyle] = useState('Minimalist');
+  const [brandName, setBrandName] = useRemembered('brandName');
+  const [style, setStyle] = useRemembered('style', 'Minimalist');
   const [palette, setPalette] = useState('');
   const [features, setFeatures] = useState('');
   const [showFeatures, setShowFeatures] = useState(false);
@@ -125,7 +126,7 @@ export const LogoGenerator: React.FC = () => {
       setIsSaved(true);
     } catch (err) {
       console.error("Error saving logo:", err);
-      setError("Failed to save logo to collection.");
+      setError(err instanceof Error && err.message ? `Could not save to Collections: ${err.message}` : "Failed to save logo to collection.");
     } finally {
       setIsSaving(false);
     }

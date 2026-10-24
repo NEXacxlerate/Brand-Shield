@@ -119,7 +119,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:   # the worker is healthy when it is registered in Redis (the same check /health uses)
-      test: ["CMD", "python", "-c", "import sys; from app.core.config import get_settings; from app.services.health import check_worker; sys.exit(0 if check_worker(get_settings())['status'] == 'ok' else 1)"]
+      test: ["CMD", "python", "-c", "import sys; from app.config.config import get_settings; from app.services.health import check_worker; sys.exit(0 if check_worker(get_settings())['status'] == 'ok' else 1)"]
       interval: 30s
       timeout: 10s
       retries: 3

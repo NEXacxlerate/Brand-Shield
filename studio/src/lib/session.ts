@@ -69,7 +69,7 @@ export const session = {
 
 /** BrandShield sign-in page on the same origin, coming back to Studio afterwards. */
 export const LOGIN_URL = '/login?next=/studio/';
-export const BRANDSHIELD_HOME = '/protect-brand';
+export const BRANDSHIELD_HOME = '/dashboard';
 
 export function redirectToLogin() {
   window.location.assign(LOGIN_URL);

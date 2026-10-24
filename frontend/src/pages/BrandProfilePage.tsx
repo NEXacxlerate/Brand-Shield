@@ -18,6 +18,7 @@ import type { Brand } from '../api/types';
 import { refreshBrand, setBrandCache, useBrand } from '../hooks/useBrand';
 import { useMe } from '../hooks/useMe';
 import { checkLogoFile } from '../utils/logoCheck';
+import { getTheme } from '../utils/theme';
 import './BrandProfilePage.css';
 
 const ACCOUNT_PLATFORMS: { value: string; label: string }[] = [
@@ -261,7 +262,7 @@ export const BrandProfilePage: React.FC = () => {
                 <div className="two-field-row">
                   <div className="form-field">
                     <label className="field-lbl" htmlFor="bp-name">Company or brand name</label>
-                    <input
+                    <input data-voice="brand_name"
                       id="bp-name"
                       type="text"
                       className="field-input"
@@ -271,7 +272,7 @@ export const BrandProfilePage: React.FC = () => {
                   </div>
                   <div className="form-field">
                     <label className="field-lbl" htmlFor="bp-industry">Industry (helps avoid false positives)</label>
-                    <input
+                    <input data-voice="industry"
                       id="bp-industry"
                       type="text"
                       className="field-input"
@@ -283,7 +284,7 @@ export const BrandProfilePage: React.FC = () => {
 
                 <div className="form-field">
                   <label className="field-lbl" htmlFor="bp-description">Brand description (what you publicly say about yourself)</label>
-                  <textarea
+                  <textarea data-voice="description"
                     id="bp-description"
                     className="field-input"
                     rows={3}
@@ -309,7 +310,7 @@ export const BrandProfilePage: React.FC = () => {
                         </button>
                       </span>
                     ))}
-                    <input
+                    <input data-voice="alias"
                       type="text"
                       className="inline-tag-input"
                       placeholder="Add an alias and press Enter"
@@ -338,7 +339,7 @@ export const BrandProfilePage: React.FC = () => {
                           </button>
                         </span>
                       ))}
-                      <input
+                      <input data-voice="keyword"
                         type="text"
                         className="inline-tag-input"
                         placeholder="Add keyword"
@@ -365,7 +366,7 @@ export const BrandProfilePage: React.FC = () => {
                           </button>
                         </span>
                       ))}
-                      <input
+                      <input data-voice="domain"
                         type="text"
                         className="inline-tag-input"
                         placeholder="Add domain"
@@ -475,7 +476,7 @@ export const BrandProfilePage: React.FC = () => {
                   <form onSubmit={(e) => void handleCreateAccount(e)} className="add-account-row">
                     <div className="add-field-group">
                       <label className="sub-lbl" htmlFor="acc-platform">Platform</label>
-                      <select
+                      <select data-voice="account_platform"
                         id="acc-platform"
                         className="field-select"
                         value={accPlatform}
@@ -489,7 +490,7 @@ export const BrandProfilePage: React.FC = () => {
 
                     <div className="add-field-group flex-fill">
                       <label className="sub-lbl" htmlFor="acc-handle">Handle</label>
-                      <input
+                      <input data-voice="account_handle"
                         id="acc-handle"
                         type="text"
                         className="field-input"
@@ -578,7 +579,7 @@ export const BrandProfilePage: React.FC = () => {
                     <div className="two-field-row">
                       <div className="form-field">
                         <label className="field-lbl" htmlFor="app-name">App Name</label>
-                        <input
+                        <input data-voice="app_name"
                           id="app-name"
                           type="text"
                           className="field-input"
@@ -590,7 +591,7 @@ export const BrandProfilePage: React.FC = () => {
                       </div>
                       <div className="form-field">
                         <label className="field-lbl" htmlFor="app-package">Package or Bundle ID</label>
-                        <input
+                        <input data-voice="app_package"
                           id="app-package"
                           type="text"
                           className="field-input"
@@ -604,7 +605,7 @@ export const BrandProfilePage: React.FC = () => {
                     <div className="two-field-row">
                       <div className="form-field">
                         <label className="field-lbl" htmlFor="app-publisher">Publisher</label>
-                        <input
+                        <input data-voice="app_publisher"
                           id="app-publisher"
                           type="text"
                           className="field-input"
@@ -616,7 +617,7 @@ export const BrandProfilePage: React.FC = () => {
                       </div>
                       <div className="form-field">
                         <label className="field-lbl" htmlFor="app-store">Store</label>
-                        <select
+                        <select data-voice="app_store"
                           id="app-store"
                           className="field-select"
                           value={appStore}
@@ -706,7 +707,7 @@ export const BrandProfilePage: React.FC = () => {
               <div className="card side-panel-card">
                 <h3 className="side-card-title">Profile health</h3>
                 <div className="health-gauge-row">
-                  <ScoreRing score={health.percent} text={`${health.percent}%`} caption="" color="#34d399" size={92} stroke={8} testId="health-pct" />
+                  <ScoreRing score={health.percent} text={`${health.percent}%`} caption="" color={getTheme() === 'light' ? (health.percent >= 100 ? '#1F8A5B' : '#E8A317') : '#34d399'} size={92} stroke={8} testId="health-pct" />
                   <div className="health-gauge-text">
                     {health.message}
                   </div>
@@ -831,7 +832,7 @@ const VerificationCard: React.FC<{ brand: Brand; canWrite: boolean; onChanged: (
       {assets.length > 0 && (
         <label className="field-lbl" style={{ display: 'block', marginBottom: 6 }}>
           Method used when verifying
-          <select className="field-input" value={method} onChange={(e) => setMethod(e.target.value)} disabled={!canWrite}>
+          <select data-voice="verification_method" className="field-input" value={method} onChange={(e) => setMethod(e.target.value)} disabled={!canWrite}>
             {METHODS.map((m) => (
               <option key={m} value={m}>{m.replace(/_/g, ' ')}</option>
             ))}

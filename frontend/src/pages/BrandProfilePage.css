@@ -605,3 +605,22 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* -- Light-mode overrides (petrol-teal palette) -- */
+:root[data-theme='light'] .brand-profile-avatar-badge { background: #0B5563; color: #FFFFFF; }
+:root[data-theme='light'] .bp-logo-btn-add { border-color: #CBD6D7; background: #FFFFFF; color: #0D1F26; }
+:root[data-theme='light'] .bp-logo-btn-add:hover { background: #F7FAFA; }
+:root[data-theme='light'] .bp-tags-input { background: #FFFFFF; border-color: #CBD6D7; }
+:root[data-theme='light'] .bp-tag { background: #E2F0F1; border-color: #B3D5D9; color: #0B5563; }
+:root[data-theme='light'] .bp-allowlist-badge { background: #E4F4EC; border-color: #B3DEC8; color: #14633F; }
+:root[data-theme='light'] .bp-save-bar { background: #FFFFFF; border-top-color: #E1E8E8; }
+:root[data-theme='light'] .side-panel-card { background: #FFFFFF; border-color: #E1E8E8; }
+:root[data-theme='light'] .health-gauge-text { color: #3E5158; }
+:root[data-theme='light'] .checklist-item { color: #3E5158; }
+:root[data-theme='light'] .bp-account-row { border-bottom-color: #E1E8E8; }
+:root[data-theme='light'] .bp-account-row:hover { background: #F7FAFA; }
+:root[data-theme='light'] .bp-platform-badge { background: #E2F0F1; color: #0B5563; }
+:root[data-theme='light'] .bp-allowlist-row { background: #E4F4EC; border-color: #B3DEC8; }
+:root[data-theme='light'] .allowlist-card { background: #E4F4EC; border-color: #B3DEC8; }
+:root[data-theme='light'] .guide-step-idx { background: #E2F0F1; border-color: #B3D5D9; color: #0B5563; }
+:root[data-theme='light'] .guide-bottom-link { color: #0B5563; }

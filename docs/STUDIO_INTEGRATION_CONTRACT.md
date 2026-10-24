@@ -41,7 +41,7 @@ BrandShield's `frontend/src/api/client.ts` owns the session. Studio reads it and
 
 ## 3. Registering a brand from Studio
 
-Every account owns **its own** brand (one active brand per account). Brand data of other accounts is invisible (`404`).
+Every account owns **its own** brands (up to 10 per account; one is selected via `POST /api/brands/{id}/select`, and every page without an explicit `brand_id` follows it). Brand data of other accounts is invisible (`404`).
 
 1. `GET /api/me` -> `default_brand_id`; if not `null` the user already has a brand: `GET /api/brands/{id}` and use it.
 2. Otherwise `POST /api/brands` (analyst or admin) with

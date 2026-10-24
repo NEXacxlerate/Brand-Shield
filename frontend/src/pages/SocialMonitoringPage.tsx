@@ -4,6 +4,8 @@ import { ScoreRing } from '../components/charts/ScoreRing';
 import { Header } from '../components/layout/Header';
 import { ActionRow, EvidenceBox, ExcludedCard, GuardCard, ReasonsBox, SeverityChip, SourcesBar } from '../components/monitor/MonitorParts';
 import { CandidateTools } from '../components/monitor/CandidateTools';
+import { TakedownNoticeButton } from '../components/monitor/TakedownNoticeModal';
+import { LogoCompare } from '../components/monitor/LogoCompare';
 import { Empty, ErrorBox, Loading, NoBrand, Notice, SampleNote } from '../components/common/States';
 import { fmtDayTime, platformLabel, statusChip, statusLabel, typeLabel } from '../api/format';
 import { useBrand } from '../hooks/useBrand';
@@ -27,6 +29,7 @@ export const SocialMonitoringPage: React.FC = () => {
   const { items, selectedRow, list, scan } = m;
   const detail = m.detail.data && selectedRow && m.detail.data.id === selectedRow.id ? m.detail.data : null;
   const counts = list.data?.counts;
+  const hasScannedBefore = m.sources.data?.items.some((s) => s.last_sync_at !== null);
 
   const act = (a: 'confirmed' | 'reviewing' | 'dismissed' | 'official') => {
     if (!selectedRow) return;
@@ -112,7 +115,11 @@ export const SocialMonitoringPage: React.FC = () => {
                 {list.error && <ErrorBox error={list.error} onRetry={list.reload} compact />}
                 {list.data && items.length === 0 && (
                   <Empty>
-                    {m.filter === 'all' ? 'No detections yet. Run a scan to look for impersonations.' : 'No detections of this type.'}
+                    {m.filter !== 'all'
+                      ? 'No detections of this type.'
+                      : hasScannedBefore
+                        ? 'Scan complete — no fake profiles found. Your brand appears clean. Run another scan to check again.'
+                        : 'No detections yet. Run a scan to look for impersonations.'}
                   </Empty>
                 )}
                 {items.map((item) => (
@@ -228,12 +235,15 @@ export const SocialMonitoringPage: React.FC = () => {
                   </div>
                 </div>
 
+                <LogoCompare detail={detail} />
                 <ReasonsBox d={detail} />
                 <EvidenceBox d={detail} />
 
                 {/* Action buttons */}
                 <ActionRow confirmLabel="Confirm impersonation" disabled={!canWrite || m.busyId === detail.id || detail.status === 'marked_official'} onAction={act} />
                 {m.actionError && <Notice onClose={m.clearActionError}>{m.actionError}</Notice>}
+
+                <TakedownNoticeButton d={detail} />
 
                 <div className="analyst-confirm-note">
                   A person confirms every detection. No takedown request is sent automatically.

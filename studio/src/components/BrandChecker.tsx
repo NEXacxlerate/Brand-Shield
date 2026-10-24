@@ -9,12 +9,13 @@ import { useBrand } from '../contexts/BrandContext';
 import { cn } from '../lib/utils';
 import { BrandName } from '../types';
 
+import { useRemembered } from '../lib/profile';
 export const BrandChecker: React.FC = () => {
     const { isDark } = useTheme();
     const { user } = useAuth();
     const { selectedBrand } = useBrand();
     const { saveItem } = useCollections();
-    const [name, setName] = useState(selectedBrand || '');
+    const [name, setName] = useRemembered('brandName', selectedBrand || '');
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<{ isAvailable: boolean; suggestedDomain: string; reasoning: string } | null>(null);
     const [alternative, setAlternative] = useState<BrandName | null>(null);

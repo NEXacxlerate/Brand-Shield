@@ -11,14 +11,15 @@ import { useCollections } from '../contexts/CollectionsContext';
 import { SuccessFlow } from './SuccessFlow';
 import { cn } from '../lib/utils';
 
+import { useRemembered } from '../lib/profile';
 export const ContentGenerator: React.FC = () => {
   const { isDark } = useTheme();
   const { user } = useAuth();
   const { selectedBrand } = useBrand();
   const { saveItem } = useCollections();
 
-  const [brandName, setBrandName] = useState('');
-  const [industry, setIndustry] = useState('');
+  const [brandName, setBrandName] = useRemembered('brandName');
+  const [industry, setIndustry] = useRemembered('industry');
   const [loading, setLoading] = useState(false);
   const [content, setContent] = useState<BrandingContent | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);

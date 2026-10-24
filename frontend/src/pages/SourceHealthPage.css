@@ -302,3 +302,48 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Light-mode overrides (petrol-teal palette) ── */
+:root[data-theme='light'] .dot-green {
+  background: #1F8A5B;
+  box-shadow: 0 0 6px #1F8A5B;
+}
+:root[data-theme='light'] .dot-orange {
+  background: #C9740F;
+  box-shadow: 0 0 6px #C9740F;
+}
+:root[data-theme='light'] .dot-red {
+  background: #C93A3A;
+  box-shadow: 0 0 6px #C93A3A;
+}
+:root[data-theme='light'] .dot-blue {
+  background: #3A6E9E;
+  box-shadow: 0 0 6px #3A6E9E;
+}
+:root[data-theme='light'] .source-detail-row {
+  background: #F7FAFA;
+  border-color: #E1E8E8;
+}
+:root[data-theme='light'] .source-detail-row.status-slow {
+  background: #FDEFDD;
+  border-color: #F2CFA3;
+}
+:root[data-theme='light'] .source-detail-row.status-unavailable {
+  background: #FCEBEA;
+  border-color: #F0BDBA;
+}
+:root[data-theme='light'] .source-logo-avatar {
+  background: #E2F0F1;
+  color: #0B5563;
+}
+:root[data-theme='light'] .source-row-bottom {
+  border-top-color: #E1E8E8;
+}
+:root[data-theme='light'] .step-circle {
+  background: #E2F0F1;
+  border-color: #B3D5D9;
+  color: #0B5563;
+}
+:root[data-theme='light'] .event-dot {
+  background: #1F8A5B;
+}

@@ -54,10 +54,22 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('WebThreatsPage lab', () => {
-  it('compares against the registered brand and shows a look-alike result with parts and techniques', async () => {
+  it('starts on the brand\'s own registered domain, never on a made-up look-alike', async () => {
     server();
     renderPage();
     expect(await screen.findByTestId('compare-target')).toHaveTextContent('Comparing against: Zenith Pay · official domains: zenithpay.com');
+    expect(await screen.findByTestId('verdict-chip')).toHaveTextContent('Official domain');
+    expect(screen.getByLabelText(/Domain or URL/)).toHaveValue('zenithpay.com');
+  });
+
+  it('compares against the registered brand and shows a look-alike result with parts and techniques', async () => {
+    server();
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTestId('verdict-chip');
+    const input = screen.getByLabelText(/Domain or URL/);
+    await user.clear(input);
+    await user.type(input, 'zenithpay.net');
     expect(await screen.findByTestId('verdict-chip')).toHaveTextContent('Look-alike domain');
     expect(screen.getByTestId('technique')).toHaveTextContent('Top-level domain swap');
     expect(screen.getByTestId('host-parts')).toHaveTextContent('zenithpay.net');

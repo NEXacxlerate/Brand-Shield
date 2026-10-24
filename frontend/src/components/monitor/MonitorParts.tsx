@@ -9,6 +9,7 @@ import { sm } from '../../api/sm';
 import { Empty, ErrorBox, Loading } from '../common/States';
 import { RetryCostDialog, isConfirmationRequired, retryNeedsConfirm } from '../common/ConfirmDialog';
 import type { ApiState } from '../../hooks/useApi';
+import { useMe } from '../../hooks/useMe';
 
 type Load<T> = Pick<ApiState<T>, 'data' | 'loading' | 'error' | 'reload'>;
 import '../common/States.css';
@@ -56,7 +57,8 @@ export const SourcesBar: React.FC<{
   const [retrying, setRetrying] = React.useState<number | null>(null);
   const [retryError, setRetryError] = React.useState<string | null>(null);
   const items = state.data?.items ?? [];
-  const problems = items.filter((s) => s.status !== 'online');
+  // Only show warning boxes for unavailable sources; slow sources are already indicated by the orange pill.
+  const problems = items.filter((s) => s.status === 'unavailable');
 
   const [confirm, setConfirm] = React.useState<{ item: SourceItem; credits?: number; remaining?: number | null } | null>(null);
 
@@ -84,6 +86,8 @@ export const SourcesBar: React.FC<{
     }
   };
 
+  const { isAdmin } = useMe();
+
   return (
     <div className="sources-status-bar">
       <div className="sources-pills-row">
@@ -101,22 +105,28 @@ export const SourcesBar: React.FC<{
         ))}
       </div>
 
+      {items.some((s) => s.status === 'slow') && (
+        <div className="source-info-note" data-testid="source-slow-note">
+          Last scan was slow — results are saved and up to date.{' '}
+          {isAdmin && <Link to="/sources" className="warn-details-link">Source health</Link>}
+        </div>
+      )}
       {state.error && <ErrorBox error={state.error} onRetry={state.reload} compact />}
       {problems.map((s) => (
-        <div key={s.id} className={`source-warning-box ${s.status === 'unavailable' && variant === 'apps' ? 'red-warn' : ''}`} data-testid="source-warning">
-          <AlertTriangle size={14} className={s.status === 'unavailable' && variant === 'apps' ? 'warn-icon-red' : 'warn-icon'} />
+        <div key={s.id} className={`source-warning-box ${variant === 'apps' ? 'red-warn' : ''}`} data-testid="source-warning">
+          <AlertTriangle size={14} className={variant === 'apps' ? 'warn-icon-red' : 'warn-icon'} />
           <span>
             {s.name}: {s.message}
-            {s.cached_at && s.status === 'unavailable' ? ` Cached results from ${fmtDayTime(s.cached_at)}.` : ''}{' '}
+            {s.cached_at ? ` Cached results from ${fmtDayTime(s.cached_at)}.` : ''}{' '}
             {variant === 'apps' ? (
               <button type="button" className="retry-inline-btn" onClick={() => void retry(s)} disabled={retrying === s.id}>
                 {retrying === s.id ? 'Retrying…' : 'Retry'}
               </button>
-            ) : (
+            ) : isAdmin ? (
               <Link to="/sources" className="warn-details-link">
                 Details
               </Link>
-            )}
+            ) : null}
           </span>
         </div>
       ))}

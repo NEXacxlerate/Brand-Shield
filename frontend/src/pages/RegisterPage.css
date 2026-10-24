@@ -21,12 +21,59 @@
 .auth-switch a { color: #8b9bff; font-weight: 600; text-decoration: none; }
 .auth-switch a:hover { text-decoration: underline; }
 
+/* OTP step */
+.otp-sent-banner {
+  display: flex; gap: 12px; align-items: flex-start;
+  padding: 14px 16px; border-radius: 10px;
+  background: rgba(99, 179, 237, 0.10); border: 1px solid rgba(99, 179, 237, 0.22);
+  color: #93c5fd; font-size: 13.5px; line-height: 1.5;
+}
+.otp-sent-banner svg { flex-shrink: 0; margin-top: 2px; color: #60a5fa; }
+.otp-sent-banner strong { display: block; margin-bottom: 2px; font-size: 14px; color: #bfdbfe; }
+.otp-sent-banner p { margin: 0; }
+
+.otp-label-row {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;
+}
+.otp-label-row .form-label { margin-bottom: 0; }
+
+.otp-timer { font-size: 12.5px; font-family: monospace; color: #7dd3fc; font-weight: 600; }
+.otp-timer.otp-timer-warn { color: #fb923c; }
+.otp-timer.otp-timer-expired { color: #ff8a98; }
+
+.otp-input { text-align: center; font-size: 22px; letter-spacing: 0.22em; font-family: monospace; font-weight: 700; }
+
+.otp-resend-row {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 12.5px; color: #8a8d9f; gap: 8px; margin-top: -4px;
+}
+.otp-resend-note { flex: 1; }
+.otp-expired-note { flex: 1; color: #ff8a98; }
+
+.otp-back-btn { width: 100%; text-align: center; font-size: 13.5px; color: #8a8d9f; margin-top: -6px; }
+.otp-back-btn:hover { color: #c4c7d9; }
+
+.spin-icon { animation: otp-spin 0.8s linear infinite; flex-shrink: 0; }
+@keyframes otp-spin { to { transform: rotate(360deg); } }
+
 /* Light mode */
 :root[data-theme='light'] .pw-toggle { color: var(--text-muted); }
-:root[data-theme='light'] .pw-toggle:hover { color: var(--text-main); background: rgba(0, 0, 40, 0.06); }
+:root[data-theme='light'] .pw-toggle:hover { color: var(--text-main); background: #F7FAFA; }
 :root[data-theme='light'] .field-error,
-:root[data-theme='light'] .pw-hint.bad { color: var(--red-text); }
+:root[data-theme='light'] .pw-hint.bad { color: #9B2323; }
 :root[data-theme='light'] .pw-hint { color: var(--text-muted); }
-:root[data-theme='light'] .pw-hint.ok { color: #0f8a5f; }
+:root[data-theme='light'] .pw-hint.ok { color: #14633F; }
 :root[data-theme='light'] .auth-switch { color: var(--text-muted); }
-:root[data-theme='light'] .auth-switch a { color: var(--accent); }
+:root[data-theme='light'] .auth-switch a { color: #0B5563; }
+:root[data-theme='light'] .otp-sent-banner {
+  background: rgba(37, 99, 235, 0.08); border-color: rgba(37, 99, 235, 0.20);
+  color: #1e40af;
+}
+:root[data-theme='light'] .otp-sent-banner svg { color: #2563eb; }
+:root[data-theme='light'] .otp-sent-banner strong { color: #1e3a8a; }
+:root[data-theme='light'] .otp-timer { color: #1d4ed8; }
+:root[data-theme='light'] .otp-timer.otp-timer-warn { color: #c2410c; }
+:root[data-theme='light'] .otp-timer.otp-timer-expired { color: #9b2323; }
+:root[data-theme='light'] .otp-expired-note { color: #9b2323; }
+:root[data-theme='light'] .otp-back-btn,
+:root[data-theme='light'] .otp-resend-row { color: var(--text-muted); }

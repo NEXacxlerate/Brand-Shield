@@ -423,22 +423,38 @@ def _logo_step(ctx: ScanContext, env: _Env, c: Candidate, counts: dict) -> tuple
         return unavailable("logo fetching is switched off")
     if not env.official_logos:
         return unavailable("no official logo has been uploaded for the brand")
-    if not c.icon_url:
-        return unavailable(f"the source gave no {what} URL")
     if c.stale:
         return unavailable("the listing is a cached copy")
     if env.logo_fetches >= ctx.settings.scan_max_logo_fetches:
         return unavailable("per-scan logo download limit reached")
+    icon_url, origin = c.icon_url, "fetched"
+    if not icon_url and c.kind == "social" and c.profile_url:
+        # the search result has no picture: read the public profile page for its picture meta tag (og:image)
+        env.logo_fetches += 1
+        try:
+            icon_url = ctx.fetcher.fetch_page_image(c.profile_url)
+        except FetchError as exc:
+            return unavailable(f"the profile page could not be read ({exc})")
+        except Exception:  # noqa: BLE001 - a page that breaks the reader never fails the scan
+            return unavailable("the profile page could not be read")
+        origin = "profile_page"
+        if not icon_url:
+            return unavailable("the public profile page has no picture (no og:image)")
+        if env.logo_fetches >= ctx.settings.scan_max_logo_fetches:
+            return unavailable("per-scan logo download limit reached")
+    if not icon_url:
+        return unavailable(f"the source gave no {what} URL")
     env.logo_fetches += 1
     try:
-        img = ctx.fetcher.fetch_image(c.icon_url)
+        img = ctx.fetcher.fetch_image(icon_url)
         sim, who = _compare(env, img)
     except FetchError as exc:
         return unavailable(f"{what} could not be fetched ({exc})")
     except Exception:  # noqa: BLE001
         return unavailable(f"{what} could not be compared")
     counts["logo_compared"] += 1
-    return float(sim), {"status": "compared", "similarity": round(float(sim), 1), "reason": None, "origin": "fetched", "matched_logo": who,
+    return float(sim), {"status": "compared", "similarity": round(float(sim), 1), "reason": None,
+                        "origin": origin, "icon_url": icon_url, "matched_logo": who,
                         "algorithm": env.image_backend, "note": "Hash similarity is a hint that two pictures look alike, not proof of reuse."}
 
 

@@ -273,3 +273,4 @@ class BrandOut(BaseModel):
 class BrandSummary(BaseModel):
     id: int
     name: str
+    active: bool = False

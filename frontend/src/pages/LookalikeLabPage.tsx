@@ -81,7 +81,7 @@ export const LookalikeLabPage: React.FC = () => {
 
               <div className="test-input-group">
                 <label className="test-lbl">Profile name, handle or app name</label>
-                <input
+                <input data-voice="test_name"
                   type="text"
                   className="test-input-field"
                   value={testInput}

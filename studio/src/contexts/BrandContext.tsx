@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
+import { useRemembered } from '../lib/profile';
 
 type Tab = 'dashboard' | 'names' | 'logo' | 'content' | 'sentiment' | 'assistant' | 'palette' | 'audit' | 'analytics' | 'checker' | 'collections' | 'protect';
 
@@ -26,7 +27,8 @@ const BrandContext = createContext<BrandContextValue>({
 });
 
 export const BrandProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const [selectedBrand, setSelectedBrand] = useState('');
+    // The brand name is the one detail every tool shares; it lives in the remembered profile so it also survives a reload.
+    const [selectedBrand, setSelectedBrand] = useRemembered('brandName');
     const [selectedPalette, setSelectedPalette] = useState('');
     const [navFn, setNavFn] = useState<((tab: Tab) => void) | null>(null);
 

@@ -53,10 +53,24 @@ class Settings(BaseSettings):
     login_max_failures: int = 5
     login_window_seconds: int = 900
 
-    # Self-service sign-up (POST /api/auth/register). No email verification. Limits are in memory, per process.
+    # Self-service sign-up (POST /api/auth/register). Requires OTP email verification when SMTP is configured.
     signup_enabled: bool = True
-    signup_max_per_ip_per_hour: int = 5
-    signup_max_per_email_per_hour: int = 3
+    signup_max_per_ip_per_hour: int = 30
+    signup_max_per_email_per_hour: int = 5
+
+    # SMTP for registration OTP email verification.
+    # Set SMTP_HOST + SMTP_USERNAME (and SMTP_PASSWORD) to enable; leave SMTP_HOST unset to disable.
+    smtp_host: str | None = None          # SMTP_HOST  e.g. smtp.gmail.com
+    smtp_port: int = 587                  # SMTP_PORT  587 = STARTTLS, 465 = SSL/TLS
+    smtp_username: str | None = None      # SMTP_USERNAME  (sender login)
+    smtp_password: SecretStr | None = None  # SMTP_PASSWORD
+    smtp_from: str | None = None          # SMTP_FROM  display "From" address; defaults to SMTP_USERNAME
+    smtp_use_tls: bool = True             # SMTP_USE_TLS  STARTTLS on port 587
+    smtp_use_ssl: bool = False            # SMTP_USE_SSL  set True for port 465
+
+    @property
+    def smtp_configured(self) -> bool:
+        return bool(self.smtp_host)
 
     logo_max_bytes: int = 2 * 1024 * 1024
     url_check_timeout_seconds: float = 5.0
@@ -141,6 +155,13 @@ class Settings(BaseSettings):
     studio_groq_model: str = "openai/gpt-oss-120b"  # STUDIO_GROQ_MODEL (the model the Studio used)
     studio_image_model: str = "black-forest-labs/flux.1-schnell"  # STUDIO_IMAGE_MODEL: a Pollinations model id (GET /image/models); this one is not paid_only
     studio_ai_rate_per_minute: int = 20  # per user, chat + image together; in memory, single process
+    # Voice agent (/api/voice). VOICE_GEMINI_API_KEY; without it the agent falls back to GEMINI_API_KEY, and simple commands work with no key at all.
+    voice_gemini_api_key: SecretStr | None = None
+    voice_gemini_model: str = "gemini-3-flash-preview"  # VOICE_GEMINI_MODEL: a Flash model with function calling
+    voice_gemini_fallback_model: str = "gemini-flash-latest"  # VOICE_GEMINI_FALLBACK_MODEL: tried once when the first refuses quickly
+    voice_timeout_seconds: float = 10.0  # Gemini refuses a deadline under 10 s
+    voice_rate_per_minute: int = 30  # per user, in memory, single process
+    voice_thinking_level: str = "minimal"  # VOICE_THINKING_LEVEL: minimal | low | ... ; empty = the model's default
     studio_daily_text_quota: int = 200  # per user per UTC day (stored in api_usage, so it survives restarts); 0 = no limit
     studio_daily_image_quota: int = 50
     studio_ai_timeout_seconds: float = 45.0
@@ -190,7 +211,7 @@ class Settings(BaseSettings):
     def secret_values(self) -> list[str]:
         key = self.tavily_api_key.get_secret_value() if self.tavily_api_key else None
         secrets = (self.redis_url, self.sentry_dsn, self.google_safe_browsing_api_key, self.gemini_api_key,
-                   self.huggingface_api_token)
+                   self.huggingface_api_token, self.voice_gemini_api_key)
         extra = [x.get_secret_value() for x in secrets if x]
         return [v for v in (self.jwt_secret, self.admin_password, self.demo_password, self.demo_admin_password, key, *extra) if v]
 

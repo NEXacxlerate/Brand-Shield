@@ -1,4 +1,5 @@
 import React from 'react';
+import { getTheme } from '../../utils/theme';
 
 interface ScoreRingProps {
   /** The real risk score, 0 to 100: the arc covers score/100 of the circle. */
@@ -15,18 +16,23 @@ interface ScoreRingProps {
   testId?: string;
 }
 
-const BAND_COLOR: Record<string, string> = { high: '#f0566a', medium: '#f59e55', low: '#4f9dff' };
+/** Band colours for dark mode (original, unchanged). */
+const BAND_COLOR_DARK: Record<string, string> = { high: '#f0566a', medium: '#f59e55', low: '#4f9dff' };
+/** Band colours for light mode (new petrol-teal palette). */
+const BAND_COLOR_LIGHT: Record<string, string> = { high: '#C93A3A', medium: '#C9740F', low: '#2C8795' };
 
 /** Circular score badge of the design: a progress arc plus the number and a "Risk" label. */
 export const ScoreRing: React.FC<ScoreRingProps> = ({ score, band = 'high', size = 76, text, caption = 'Risk', color: colorOverride, stroke = 7, testId }) => {
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const pct = Math.min(1, Math.max(0, score / 100));
+  const BAND_COLOR = getTheme() === 'light' ? BAND_COLOR_LIGHT : BAND_COLOR_DARK;
   const color = colorOverride ?? BAND_COLOR[band] ?? BAND_COLOR.high;
   return (
     <div className="score-ring" style={{ width: size, height: size }} role="img" aria-label={caption ? `${caption} score ${score} of 100` : `${score} percent`}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth={stroke} />
+        {/* Track circle — uses CSS custom property so light mode can override to #E6ECEC */}
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--score-ring-track, rgba(255,255,255,0.07))" strokeWidth={stroke} />
         <circle
           cx={size / 2}
           cy={size / 2}

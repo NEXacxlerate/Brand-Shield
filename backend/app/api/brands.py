@@ -5,7 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.api.common import file_response, get_brand_or_404, get_ctx
+from app.api.common import file_response, get_brand_or_404, get_ctx, own_brand
 from app.config.config import Settings
 from app.config.deps import get_current_user, get_settings_dep, get_store, get_url_checker, require_admin, require_writer
 from app.config.time import utcnow
@@ -42,6 +42,8 @@ from app.services import audit, data_mode
 from app.services import validators as v
 from app.services.detections import retire_results, sync_with_allowlist
 from app.services.profile_health import compute_profile_health
+
+MAX_BRANDS_PER_ACCOUNT = 10
 
 router = APIRouter(prefix="/brands")
 log = logging.getLogger("app.brands")
@@ -122,17 +124,31 @@ def _touch(b: Brand) -> None:
 @router.get("", response_model=list[BrandSummary])
 def list_brands(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> list[Brand]:
     """Only the signed-in user's own brands (no account, not even an admin, sees another account's brand)."""
-    return list(db.scalars(select(Brand).where(Brand.owner_id == user.id, Brand.archived_at.is_(None)).order_by(Brand.id)))
+    rows = list(db.scalars(select(Brand).where(Brand.owner_id == user.id, Brand.archived_at.is_(None)).order_by(Brand.id)))
+    current = own_brand(db, user)
+    return [BrandSummary(id=b.id, name=b.name, active=current is not None and b.id == current.id) for b in rows]
+
+
+@router.post("/{brand_id}/select", response_model=BrandSummary)
+def select_brand(brand_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> BrandSummary:
+    """Make this one of the account's brands the one every page works on (dashboard, threats, labs, reports)."""
+    brand = get_brand_or_404(db, brand_id, user)
+    user.active_brand_id = brand.id
+    db.add(user)
+    db.commit()
+    return BrandSummary(id=brand.id, name=brand.name, active=True)
 
 
 @router.post("", response_model=BrandOut, status_code=201)
 def create_brand(body: BrandIdentity, user: User = Depends(require_writer), db: Session = Depends(get_db)) -> BrandOut:
-    # One ACTIVE brand per account (an archived brand does not count). Other accounts have their own.
-    if db.scalar(select(func.count()).select_from(Brand).where(Brand.owner_id == user.id, Brand.archived_at.is_(None))):
-        raise HTTPException(409, "A brand already exists. Edit it instead.")
+    # An account can protect several brands (an archived one does not count towards the cap).
+    if db.scalar(select(func.count()).select_from(Brand).where(Brand.owner_id == user.id, Brand.archived_at.is_(None))) >= MAX_BRANDS_PER_ACCOUNT:
+        raise HTTPException(409, f"You can protect up to {MAX_BRANDS_PER_ACCOUNT} brands. Archive one first.")
     brand = Brand(**body.model_dump(), owner_id=user.id)
     db.add(brand)
     db.flush()
+    user.active_brand_id = brand.id  # a brand you just created is the one you want to see
+    db.add(user)
     audit.record(db, user, "brand.created", brand.name)
     db.commit()
     return brand_out(brand)
@@ -419,8 +435,8 @@ def restore_brand(brand_id: int, user: User = Depends(require_admin), db: Sessio
     brand = get_brand_or_404(db, brand_id, user, include_archived=True)
     if brand.archived_at is None:
         return brand_out(brand)
-    if db.scalar(select(func.count()).select_from(Brand).where(Brand.owner_id == user.id, Brand.archived_at.is_(None))):
-        raise HTTPException(409, "Another brand is active; archive it first")
+    if db.scalar(select(func.count()).select_from(Brand).where(Brand.owner_id == user.id, Brand.archived_at.is_(None))) >= MAX_BRANDS_PER_ACCOUNT:
+        raise HTTPException(409, f"You can protect up to {MAX_BRANDS_PER_ACCOUNT} brands. Archive one first.")
     brand.archived_at = None
     audit.record(db, user, "brand.restored", brand.name)
     db.commit()

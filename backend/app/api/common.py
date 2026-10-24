@@ -28,12 +28,16 @@ def get_brand_or_404(db: Session, brand_id: int, user: User, include_archived: b
 
 
 def own_brand(db: Session, user: User) -> Brand | None:
-    """The user's own non-archived brand (the oldest if several), or None."""
-    return memo(
-        db,
-        ("brand", user.id, None),
-        lambda: db.scalars(select(Brand).where(Brand.owner_id == user.id, Brand.archived_at.is_(None)).order_by(Brand.id)).first(),
-    )
+    """The brand the account is working on: its selected one when still valid, else the oldest non-archived one, or None."""
+
+    def load() -> Brand | None:
+        if user.active_brand_id:
+            chosen = db.get(Brand, user.active_brand_id)
+            if chosen is not None and chosen.owner_id == user.id and chosen.archived_at is None:
+                return chosen
+        return db.scalars(select(Brand).where(Brand.owner_id == user.id, Brand.archived_at.is_(None)).order_by(Brand.id)).first()
+
+    return memo(db, ("brand", user.id, None), load)
 
 
 def resolve_brand(db: Session, brand_id: int | None, user: User) -> Brand:

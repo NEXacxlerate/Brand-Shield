@@ -60,7 +60,7 @@ describe('payload', () => {
   });
 });
 
-// --------------------------------------------------- registration + 409 flow ---
+// --------------------------------------------------- registration ---
 const form: BrandForm = { name: 'Acme Bank', industry: 'Banking', description: 'We bank.', aliases: ['acmebank'], keywords: ['acme'], domains: ['acmebank.com'] };
 const logo = new Blob([new Uint8Array([1, 2, 3])], { type: 'image/png' });
 const brand = { id: 7, name: 'Acme Bank', industry: 'Banking', aliases: ['acmebank'], keywords: ['acme'], domains: ['acmebank.com'] };
@@ -86,40 +86,17 @@ describe('registerBrand', () => {
       'POST /api/brands': () => json(brand, 201),
       'POST /api/brands/7/logo': () => json({ url: '/api/brands/7/logo' }),
     });
-    const confirm = vi.fn();
-    const out = await registerBrand(form, logo, confirm);
+    const out = await registerBrand(form, logo);
     expect(out).toMatchObject({ status: 'created', logo: { ok: true } });
-    expect(confirm).not.toHaveBeenCalled();
     expect(calls(f)).toEqual(['POST /api/brands', 'POST /api/brands/7/logo']);
     expect(JSON.parse((f.mock.calls[0][1] as RequestInit).body as string)).toEqual({ name: 'Acme Bank', industry: 'Banking', aliases: ['acmebank'], keywords: ['acme'], domains: ['acmebank.com'], description: 'We bank.' });
     expect((f.mock.calls[1][1] as RequestInit).body).toBeInstanceOf(FormData);
   });
 
-  it('on 409 asks for confirmation; "no" changes nothing', async () => {
-    const f = mockApi({
-      'POST /api/brands': () => json({ detail: 'A brand already exists. Edit it instead.' }, 409),
-      'GET /api/brands': () => json([{ id: 3, name: 'Old Name' }]),
-    });
-    const confirm = vi.fn(async () => false);
-    const out = await registerBrand(form, logo, confirm);
-    expect(confirm).toHaveBeenCalledWith({ id: 3, name: 'Old Name' });
-    expect(out.status).toBe('cancelled');
-    expect(calls(f)).toEqual(['POST /api/brands', 'GET /api/brands']);
-  });
-
-  it('on 409 and "yes" updates the existing brand with PUT, shows the refresh, then uploads the logo', async () => {
-    const refresh = { results_retired: 4, rescan: 'needed', message: 'Brand details changed: earlier results were retired.' };
-    const f = mockApi({
-      'POST /api/brands': () => json({ detail: 'A brand already exists. Edit it instead.' }, 409),
-      'GET /api/brands': () => json([{ id: 3, name: 'Old Name' }]),
-      'PUT /api/brands/3': () => json({ ...brand, id: 3, refresh }),
-      'POST /api/brands/3/logo': () => json({ url: '/api/brands/3/logo' }),
-    });
-    const out = await registerBrand(form, logo, async () => true);
-    expect(out.status).toBe('updated');
-    expect(out.brand?.refresh).toEqual(refresh);
-    expect(out.logo).toEqual({ ok: true });
-    expect(calls(f)).toEqual(['POST /api/brands', 'GET /api/brands', 'PUT /api/brands/3', 'POST /api/brands/3/logo']);
+  it('surfaces the account limit (409) instead of editing another brand', async () => {
+    const f = mockApi({ 'POST /api/brands': () => json({ detail: 'You can protect up to 10 brands. Archive one first.' }, 409) });
+    await expect(registerBrand(form, logo)).rejects.toMatchObject({ status: 409 });
+    expect(calls(f)).toEqual(['POST /api/brands']);
   });
 
   it('keeps the brand when only the logo upload fails', async () => {
@@ -127,13 +104,13 @@ describe('registerBrand', () => {
       'POST /api/brands': () => json(brand, 201),
       'POST /api/brands/7/logo': () => json({ detail: 'Logo is too small' }, 422),
     });
-    const out = await registerBrand(form, logo, async () => true);
+    const out = await registerBrand(form, logo);
     expect(out.status).toBe('created');
     expect(out.logo).toEqual({ ok: false, error: 'Logo is too small' });
   });
 
   it('does not touch the logo endpoint without a logo, and surfaces 422 field errors', async () => {
     mockApi({ 'POST /api/brands': () => json({ detail: [{ loc: ['body', 'name'], msg: 'String should have at least 1 character' }] }, 422) });
-    await expect(registerBrand({ ...form, name: '' }, null, async () => true)).rejects.toMatchObject({ status: 422, fields: { name: 'String should have at least 1 character' } });
+    await expect(registerBrand({ ...form, name: '' }, null)).rejects.toMatchObject({ status: 422, fields: { name: 'String should have at least 1 character' } });
   });
 });

@@ -222,36 +222,12 @@ async function uploadLogo(brandId: number, logo: Blob): Promise<{ ok: boolean; e
   }
 }
 
-export interface ExistingBrand {
-  id: number;
-  name: string;
-}
-
-/**
- * POST /api/brands, then the logo. On 409 (the account already has a brand) `confirmUpdate` decides: only after an explicit
- * yes the existing brand is edited with PUT (which retires earlier detections when name/aliases/keywords/domains change).
- */
-export async function registerBrand(
-  form: BrandForm,
-  logo: Blob | null,
-  confirmUpdate: (existing: ExistingBrand) => Promise<boolean>,
-): Promise<RegisterOutcome> {
+/** POST /api/brands, then the logo. An account can protect several brands, so this always creates a new one (409 = the account's limit). */
+export async function registerBrand(form: BrandForm, logo: Blob | null): Promise<RegisterOutcome> {
   const payload = buildPayload(form);
-  let brand: BrandResult;
-  let status: 'created' | 'updated' = 'created';
-  try {
-    brand = await request<BrandResult>('/api/brands', { method: 'POST', json: payload });
-  } catch (e) {
-    if (!(e instanceof ApiError) || e.status !== 409) throw e;
-    const list = await request<ExistingBrand[]>('/api/brands');
-    const existing = list[0];
-    if (!existing) throw e;
-    if (!(await confirmUpdate(existing))) return { status: 'cancelled', logo: null };
-    brand = await request<BrandResult>(`/api/brands/${existing.id}`, { method: 'PUT', json: payload });
-    status = 'updated';
-  }
+  const brand = await request<BrandResult>('/api/brands', { method: 'POST', json: payload });
   const logoResult = logo ? await uploadLogo(brand.id, logo) : null;
-  return { status, brand, logo: logoResult };
+  return { status: 'created', brand, logo: logoResult };
 }
 
 /** Map a 422 `fields` object (FastAPI loc[-1]) to the wizard's fields. */

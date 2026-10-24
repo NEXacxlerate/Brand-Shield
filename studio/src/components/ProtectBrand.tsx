@@ -8,9 +8,10 @@ import { useCollections } from '../contexts/CollectionsContext';
 import { cn } from '../lib/utils';
 import { ApiError } from '../lib/api';
 import { LogoUpload } from './LogoUpload';
+import { useRemembered } from '../lib/profile';
 import {
   INDUSTRIES, LOGO_RULES, deriveAliases, deriveKeywords, normalizeDomain, prepareLogo, registerBrand, mapFieldErrors,
-  type BrandForm, type ExistingBrand, type RegisterOutcome,
+  type BrandForm, type RegisterOutcome,
 } from '../lib/brandshield';
 
 const ChipInput: React.FC<{
@@ -52,9 +53,9 @@ export const ProtectBrand: React.FC = () => {
   const logos = useMemo(() => items.filter((i) => i.type === 'logo' && i.url), [items]);
   const contentItem = useMemo(() => items.find((i) => i.type === 'content' && (i.data?.aboutUs || i.data?.tagline)), [items]);
 
-  const [name, setName] = useState(selectedBrand);
-  const [industry, setIndustry] = useState('');
-  const [description, setDescription] = useState('');
+  const [name, setName] = useRemembered('brandName', selectedBrand);
+  const [industry, setIndustry] = useRemembered('industry');
+  const [description, setDescription] = useRemembered('description');
   const [keywords, setKeywords] = useState<string[]>(() => (selectedBrand ? deriveKeywords(selectedBrand) : []));
   const [aliases, setAliases] = useState<string[]>(() => (selectedBrand ? deriveAliases(selectedBrand) : []));
   const [domains, setDomains] = useState<string[]>([]);
@@ -64,7 +65,6 @@ export const ProtectBrand: React.FC = () => {
   const [formError, setFormError] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<RegisterOutcome | null>(null);
   const [logoNotes, setLogoNotes] = useState<string[]>([]);
-  const [confirm, setConfirm] = useState<{ existing: ExistingBrand; resolve: (ok: boolean) => void } | null>(null);
   const prefilledDesc = useRef(false);
   const lastDerived = useRef(selectedBrand);
 
@@ -145,11 +145,8 @@ export const ProtectBrand: React.FC = () => {
       }
       setLogoNotes(notes);
       const form: BrandForm = { name, industry, description, aliases, keywords, domains };
-      const res = await registerBrand(form, prepared, (existing) => new Promise<boolean>((resolve) => setConfirm({ existing, resolve })));
-      setConfirm(null);
-      if (res.status !== 'cancelled') setOutcome(res);
+      setOutcome(await registerBrand(form, prepared));
     } catch (err) {
-      setConfirm(null);
       if (err instanceof ApiError) {
         const mapped = mapFieldErrors(err.fields);
         if (Object.keys(mapped).length) setErrors(mapped as Record<string, string>);
@@ -172,7 +169,7 @@ export const ProtectBrand: React.FC = () => {
       <div className="max-w-2xl mx-auto space-y-6">
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className={cn('border rounded-3xl p-8 text-center', card)}>
           <div className="w-14 h-14 rounded-full bg-emerald-500/15 text-emerald-500 flex items-center justify-center mx-auto mb-4"><Check size={28} /></div>
-          <h2 className={cn('text-2xl font-bold mb-1', heading)}>{outcome.status === 'updated' ? 'Brand updated in BrandShield' : 'Brand registered in BrandShield'}</h2>
+          <h2 className={cn('text-2xl font-bold mb-1', heading)}>Brand registered in BrandShield</h2>
           <p className={cn('text-sm mb-6', subText)}>{b.name} is now set up for protection.</p>
           <dl className={cn('text-left text-sm rounded-2xl border p-4 space-y-2 mb-4', isDark ? 'border-zinc-800 bg-zinc-950/50' : 'border-slate-200 bg-slate-50')}>
             <div className="flex gap-3"><dt className={cn('w-28 shrink-0', subText)}>Name</dt><dd className={heading}>{b.name}</dd></div>
@@ -295,19 +292,6 @@ export const ProtectBrand: React.FC = () => {
         </form>
       </div>
 
-      {confirm && (
-        <div className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="pb-confirm-title">
-          <div className={cn('w-full max-w-md rounded-2xl border p-6', isDark ? 'bg-zinc-900 border-zinc-700 text-zinc-100' : 'bg-white border-slate-200 text-slate-900')}>
-            <h3 id="pb-confirm-title" className="text-lg font-semibold mb-2">Update your existing brand?</h3>
-            <p className={cn('text-sm mb-3', subText)}>Your account already protects <strong>{confirm.existing.name}</strong>, and an account can have one brand. Continuing will update it with the details above.</p>
-            <p className={cn('text-sm mb-5', subText)}>If the name, spellings, keywords or domains change, earlier detections for this brand are retired (kept only for the audit trail) and a new scan is needed to find matches for the new details.</p>
-            <div className="flex gap-3 justify-end">
-              <button onClick={() => { confirm.resolve(false); setConfirm(null); setBusy(false); }} className={cn('px-4 py-2.5 rounded-xl border text-sm', isDark ? 'border-zinc-700 hover:bg-zinc-800' : 'border-slate-300 hover:bg-slate-50')}>Cancel</button>
-              <button onClick={() => { confirm.resolve(true); setConfirm(null); }} className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium">Update existing brand</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

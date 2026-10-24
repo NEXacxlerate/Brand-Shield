@@ -144,8 +144,6 @@ def list_detections(db: Session, f: Filters, sort: str, limit: int, offset: int)
         ("type", no_tab, Detection.type),
         ("platform", _base(f, ignore_platform=True), Detection.platform),
         ("status", _base(Filters(**{**f.__dict__, "statuses": None})), Detection.status),
-        ("category", _base(Filters(**{**f.__dict__, "category": None, "type": None, "platform": None})), Detection.category),
-        ("severity", _base(f), Detection.severity),
         ("band", _base(f), Detection.band),
     ])
     return {
@@ -154,8 +152,6 @@ def list_detections(db: Session, f: Filters, sort: str, limit: int, offset: int)
         "counts": {
             "all": c["all"].get("", 0),
             "by_type": {t: c["type"].get(t, 0) for t in ALL_TYPES},
-            "by_category": c["category"],
-            "by_severity": c["severity"],
             "by_platform": dict(sorted(c["platform"].items())),
             "by_status": c["status"],
             "by_band": c["band"],
@@ -226,6 +222,14 @@ def _logo_pct(d: Detection) -> float | None:
     return logo.get("similarity") if logo.get("status") == "compared" else None
 
 
+def _build_logo(det: dict, candidate: dict) -> dict:
+    logo = det.get("logo") or {"status": "unavailable", "similarity": None, "reason": "Logo unavailable"}
+    # Backfill icon_url for detections stored before this field was added to the scan pipeline
+    if "icon_url" not in logo:
+        logo = {**logo, "icon_url": candidate.get("icon_url")}
+    return logo
+
+
 def detail(db: Session, d: Detection, brand: Brand) -> dict:
     det = d.details or {}
     cand = det.get("candidate") or {}
@@ -248,7 +252,8 @@ def detail(db: Session, d: Detection, brand: Brand) -> dict:
         "threshold": det.get("threshold"),
         "reasons": d.reasons or [],
         "official": _official_side(brand, d),
-        "logo": det.get("logo") or {"status": "unavailable", "similarity": None, "reason": "Logo unavailable"},
+        "logo": _build_logo(det, cand),
+        "brand_logo_url": f"/api/brands/{brand.id}/logo" if brand.logo_path else None,
         "evidence": {
             "page_url": ev.get("page_url"), "captured_at": ev.get("captured_at"), "sha256": ev.get("sha256"),
             "snapshot_url": f"/api/detections/{d.id}/evidence", "screenshot_url": f"/api/detections/{d.id}/evidence/screenshot" if ev.get("screenshot_path") else None,

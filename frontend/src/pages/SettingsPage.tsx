@@ -210,7 +210,7 @@ export const SettingsPage: React.FC = () => {
 
                       <div className="settings-field">
                         <label className="settings-lbl" htmlFor="st-schedule">How often to scan</label>
-                        <select
+                        <select data-voice="schedule"
                           id="st-schedule"
                           className="settings-select"
                           value={draft.schedule}
@@ -339,7 +339,7 @@ export const SettingsPage: React.FC = () => {
                                 )}
                               </span>
                             ))}
-                            <input
+                            <input data-voice="impersonation_word"
                               type="text"
                               placeholder="Add a word"
                               aria-label="Add an impersonation word"
@@ -403,7 +403,7 @@ export const SettingsPage: React.FC = () => {
                         <span>Webhook dispatch to a Slack or other channel <em className="helper-note">(not delivered yet)</em></span>
                       </label>
                       {draft.webhookOn && (
-                        <input
+                        <input data-voice="webhook_url"
                           type="url"
                           className="settings-select"
                           placeholder="https://hooks.example.com/…"

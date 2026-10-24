@@ -60,6 +60,12 @@
   border-radius: 50%;
 }
 
+.source-info-note {
+  font-size: 12px;
+  color: var(--text-muted, #8a9bb5);
+  padding: 4px 0;
+}
+
 .source-warning-box {
   display: flex;
   align-items: center;
@@ -647,4 +653,50 @@
   .social-bottom-dual-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* ── Light-mode overrides (petrol-teal palette) ── */
+:root[data-theme='light'] .sources-status-bar {
+  background: #F7FAFA;
+  border-color: #E1E8E8;
+}
+:root[data-theme='light'] .source-pill {
+  background: #F7FAFA;
+  border-color: #E1E8E8;
+}
+:root[data-theme='light'] .source-pill.warn {
+  background: #FDEFDD;
+  border-color: #F2CFA3;
+}
+:root[data-theme='light'] .detection-row-card {
+  background: #F7FAFA;
+  border-color: #E1E8E8;
+}
+:root[data-theme='light'] .detection-row-card:hover {
+  background: #F2F5F5;
+  border-color: #CBD6D7;
+}
+:root[data-theme='light'] .detection-row-card.active {
+  background: #E2F0F1;
+  border-color: #2C8795;
+  box-shadow: none;
+}
+:root[data-theme='light'] .platform-symbol { background: #F7FAFA; }
+:root[data-theme='light'] .see-names-link { color: #0B5563; }
+:root[data-theme='light'] .guard-entity-row {
+  background: #F7FAFA;
+  border-color: #E1E8E8;
+}
+/* Gradient badges (profile-pic / logo stand-ins) recoloured to teal in light */
+:root[data-theme='light'] .profile-pic-placeholder,
+:root[data-theme='light'] .vs-avatar-placeholder {
+  background: linear-gradient(135deg, #0B5563, #2C8795);
+}
+/* Platform avatar gradient badges */
+:root[data-theme='light'] .detail-panel-avatar,
+:root[data-theme='light'] .list-row-avatar {
+  background: linear-gradient(135deg, #0B5563, #2C8795);
+}
+:root[data-theme='light'] .score-badge-gradient {
+  background: linear-gradient(90deg, #0B5563, #2C8795);
 }

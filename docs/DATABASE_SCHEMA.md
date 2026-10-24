@@ -517,5 +517,6 @@ People who can sign in (admin, analyst, viewer). The first admin is seeded from 
 | `role` | VARCHAR(20) | no | `viewer` (app) |  |
 | `active` | BOOLEAN | no | `True` (app) |  |
 | `created_at` | TIMESTAMP WITH TIME ZONE | no |  |  |
+| `active_brand_id` | INTEGER | yes |  | the brand the account is working on (re-validated on read; migration 0012) |
 
 Constraints and indexes: unique index `ix_users_email` (email)

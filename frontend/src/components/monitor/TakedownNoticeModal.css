@@ -1,0 +1,83 @@
+.btn-takedown {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 1.5px solid var(--color-warning, #f59e0b);
+  background: transparent;
+  color: var(--color-warning, #f59e0b);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.btn-takedown:hover {
+  background: var(--color-warning, #f59e0b);
+  color: #fff;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .btn-takedown {
+    border-color: #fbbf24;
+    color: #fbbf24;
+  }
+  :root:not([data-theme='light']) .btn-takedown:hover {
+    background: #fbbf24;
+    color: #1a1a2e;
+  }
+}
+:root[data-theme='dark'] .btn-takedown { border-color: #fbbf24; color: #fbbf24; }
+:root[data-theme='dark'] .btn-takedown:hover { background: #fbbf24; color: #1a1a2e; }
+
+.takedown-sub {
+  font-size: 13px;
+  color: var(--color-text-secondary, #64748b);
+  margin: 0 0 12px;
+  line-height: 1.5;
+}
+
+.takedown-letter {
+  width: 100%;
+  min-height: 360px;
+  max-height: 55vh;
+  resize: vertical;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  padding: 12px;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 6px;
+  background: var(--color-surface-2, #f8f9fb);
+  color: var(--color-text, #1a1a2e);
+  box-sizing: border-box;
+  tab-size: 2;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .takedown-letter {
+    background: var(--color-surface, #1e293b);
+    color: var(--color-text, #e2e8f0);
+    border-color: #334155;
+  }
+}
+:root[data-theme='dark'] .takedown-letter { background: var(--color-surface, #1e293b); color: var(--color-text, #e2e8f0); border-color: #334155; }
+
+.takedown-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.takedown-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* Widen the modal for the letter */
+.candidate-dialog:has(.takedown-letter) {
+  max-width: 720px;
+  width: 95vw;
+}

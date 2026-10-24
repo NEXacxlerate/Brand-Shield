@@ -1,0 +1,9 @@
+{
+  "name": "brandshield",
+  "private": true,
+  "description": "Run the whole app from the project root: npm run backend, npm run frontend",
+  "scripts": {
+    "backend": "node scripts/dev.mjs backend",
+    "frontend": "node scripts/dev.mjs frontend"
+  }
+}

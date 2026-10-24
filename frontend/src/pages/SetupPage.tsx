@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { BrandMark, Wordmark } from '../components/common/BrandMark';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ShieldCheck,
   Plus,
@@ -45,7 +45,12 @@ const COMMON_INDUSTRIES = [
 
 export const SetupPage: React.FC = () => {
   const navigate = useNavigate();
-  const { brand, loading: brandLoading } = useBrand();
+  const { brand: activeBrand, loading: brandLoading } = useBrand();
+  // "?new=1" (Add another brand): start from an empty form and create a brand instead of editing the current one.
+  const [params] = useSearchParams();
+  const isNew = params.get('new') === '1';
+  const [createdNew, setCreatedNew] = useState(false);
+  const brand = isNew && !createdNew ? null : activeBrand;
   const [step, setStep] = useState(1);
 
   // Step 1: Detailed Brand Identity Inputs
@@ -166,6 +171,10 @@ export const SetupPage: React.FC = () => {
       }
 
       setBrandCache(saved);
+      if (isNew) {
+        setPrefilled(true);
+        setCreatedNew(true);
+      }
       return true;
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Could not save the brand profile.');
@@ -396,7 +405,7 @@ export const SetupPage: React.FC = () => {
                   <label htmlFor="companyName" className="setup-label">
                     Company or brand name <span className="required-star">*</span>
                   </label>
-                  <input
+                  <input data-voice="brand_name"
                     id="companyName"
                     type="text"
                     className="setup-input"
@@ -411,7 +420,7 @@ export const SetupPage: React.FC = () => {
                   <label htmlFor="industry" className="setup-label">
                     Industry / Sector
                   </label>
-                  <input
+                  <input data-voice="industry"
                     id="industry"
                     type="text"
                     list="industry-suggestions"
@@ -433,7 +442,7 @@ export const SetupPage: React.FC = () => {
                 <label htmlFor="description" className="setup-label">
                   Brand description & public positioning
                 </label>
-                <textarea
+                <textarea data-voice="description"
                   id="description"
                   className="setup-textarea"
                   rows={2}
@@ -448,7 +457,7 @@ export const SetupPage: React.FC = () => {
                 <label htmlFor="aliases" className="setup-label">
                   Aliases, abbreviations & alternate spellings
                 </label>
-                <input
+                <input data-voice="aliases"
                   id="aliases"
                   type="text"
                   className="setup-input"
@@ -467,7 +476,7 @@ export const SetupPage: React.FC = () => {
                   <label htmlFor="keywords" className="setup-label">
                     High-risk keywords to watch
                   </label>
-                  <input
+                  <input data-voice="keywords"
                     id="keywords"
                     type="text"
                     className="setup-input"
@@ -482,7 +491,7 @@ export const SetupPage: React.FC = () => {
                   <label htmlFor="domains" className="setup-label">
                     Official primary domains
                   </label>
-                  <input
+                  <input data-voice="domains"
                     id="domains"
                     type="text"
                     className="setup-input"
@@ -558,7 +567,7 @@ export const SetupPage: React.FC = () => {
                 <form onSubmit={handleAddAccount} className="asset-add-inline-form">
                   <div className="asset-field-select-wrap">
                     <label htmlFor="accPlatform" className="sr-only">Platform</label>
-                    <select
+                    <select data-voice="account_platform"
                       id="accPlatform"
                       className="setup-select"
                       value={accPlatform}
@@ -574,7 +583,7 @@ export const SetupPage: React.FC = () => {
                     <label htmlFor="accHandle" className="sr-only">Handle</label>
                     <div className="input-with-icon">
                       <AtSign size={16} className="input-leading-icon" />
-                      <input
+                      <input data-voice="account_handle"
                         id="accHandle"
                         type="text"
                         className="setup-input pl-icon"
@@ -645,7 +654,7 @@ export const SetupPage: React.FC = () => {
                 <form onSubmit={handleAddApp} className="app-add-form-grid">
                   <div className="setup-field">
                     <label htmlFor="appName" className="setup-sublabel">App Display Name</label>
-                    <input
+                    <input data-voice="app_name"
                       id="appName"
                       type="text"
                       className="setup-input input-sm"
@@ -657,7 +666,7 @@ export const SetupPage: React.FC = () => {
 
                   <div className="setup-field">
                     <label htmlFor="appPackage" className="setup-sublabel">Package / Bundle ID</label>
-                    <input
+                    <input data-voice="app_package"
                       id="appPackage"
                       type="text"
                       className="setup-input input-sm"
@@ -669,7 +678,7 @@ export const SetupPage: React.FC = () => {
 
                   <div className="setup-field">
                     <label htmlFor="appPublisher" className="setup-sublabel">Publisher Name</label>
-                    <input
+                    <input data-voice="app_publisher"
                       id="appPublisher"
                       type="text"
                       className="setup-input input-sm"
@@ -682,7 +691,7 @@ export const SetupPage: React.FC = () => {
                   <div className="setup-field">
                     <label htmlFor="appStore" className="setup-sublabel">Marketplace</label>
                     <div className="app-store-add-row">
-                      <select
+                      <select data-voice="app_store"
                         id="appStore"
                         className="setup-select select-sm"
                         value={appStore}
@@ -817,7 +826,7 @@ export const SetupPage: React.FC = () => {
               <div className="setup-row-2col">
                 <div className="setup-field">
                   <label htmlFor="scanDepth" className="setup-label">Scan Analysis Mode</label>
-                  <select
+                  <select data-voice="scan_depth"
                     id="scanDepth"
                     className="setup-select"
                     value={scanDepth}
@@ -830,7 +839,7 @@ export const SetupPage: React.FC = () => {
 
                 <div className="setup-field">
                   <label htmlFor="alertEmail" className="setup-label">Alert recipient email (optional)</label>
-                  <input
+                  <input data-voice="alert_email"
                     id="alertEmail"
                     type="email"
                     className="setup-input"

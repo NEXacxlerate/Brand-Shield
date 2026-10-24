@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ShieldCheck, Sparkles, Lock, ArrowRight } from 'lucide-react';
 import { BrandMark, Wordmark } from '../components/common/BrandMark';
 import { openStudio } from '../utils/studio';
@@ -7,6 +7,7 @@ import './ProtectBrandPage.css';
 
 export const ProtectBrandPage: React.FC = () => {
   const navigate = useNavigate();
+  const adding = useSearchParams()[0].get('add') === '1';
 
   // "Create a Brand" opens Brand Studio (separate app, same origin, same login). The brand made there is registered in BrandShield from Studio.
   const handleCreateBrand = () => {
@@ -14,7 +15,7 @@ export const ProtectBrandPage: React.FC = () => {
   };
 
   const handleProtectBrand = () => {
-    navigate('/setup');
+    navigate(adding ? '/setup?new=1' : '/setup');
   };
 
   return (
@@ -35,8 +36,13 @@ export const ProtectBrandPage: React.FC = () => {
         <div className="protect-brand-hero">
           <h1 className="protect-brand-heading">Protect Your Brand</h1>
           <p className="protect-brand-subtitle">
-            Choose how you want to get started with BrandShield AI.
+            {adding ? 'Add another brand to protect.' : 'Choose how you want to get started with BrandShield AI.'}
           </p>
+          {adding && (
+            <button type="button" className="btn-card-protect" style={{ marginTop: 12 }} onClick={() => navigate('/dashboard')}>
+              Back to dashboard
+            </button>
+          )}
         </div>
 
         {/* Action Cards Grid */}

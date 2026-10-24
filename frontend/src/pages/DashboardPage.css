@@ -531,3 +531,39 @@
     align-items: flex-start;
   }
 }
+
+/* -- Light-mode overrides (petrol-teal palette) -- */
+:root[data-theme='light'] .dash-hero-card {
+  background: linear-gradient(135deg, #E2F0F1 0%, #F7FAFA 100%);
+  border-color: #B3D5D9;
+}
+:root[data-theme='light'] .dash-hero-card .dash-hero-glow { display: none; }
+:root[data-theme='light'] .dash-hero-title { color: #0D1F26; }
+:root[data-theme='light'] .dash-hero-sub { color: #3E5158; }
+:root[data-theme='light'] .dash-hero-status { color: #5F7178; }
+:root[data-theme='light'] .live-dot { background: #1F8A5B; box-shadow: 0 0 6px #1F8A5B; }
+:root[data-theme='light'] .dash-hero-card .btn-secondary { background: rgba(11,85,99,0.12); border-color: rgba(11,85,99,0.3); color: #0B5563; }
+:root[data-theme='light'] .dash-kpi-card { background: #FFFFFF; border-color: #E1E8E8; }
+:root[data-theme='light'] .tone-blue { background: #E2F0F1; border-color: #B3D5D9; color: #0B5563; }
+:root[data-theme='light'] .tone-red { background: #FCEBEA; border-color: #F0BDBA; color: #C93A3A; }
+:root[data-theme='light'] .tone-purple { background: #FDF2D6; border-color: #F2CFA3; color: #8A5A00; }
+:root[data-theme='light'] .tone-green { background: #E4F4EC; border-color: #B3DEC8; color: #1F8A5B; }
+:root[data-theme='light'] .kpi-big-num { color: #0D1F26; }
+:root[data-theme='light'] .kpi-delta-chip { background: #E4F4EC; border-color: #B3DEC8; color: #14633F; }
+:root[data-theme='light'] .kpi-protected-badge { background: #E4F4EC; color: #14633F; }
+:root[data-theme='light'] .source-bar-track { background: #E6ECEC; }
+:root[data-theme='light'] .source-bar-fill { background: #2C8795; }
+:root[data-theme='light'] .dash-data-table th { border-bottom-color: #E1E8E8; color: #5F7178; }
+:root[data-theme='light'] .dash-data-table td { border-bottom-color: #E1E8E8; }
+:root[data-theme='light'] .dash-data-table tbody tr:hover { background: #F7FAFA; }
+:root[data-theme='light'] .review-item-row { background: #FCEBEA; border-color: #F0BDBA; }
+:root[data-theme='light'] .review-item-row:hover { background: #F8D7D5; border-color: #F0BDBA; }
+:root[data-theme='light'] .review-item-icon { color: #C93A3A; }
+:root[data-theme='light'] .review-card { background: #FCEBEA; border-color: #F0BDBA; }
+:root[data-theme='light'] .head-link { color: #0B5563; }
+:root[data-theme='light'] .sparkle-icon { color: #E8A317; }
+:root[data-theme='light'] .live-indicator-dot { background: #1F8A5B; box-shadow: 0 0 6px #1F8A5B; }
+:root[data-theme='light'] .by-type-legend-dot.c-fake_app { background: #0B5563; }
+:root[data-theme='light'] .by-type-legend-dot.c-fake_profile { background: #C93A3A; }
+:root[data-theme='light'] .by-type-legend-dot.c-scam_account { background: #E8A317; }
+:root[data-theme='light'] .by-type-legend-dot.c-fake_brand_page { background: #3A6E9E; }

@@ -365,17 +365,22 @@
 
 .login-brand-header .brand-mark { width: 34px; height: 34px; }
 
-/* ── Light mode overrides ── */
+/* ── Light mode overrides (updated for petrol-teal palette) ── */
 :root[data-theme='light'] .login-screen {
   background-color: var(--bg-page);
   color: var(--text-main);
 }
 :root[data-theme='light'] .login-hero-pane {
-  background: radial-gradient(circle at 10% 8%, #1a1f4a 0%, #0e1130 55%, #0a0d22 100%);
-  border-right-color: rgba(255, 255, 255, 0.08);
+  background: #E2F0F1;
+  border-right-color: #B3D5D9;
+}
+:root[data-theme='light'] .login-hero-pane .hero-orb { display: none; }
+:root[data-theme='light'] .login-hero-pane .hero-orbs-wrap::before,
+:root[data-theme='light'] .login-hero-pane .hero-orbs-wrap::after {
+  border-color: #B3D5D9;
 }
 :root[data-theme='light'] .login-form-pane {
-  background-color: var(--bg-shell);
+  background-color: #FFFFFF;
 }
 :root[data-theme='light'] .login-form-title {
   color: var(--text-main);
@@ -387,40 +392,53 @@
   color: var(--t-strong);
 }
 :root[data-theme='light'] .form-input {
-  background: var(--bg-inner);
-  border-color: var(--border-card);
+  background: #FFFFFF;
+  border-color: #CBD6D7;
   color: var(--text-main);
 }
 :root[data-theme='light'] .form-input:focus {
-  border-color: var(--accent);
+  border-color: #2C8795;
+  box-shadow: 0 0 0 3px #E2F0F1;
 }
 :root[data-theme='light'] .custom-checkbox {
-  background: rgba(0, 0, 40, 0.04);
-  border-color: var(--border-card);
+  background: #FFFFFF;
+  border-color: #CBD6D7;
+}
+:root[data-theme='light'] .custom-checkbox.checked {
+  background: #2C8795;
+  border-color: #2C8795;
 }
 :root[data-theme='light'] .checkbox-text {
   color: var(--t-soft);
 }
 :root[data-theme='light'] .auth-error-alert {
-  background: var(--red-bg);
-  border-color: var(--red-border);
-  color: var(--red-text);
+  background: #FCEBEA;
+  border-color: #F0BDBA;
+  color: #9B2323;
+}
+:root[data-theme='light'] .auth-submit-btn {
+  background: #0B5563;
+  border-color: transparent;
+  box-shadow: 0 1px 2px rgba(11,85,99,.25), 0 6px 14px -6px rgba(11,85,99,.45);
+}
+:root[data-theme='light'] .auth-submit-btn:hover {
+  background: #094652;
 }
 :root[data-theme='light'] .new-org-separator {
   color: var(--text-muted);
 }
 :root[data-theme='light'] .new-org-separator::before,
 :root[data-theme='light'] .new-org-separator::after {
-  background: rgba(0, 0, 40, 0.10);
+  background: #E1E8E8;
 }
 :root[data-theme='light'] .auth-setup-btn {
-  background: rgba(0, 0, 40, 0.04);
-  border-color: var(--border-card);
+  background: #FFFFFF;
+  border-color: #CBD6D7;
   color: var(--text-main);
 }
 :root[data-theme='light'] .auth-setup-btn:hover {
-  background: rgba(0, 0, 40, 0.08);
-  border-color: rgba(0, 0, 40, 0.16);
+  background: #F7FAFA;
+  border-color: #B3D5D9;
 }
 :root[data-theme='light'] .auth-audit-notice {
   color: var(--text-dim);
@@ -429,7 +447,7 @@
   color: var(--text-dim);
 }
 :root[data-theme='light'] .link-btn {
-  color: var(--accent);
+  color: #0B5563;
 }
 
 .demo-credentials-row {
@@ -466,3 +484,13 @@
   line-height: 1.4;
   color: var(--text-dim);
 }
+
+/* Back to the landing page */
+.login-form-pane { position: relative; }
+.login-back {
+  position: absolute; top: 28px; left: 32px; display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px;
+  border-radius: 999px; border: 1px solid var(--border-card); background: var(--bg-card); color: var(--text-muted);
+  font-size: 13.5px; font-weight: 600; text-decoration: none; transition: color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+.login-back:hover { color: var(--text-main); border-color: var(--accent); transform: translateX(-2px); }
+@media (max-width: 900px) { .login-back { top: 16px; left: 16px; } }

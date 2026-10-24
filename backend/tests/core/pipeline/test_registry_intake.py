@@ -40,7 +40,7 @@ def test_archive_is_soft_admin_only_and_needs_the_name(env):
     assert c.get("/api/brands", headers=h).json() == [] and c.get(f"/api/brands/{b['id']}", headers=h).status_code == 404
     assert c.post("/api/scan", json={"scope": "all"}, headers=h).status_code in (404, 409, 422)
     assert c.post("/api/brands", json={"name": "Other Co"}, headers=h).status_code == 201  # archived brand does not block a new one
-    assert c.post(f"/api/brands/{b['id']}/restore", headers=h).status_code == 409
+    assert c.post(f"/api/brands/{b['id']}/restore", headers=h).status_code == 200  # several brands are allowed
     audit = c.get("/api/audit", headers=h).json()
     assert "brand.archived" in json.dumps(audit)
 

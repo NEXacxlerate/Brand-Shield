@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { BrandMark, Wordmark } from '../components/common/BrandMark';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Target, Users, Database, Lock, Check } from 'lucide-react';
+import { Target, Users, Database, Lock, Check, ArrowLeft } from 'lucide-react';
 import { ApiError } from '../api/client';
 import { sm } from '../api/sm';
 import { safeStudioNext } from '../utils/studio';
@@ -115,6 +115,9 @@ export const LoginPage: React.FC = () => {
 
       {/* Right Column */}
       <div className="login-form-pane">
+        <Link to="/" className="login-back" data-testid="back-to-home">
+          <ArrowLeft size={16} /> Back to home
+        </Link>
         <div className="login-form-box">
           <h2 className="login-form-title">Welcome back</h2>
           <p className="login-form-subtitle">Sign in to your brand protection workspace.</p>

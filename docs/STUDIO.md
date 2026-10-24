@@ -69,7 +69,9 @@ Logo generation needs Pollinations credits ("pollen"). When they are exhausted (
 - Per user: 20 AI requests a minute, 200 text and 50 image calls a day (UTC); `429` is shown as a friendly wait message.
 - Image generation can take up to two minutes, and produces nothing while the Pollinations credits are exhausted.
 - Saved items: 500 per user, picture at most 2 MB, data at most 64 KB.
-- Brand: one active brand per account; `viewer` accounts cannot register one.
+- Brand: an account can protect up to 10 brands (each Studio registration adds one and selects it); `viewer` accounts cannot register one.
+- Remembered details: brand name, industry, audience, description, tone/style/mood are kept per account in the browser (`studio/src/lib/profile.ts`) and shared by every tool that has the field.
+- Collections: generated or uploaded logos over 1.5 MB are scaled down before saving (the server accepts 2 MB).
 - Analytics counters are per browser (localStorage), not per account.
 
 ## Image provider: Pollinations

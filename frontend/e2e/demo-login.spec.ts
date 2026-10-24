@@ -17,7 +17,7 @@ test('demo credentials: the button fills the form and the demo account signs in 
 
   // a normal account: it has no administrator rights (the data-mode switch is admin-only)
   await page.goto('/settings');
-  await expect(page.getByText('Only administrators can change settings')).toBeVisible({ timeout: 30_000 });
+  await expect(page).toHaveURL(/\/dashboard$/, { timeout: 30_000 }); // Settings is for administrators only
 });
 
 test('admin demo: the button signs in as a guarded administrator (editable settings, no live data, own audit rows only)', async ({ page, request }) => {

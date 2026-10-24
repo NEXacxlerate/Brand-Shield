@@ -25,13 +25,29 @@ def test_create_brand_and_get(client, admin_h):
     assert b["official_assets"] == 0
     assert b["source"] == "live"
     assert client.get(f"/api/brands/{b['id']}", headers=admin_h).json() == b
-    assert client.get("/api/brands", headers=admin_h).json() == [{"id": b["id"], "name": "Acme Bank"}]
+    assert client.get("/api/brands", headers=admin_h).json() == [{"id": b["id"], "name": "Acme Bank", "active": True}]
 
 
-def test_only_one_brand_for_now(client, admin_h, brand):
-    r = client.post("/api/brands", json={"name": "Second"}, headers=admin_h)
-    assert r.status_code == 409
-    assert "detail" in r.json()
+def test_an_account_can_protect_several_brands_and_switch(client, admin_h, brand):
+    second = client.post("/api/brands", json={"name": "Second"}, headers=admin_h)
+    assert second.status_code == 201
+    sid = second.json()["id"]
+    # the new brand is selected: /me and the default-brand pages follow it
+    assert client.get("/api/me", headers=admin_h).json()["default_brand_id"] == sid
+    listing = client.get("/api/brands", headers=admin_h).json()
+    assert [(x["name"], x["active"]) for x in listing] == [("Acme Bank", False), ("Second", True)]
+    assert client.post(f"/api/brands/{brand['id']}/select", headers=admin_h).status_code == 200
+    assert client.get("/api/me", headers=admin_h).json()["default_brand_id"] == brand["id"]
+    assert client.get("/api/dashboard", headers=admin_h).json()["brand"]["name"] == "Acme Bank"
+    assert client.post(f"/api/brands/{sid}/select", headers=admin_h).status_code == 200
+    assert client.get("/api/dashboard", headers=admin_h).json()["brand"]["name"] == "Second"
+
+
+def test_brand_cap_per_account(client, admin_h, brand):
+    for i in range(9):
+        assert client.post("/api/brands", json={"name": f"Extra {i}"}, headers=admin_h).status_code == 201
+    r = client.post("/api/brands", json={"name": "One too many"}, headers=admin_h)
+    assert r.status_code == 409 and "up to 10" in r.json()["detail"]
 
 
 def test_update_brand_replaces_identity(client, admin_h, brand):

@@ -10,6 +10,7 @@ import { useBrand } from '../contexts/BrandContext';
 import { SuccessFlow } from './SuccessFlow';
 import { cn } from '../lib/utils';
 
+import { useRemembered } from '../lib/profile';
 function ScoreRing({ score, color, size = 80 }: { score: number; color: string; size?: number }) {
     const radius = (size - 12) / 2;
     const circumference = 2 * Math.PI * radius;
@@ -50,9 +51,9 @@ export const BrandAudit: React.FC = () => {
     const { user } = useAuth();
     const { selectedBrand } = useBrand();
     const { saveItem } = useCollections();
-    const [brandName, setBrandName] = useState('');
-    const [description, setDescription] = useState('');
-    const [industry, setIndustry] = useState('');
+    const [brandName, setBrandName] = useRemembered('brandName');
+    const [description, setDescription] = useRemembered('description');
+    const [industry, setIndustry] = useRemembered('industry');
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<BrandAuditResult | null>(null);
     const [error, setError] = useState<string | null>(null);

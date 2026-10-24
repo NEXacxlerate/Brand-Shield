@@ -117,7 +117,7 @@ const AddDialog: React.FC<{ kind: Kind; onClose: () => void; onAdded: (m: string
               {f.required ? ' *' : ''}
             </span>
             {f.options ? (
-              <select className="field-input" value={vals[f.key]} onChange={(e) => setVals({ ...vals, [f.key]: e.target.value })}>
+              <select data-voice={f.key} className="field-input" value={vals[f.key]} onChange={(e) => setVals({ ...vals, [f.key]: e.target.value })}>
                 {f.options.map((o) => (
                   <option key={o} value={o}>
                     {o}
@@ -125,7 +125,7 @@ const AddDialog: React.FC<{ kind: Kind; onClose: () => void; onAdded: (m: string
                 ))}
               </select>
             ) : (
-              <input className="field-input" value={vals[f.key]} required={f.required} onChange={(e) => setVals({ ...vals, [f.key]: e.target.value })} />
+              <input data-voice={f.key} className="field-input" value={vals[f.key]} required={f.required} onChange={(e) => setVals({ ...vals, [f.key]: e.target.value })} />
             )}
           </label>
         ))}

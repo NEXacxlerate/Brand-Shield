@@ -424,6 +424,7 @@ CREATE TABLE users (
 	role VARCHAR(20) NOT NULL, 
 	active BOOLEAN NOT NULL, 
 	created_at TIMESTAMP WITH TIME ZONE NOT NULL, 
+	active_brand_id INTEGER, 
 	CONSTRAINT pk_users PRIMARY KEY (id)
 );
 

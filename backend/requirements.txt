@@ -14,5 +14,6 @@ redis>=5,<7
 rq>=1.16,<3
 python-multipart>=0.0.9
 tldextract>=5.1,<6   # BSD-3-Clause. Registrable domain via its BUNDLED Public Suffix List snapshot (suffix_list_urls=(): no runtime download)
-rapidfuzz>=3.9,<4    # MIT. Additional string-similarity signal for domains (beside the home-grown matcher)
+rapidfuzz>=3.9,<4    # MIT. Additional string-similarity signal for domains (beside the home-grown matcher); voice-command fast path
+google-genai>=1.20,<3  # Apache-2.0. Gemini function calling for the voice agent (/api/voice)
 idna>=3.7,<4         # BSD-3-Clause. IDN <-> punycode (already a transitive dependency of httpx)

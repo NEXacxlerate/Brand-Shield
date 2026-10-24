@@ -326,3 +326,24 @@
     grid-row: auto;
   }
 }
+
+/* -- Light-mode overrides (petrol-teal palette) -- */
+:root[data-theme='light'] .test-input-field { background: #FFFFFF; border-color: #CBD6D7; color: #0D1F26; }
+:root[data-theme='light'] .test-input-field:focus { border-color: #2C8795; box-shadow: 0 0 0 3px #E2F0F1; }
+:root[data-theme='light'] .test-input-field.active-target { border-color: #2C8795; }
+:root[data-theme='light'] .preset-pill-btn { background: #F7FAFA; border-color: #E1E8E8; color: #3E5158; }
+:root[data-theme='light'] .preset-pill-btn:hover { background: #F2F5F5; }
+:root[data-theme='light'] .preset-pill-btn.active { background: #E2F0F1; border-color: #2C8795; color: #0B5563; }
+:root[data-theme='light'] .compare-target { color: #0B5563; background: #E2F0F1; border-radius: 4px; padding: 1px 5px; }
+:root[data-theme='light'] .test-lbl { color: #5F7178; }
+:root[data-theme='light'] .step-timeline-row { border-top-color: #E1E8E8; }
+:root[data-theme='light'] .step-timeline-val { color: #0D1F26; }
+:root[data-theme='light'] .step-timeline-key { color: #5F7178; }
+:root[data-theme='light'] .pass-rate-chip { background: #E4F4EC; border-color: #B3DEC8; color: #14633F; }
+:root[data-theme='light'] .pass-check { color: #1F8A5B; }
+:root[data-theme='light'] .rule-chk { color: #1F8A5B; }
+:root[data-theme='light'] .edit-brands-link { color: #0B5563; }
+:root[data-theme='light'] .test-name-card { background: #FFFFFF; border-color: #E1E8E8; }
+:root[data-theme='light'] .lookalike-side-stack .card { background: #FFFFFF; border-color: #E1E8E8; }
+:root[data-theme='light'] .match-result-container { background: #FCEBEA; border-color: #F0BDBA; }
+:root[data-theme='light'] .match-title { color: #9B2323; }

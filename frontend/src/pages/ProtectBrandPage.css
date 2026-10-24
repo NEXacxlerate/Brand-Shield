@@ -259,22 +259,26 @@
   width: 100%;
   height: 48px;
   border-radius: 12px;
-  border: none;
-  background: linear-gradient(135deg, #4f63f0 0%, #635bff 100%);
-  color: #ffffff;
+  border: 1px solid #2a2a35;
+  background: rgba(255, 255, 255, 0.035);
+  color: #cfd2e3;
   font-size: 14.5px;
   font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  box-shadow: 0 4px 18px rgba(79, 99, 240, 0.35);
   cursor: pointer;
-  transition: all 0.18s ease;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.18s ease;
   pointer-events: none; /* Card handles the click */
 }
 
-.card-protect:hover .btn-card-protect {
+/* like "Create a Brand": plain until the card is hovered or focused, then it fills in */
+.card-protect:hover .btn-card-protect,
+.card-protect:focus-visible .btn-card-protect {
+  background: linear-gradient(135deg, #4f63f0 0%, #635bff 100%);
+  border-color: transparent;
+  color: #ffffff;
   box-shadow: 0 6px 24px rgba(79, 99, 240, 0.55);
   transform: translateY(-1px);
 }
@@ -364,3 +368,5 @@
     padding: 24px 20px;
   }
 }
+
+.protect-brand-screen { padding-bottom: 96px; }

@@ -10,15 +10,16 @@ import { useBrand } from '../contexts/BrandContext';
 import { useCollections } from '../contexts/CollectionsContext';
 import { cn } from '../lib/utils';
 
+import { useRemembered } from '../lib/profile';
 export const BrandNameGenerator: React.FC = () => {
   const { isDark } = useTheme();
   const { user } = useAuth();
   const { navigateTo } = useBrand();
   const { saveItem } = useCollections();
 
-  const [industry, setIndustry] = useState('');
-  const [audience, setAudience] = useState('');
-  const [personality, setPersonality] = useState('Modern');
+  const [industry, setIndustry] = useRemembered('industry');
+  const [audience, setAudience] = useRemembered('audience');
+  const [personality, setPersonality] = useRemembered('personality', 'Modern');
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<BrandName[]>([]);
   const [copied, setCopied] = useState<string | null>(null);

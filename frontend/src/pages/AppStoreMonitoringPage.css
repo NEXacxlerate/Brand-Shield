@@ -152,3 +152,13 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* -- Light-mode overrides (petrol-teal palette) -- */
+:root[data-theme='light'] .app-result-row { background: #F7FAFA; border-color: #E1E8E8; }
+:root[data-theme='light'] .app-result-row:hover { background: #F2F5F5; border-color: #CBD6D7; }
+:root[data-theme='light'] .app-result-row.active { background: #E2F0F1; border-color: #2C8795; }
+:root[data-theme='light'] .app-store-badge { background: #E2F0F1; color: #0B5563; border-color: #B3D5D9; }
+:root[data-theme='light'] .app-icon-placeholder { background: linear-gradient(135deg, #0B5563, #2C8795); }
+:root[data-theme='light'] .publisher-alert-box { background: #FCEBEA; border-color: #F0BDBA; color: #9B2323; }
+:root[data-theme='light'] .keyword-highlight-pill { background: #E2F0F1; border-color: #B3D5D9; color: #0B5563; }
+:root[data-theme='light'] .description-overlap-card { background: #F7FAFA; border-color: #E1E8E8; }

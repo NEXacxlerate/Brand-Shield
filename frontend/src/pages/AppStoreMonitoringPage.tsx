@@ -4,6 +4,8 @@ import { ScoreRing } from '../components/charts/ScoreRing';
 import { Header } from '../components/layout/Header';
 import { ActionRow, EvidenceBox, ExcludedCard, GuardCard, ReasonsBox, SeverityChip, SourcesBar } from '../components/monitor/MonitorParts';
 import { CandidateTools } from '../components/monitor/CandidateTools';
+import { TakedownNoticeButton } from '../components/monitor/TakedownNoticeModal';
+import { LogoCompare } from '../components/monitor/LogoCompare';
 import { Empty, ErrorBox, Loading, NoBrand, Notice, SampleNote } from '../components/common/States';
 import { fmtDayTime, platformLabel, SOURCE_LABEL, statusChip, statusLabel } from '../api/format';
 import { useBrand } from '../hooks/useBrand';
@@ -27,6 +29,7 @@ export const AppStoreMonitoringPage: React.FC = () => {
   const { items, selectedRow, list, scan } = m;
   const detail = m.detail.data && selectedRow && m.detail.data.id === selectedRow.id ? m.detail.data : null;
   const counts = list.data?.counts;
+  const hasScannedBefore = m.sources.data?.items.some((s) => s.last_sync_at !== null);
 
   const act = (a: 'confirmed' | 'reviewing' | 'dismissed' | 'official') => {
     if (!selectedRow) return;
@@ -113,7 +116,13 @@ export const AppStoreMonitoringPage: React.FC = () => {
                 {list.loading && <Loading what="Loading apps" />}
                 {list.error && <ErrorBox error={list.error} onRetry={list.reload} compact />}
                 {list.data && items.length === 0 && (
-                  <Empty>{m.filter === 'all' ? 'No suspicious apps yet. Run a scan to check the stores.' : 'No apps from this store.'}</Empty>
+                  <Empty>
+                    {m.filter !== 'all'
+                      ? 'No apps from this store.'
+                      : hasScannedBefore
+                        ? 'Scan complete — no suspicious apps found. Your brand appears clean. Run another scan to check again.'
+                        : 'No suspicious apps yet. Run a scan to check the stores.'}
+                  </Empty>
                 )}
                 {items.map((item) => (
                   <div
@@ -241,6 +250,7 @@ export const AppStoreMonitoringPage: React.FC = () => {
                   </div>
                 </div>
 
+                <LogoCompare detail={detail} />
                 {/* Description Overlap: the server reports points, not a percentage, and no matched phrases */}
                 <div className="description-overlap-card">
                   <div className="overlap-head">
@@ -259,6 +269,8 @@ export const AppStoreMonitoringPage: React.FC = () => {
                 {/* Action buttons */}
                 <ActionRow confirmLabel="Confirm fake app" disabled={!canWrite || m.busyId === detail.id || detail.status === 'marked_official'} onAction={act} />
                 {m.actionError && <Notice onClose={m.clearActionError}>{m.actionError}</Notice>}
+
+                <TakedownNoticeButton d={detail} />
 
                 <div className="analyst-confirm-note">
                   A person confirms every detection. Store screenshot and listing details are saved as evidence.

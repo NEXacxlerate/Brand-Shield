@@ -429,12 +429,12 @@ test('viewer: read-only (no scan, no settings changes, no data-mode switch); sig
   await login(page, VIEWER);
   await expect(page.getByRole('button', { name: /Run scan now/ })).toBeDisabled();
   await expect(page.getByText('E2E Viewer').first()).toBeVisible();
-  await nav(page, 'Settings', /\/settings$/);
-  await expect(page.getByTestId('settings-save')).toBeDisabled();
-  await expect(page.getByText('Only administrators can change settings')).toBeVisible();
-  await page.locator('.settings-tab-btn', { hasText: 'Account' }).click();
-  await expect(page.getByText('Read only: only administrators can change the data mode')).toBeVisible();
-  await expect(page.getByRole('radio', { name: 'Live' })).toBeDisabled();
+  // administrator-only pages: no menu entry, and typing the address leads back to the dashboard
+  for (const name of ['Source Health', 'Model Evaluation', 'Settings']) await expect(page.locator('.sidebar-nav, .sidebar-bottom').getByText(name, { exact: true })).toHaveCount(0);
+  for (const path of ['/settings', '/sources', '/evaluation']) {
+    await page.goto(path);
+    await expect(page).toHaveURL(/\/dashboard$/);
+  }
 
   // sign out: the real key is removed from both storages and the guard sends the user back to the login page
   await page.locator('.user-chip').click();

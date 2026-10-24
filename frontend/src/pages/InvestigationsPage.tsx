@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Header } from '../components/layout/Header';
 import { SeverityChip } from '../components/monitor/MonitorParts';
+import { TakedownNoticeButton } from '../components/monitor/TakedownNoticeModal';
 import { Empty, ErrorBox, Loading, NoBrand, Notice } from '../components/common/States';
 import { ApiError } from '../api/client';
 import { fmtDayTime, humanize, statusChip, statusLabel } from '../api/format';
@@ -55,7 +56,7 @@ export const InvestigationsPage: React.FC = () => {
           <div className="inv-filters">
             <label>
               <span className="field-lbl">Status</span>
-              <select className="field-input" aria-label="Filter by status" value={status} onChange={(e) => setStatus(e.target.value)}>
+              <select data-voice="status_filter" className="field-input" aria-label="Filter by status" value={status} onChange={(e) => setStatus(e.target.value)}>
                 <option value="">All</option>
                 {STATUSES.map((s) => (
                   <option key={s} value={s}>{statusLabel(s)}</option>
@@ -64,7 +65,7 @@ export const InvestigationsPage: React.FC = () => {
             </label>
             <label>
               <span className="field-lbl">Severity</span>
-              <select className="field-input" aria-label="Filter by severity" value={severity} onChange={(e) => setSeverity(e.target.value)}>
+              <select data-voice="severity_filter" className="field-input" aria-label="Filter by severity" value={severity} onChange={(e) => setSeverity(e.target.value)}>
                 <option value="">All</option>
                 {SEVERITIES.map((s) => (
                   <option key={s} value={s}>{humanize(s.toLowerCase())}</option>
@@ -73,7 +74,7 @@ export const InvestigationsPage: React.FC = () => {
             </label>
             <label>
               <span className="field-lbl">Resolution</span>
-              <select className="field-input" aria-label="Filter by resolution" value={resolution} onChange={(e) => setResolution(e.target.value)}>
+              <select data-voice="resolution_filter" className="field-input" aria-label="Filter by resolution" value={resolution} onChange={(e) => setResolution(e.target.value)}>
                 <option value="">All</option>
                 {RESOLUTIONS.map((s) => (
                   <option key={s} value={s}>{humanize(s)}</option>
@@ -158,7 +159,7 @@ const CasePanel: React.FC<{ d: DetectionDetail; canWrite: boolean; onSaved: () =
 
       <label className="inv-note">
         <span className="field-lbl">Note (optional, saved with the decision)</span>
-        <textarea className="field-input" rows={2} maxLength={1000} value={note} onChange={(e) => setNote(e.target.value)} />
+        <textarea data-voice="note" className="field-input" rows={2} maxLength={1000} value={note} onChange={(e) => setNote(e.target.value)} />
       </label>
 
       <div className="detail-actions-row">
@@ -171,7 +172,7 @@ const CasePanel: React.FC<{ d: DetectionDetail; canWrite: boolean; onSaved: () =
       </div>
       <div className="detail-actions-row">
         <span className="field-lbl">Resolution</span>
-        <select className="field-input inv-res-select" aria-label="Resolution" value={res} onChange={(e) => setRes(e.target.value as Resolution)} disabled={!canWrite || busy}>
+        <select data-voice="resolution" className="field-input inv-res-select" aria-label="Resolution" value={res} onChange={(e) => setRes(e.target.value as Resolution)} disabled={!canWrite || busy}>
           {RESOLUTIONS.map((r) => (
             <option key={r} value={r}>{humanize(r)}</option>
           ))}
@@ -183,6 +184,8 @@ const CasePanel: React.FC<{ d: DetectionDetail; canWrite: boolean; onSaved: () =
       {!canWrite && <div className="helper-note">Read only: your role can view but not change cases.</div>}
       {error && <Notice onClose={() => setError(null)}>{error}</Notice>}
       {saved && <Notice kind="info" onClose={() => setSaved(null)}>{saved}</Notice>}
+
+      <TakedownNoticeButton d={d} />
 
       <h4 className="scored-title" style={{ marginTop: 16 }}>Timeline</h4>
       {d.history.length === 0 && <Empty>No history yet.</Empty>}

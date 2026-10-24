@@ -20,18 +20,30 @@ import { useApi } from '../hooks/useApi';
 import { useBrand } from '../hooks/useBrand';
 import { useMe } from '../hooks/useMe';
 import { useScan } from '../hooks/useScan';
+import { getTheme } from '../utils/theme';
 import './DashboardPage.css';
 
 interface DashboardPageProps {
   onOpenMobileMenu?: () => void;
 }
 
-const TYPE_COLOR: Record<DetectionType, string> = {
+/** Dark mode chart palette (unchanged from original). */
+const TYPE_COLOR_DARK: Record<DetectionType, string> = {
   fake_app: '#4f9dff',
   fake_profile: '#a78bfa',
   scam_account: '#f0566a',
   fake_brand_page: '#f59e55',
 };
+/** Light mode chart palette (new petrol-teal palette). */
+const TYPE_COLOR_LIGHT: Record<DetectionType, string> = {
+  fake_app: '#0B5563',
+  fake_profile: '#C93A3A',
+  scam_account: '#E8A317',
+  fake_brand_page: '#3A6E9E',
+};
+function getTypeColors(): Record<DetectionType, string> {
+  return getTheme() === 'light' ? TYPE_COLOR_LIGHT : TYPE_COLOR_DARK;
+}
 
 /** "name similarity, bio content and account signals" */
 function joinWords(items: string[]): string {
@@ -52,7 +64,7 @@ function scanSummary(scan: Scan): string {
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenMobileMenu }) => {
   const navigate = useNavigate();
-  const { canWrite } = useMe();
+  const { canWrite, isAdmin } = useMe();
   const { reload: reloadBrand } = useBrand();
   const dash = useApi((signal) => sm.dashboard(signal), []);
   const scan = useScan('all', () => {
@@ -105,7 +117,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenMobileMenu }
   const impersonationTypesData = d.by_type.map((t) => ({
     label: typeLabel(t.type),
     value: t.count,
-    color: TYPE_COLOR[t.type] ?? '#8b9bff',
+    color: getTypeColors()[t.type] ?? (getTheme() === 'light' ? '#0B5563' : '#8b9bff'),
     percentage: t.percent,
   }));
   const maxPlatform = Math.max(1, ...d.by_platform.map((p) => p.count));
@@ -193,9 +205,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenMobileMenu }
 
           {/* Row 1: 4 KPI Cards */}
           <div className="dash-kpi-row">
-            {kpiTile('Total detections', k.total_detections, 'blue', <ClipboardCheck size={17} />, '#5b8def')}
-            {kpiTile('Social impersonations', k.social_impersonations, 'red', <User size={17} />, '#f0566a')}
-            {kpiTile('Suspicious apps', k.suspicious_apps, 'purple', <Smartphone size={17} />, '#a78bfa')}
+            {kpiTile('Total detections', k.total_detections, 'blue', <ClipboardCheck size={17} />, getTheme() === 'light' ? '#2C8795' : '#5b8def')}
+            {kpiTile('Social impersonations', k.social_impersonations, 'red', <User size={17} />, getTheme() === 'light' ? '#C93A3A' : '#f0566a')}
+            {kpiTile('Suspicious apps', k.suspicious_apps, 'purple', <Smartphone size={17} />, getTheme() === 'light' ? '#E8A317' : '#a78bfa')}
 
             {/* KPI 4 */}
             <div className="dash-kpi-card card">
@@ -388,9 +400,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenMobileMenu }
               <div className="card source-mini-card">
                 <div className="panel-card-head">
                   <h3 className="panel-card-title">Source health</h3>
-                  <Link to="/sources" className="head-link">
-                    Manage
-                  </Link>
+                  {isAdmin && (
+                    <Link to="/sources" className="head-link">
+                      Manage
+                    </Link>
+                  )}
                 </div>
                 <div className="source-mini-list">
                   {d.sources.slice(0, 6).map((src) => (

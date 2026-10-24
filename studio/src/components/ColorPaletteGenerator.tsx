@@ -12,6 +12,7 @@ import { SuccessFlow } from './SuccessFlow';
 import { cn } from '../lib/utils';
 
 
+import { useRemembered } from '../lib/profile';
 function hexToRgb(hex: string) {
     const r = parseInt(hex.slice(1, 3), 16);
     const g = parseInt(hex.slice(3, 5), 16);
@@ -34,9 +35,9 @@ export const ColorPaletteGenerator: React.FC = () => {
     const { selectedBrand, setSelectedPalette, navigateTo } = useBrand();
     const { saveItem } = useCollections();
 
-    const [brandName, setBrandName] = useState('');
-    const [industry, setIndustry] = useState('');
-    const [mood, setMood] = useState('Professional');
+    const [brandName, setBrandName] = useRemembered('brandName');
+    const [industry, setIndustry] = useRemembered('industry');
+    const [mood, setMood] = useRemembered('mood', 'Professional');
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<ColorPaletteResult | null>(null);
     const [copied, setCopied] = useState<string | null>(null);
