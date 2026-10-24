@@ -31,6 +31,8 @@ Full documentation index: **[docs/index.md](docs/index.md)**.
 | Model Evaluation | Synthetic evaluation of the name matcher (admin) | [model-evaluation](docs/features/model-evaluation.md) |
 | Settings and audit | Data mode, schedule, thresholds, audit log (admin) | [settings-and-audit](docs/features/settings-and-audit.md) |
 | Brand Studio | AI naming, logo, palette, copy under `/studio/` | [brand-studio](docs/features/brand-studio.md) |
+| Fake URL Scanner | Paste any URL to instantly check if it resembles your brand — verdict, score, signals and domain breakdown | `/url-scanner` route |
+| Risk Investigation | Structured per-detection triage with risk levels, evidence notes and resolution workflow | `/r2` route |
 | Voice agent | Spoken navigation and form filling (Chrome/Edge) | [voice-agent](docs/features/voice-agent.md) |
 | Landing page | Public marketing page at `/` for signed-out visitors | [landing-page](docs/features/landing-page.md) |
 
