@@ -38,7 +38,7 @@ function buildLetter(d: DetectionDetail): string {
       url ? `URL       : ${url}` : null,
       d.handle ? `Handle    : @${d.handle}` : null,
     ].filter(Boolean).join('\n');
-  } else if (d.category === 'app') {
+  } else if (d.category === 'apps') {
     subjectLine = `Counterfeit application impersonating "${brand}"`;
     targetBlock = [
       `Store      : ${platformLabel(d.platform)}`,
@@ -60,7 +60,7 @@ function buildLetter(d: DetectionDetail): string {
 Date: ${today}
 
 To:
-The Owner / Operator of the following ${d.category === 'social' ? 'social media profile' : d.category === 'app' ? 'application' : 'website / page'}:
+The Owner / Operator of the following ${d.category === 'social' ? 'social media profile' : d.category === 'apps' ? 'application' : 'website / page'}:
 
 ${targetBlock}
 
