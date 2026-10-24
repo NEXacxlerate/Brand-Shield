@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { BrandMark, Wordmark } from '../components/common/BrandMark';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Target, Users, Database, Lock, Check, ArrowLeft } from 'lucide-react';
+import { Target, Users, Database, Lock, Check, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { ApiError } from '../api/client';
 import { sm } from '../api/sm';
 import { safeStudioNext } from '../utils/studio';
@@ -15,6 +15,7 @@ export const LoginPage: React.FC = () => {
   const from = (location.state as { from?: string } | null)?.from;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPw, setShowPw] = useState(false);
   const [keepSignedIn, setKeepSignedIn] = useState(true);
   const [busy, setBusy] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -159,16 +160,27 @@ export const LoginPage: React.FC = () => {
                   Forgot password?
                 </button>
               </div>
-              <input
-                id="password"
-                type="password"
-                className="form-input"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
-                required
-                autoComplete="current-password"
-              />
+              <div className="pw-field">
+                <input
+                  id="password"
+                  type={showPw ? 'text' : 'password'}
+                  className="form-input"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  required
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  className="pw-toggle"
+                  onClick={() => setShowPw(!showPw)}
+                  aria-label={showPw ? 'Hide password' : 'Show password'}
+                  aria-pressed={showPw}
+                >
+                  {showPw ? <EyeOff size={17} /> : <Eye size={17} />}
+                </button>
+              </div>
             </div>
 
             <div
