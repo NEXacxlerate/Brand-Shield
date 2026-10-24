@@ -64,7 +64,6 @@ export function qs(params: Query): string {
 export const sm = {
   // ---- auth / me
   login: authApi.login,
-  requestOtp: authApi.requestOtp,
   register: authApi.register,
   demo: authApi.demo,
   logout: authApi.logout,
