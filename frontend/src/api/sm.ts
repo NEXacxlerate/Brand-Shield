@@ -2,6 +2,7 @@
 // Every function accepts an optional AbortSignal (last argument) so a page can cancel what it no longer needs.
 import { authApi } from './auth';
 import { downloadFile, request } from './client';
+import type { VoiceRequest, VoiceResponse } from '../utils/voice';
 import type {
   Brand,
   BrandIdentityInput,
@@ -63,13 +64,18 @@ export function qs(params: Query): string {
 export const sm = {
   // ---- auth / me
   login: authApi.login,
+  requestOtp: authApi.requestOtp,
   register: authApi.register,
   demo: authApi.demo,
   logout: authApi.logout,
   me: (signal?: Sig) => request<Me>('/api/me', { signal }),
 
+  // ---- voice agent (spoken command -> UI actions)
+  voice: (body: VoiceRequest, signal?: Sig) => request<VoiceResponse>('/api/voice', { method: 'POST', json: body, signal }),
+
   // ---- brand
-  brands: (signal?: Sig) => request<{ id: number; name: string }[]>('/api/brands', { signal }),
+  brands: (signal?: Sig) => request<{ id: number; name: string; active: boolean }[]>('/api/brands', { signal }),
+  selectBrand: (id: number) => request<{ id: number; name: string; active: boolean }>(`/api/brands/${id}/select`, { method: 'POST' }),
   brand: (id: number, signal?: Sig) => request<Brand>(`/api/brands/${id}`, { signal }),
   createBrand: (body: Pick<BrandIdentityInput, 'name'> & Partial<BrandIdentityInput>) => request<Brand>('/api/brands', { method: 'POST', json: body }),
   updateBrand: (id: number, body: BrandIdentityInput) => request<Brand>(`/api/brands/${id}`, { method: 'PUT', json: body }),
