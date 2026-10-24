@@ -1,0 +1,315 @@
+/*
+ * BrandShield — Responsive layout layer
+ *
+ * Breakpoints
+ *   ≤ 480px   xs  – small phone
+ *   ≤ 640px   sm  – phone
+ *   ≤ 900px   md  – tablet (sidebar overlay already handled in Layout.css)
+ *   ≤ 1100px  lg  – small laptop (dashboard grid already handled in DashboardPage.css)
+ *
+ * This file contains ONLY responsive overrides. No new base styles here.
+ */
+
+/* ─── prevent horizontal page scroll on any device ─── */
+html, body { overflow-x: hidden; }
+
+/* ════════════════════════════════════════════════════════════
+   TABLET  (≤ 900px)
+   Sidebar already becomes a full-height overlay in Layout.css.
+   Here we tighten the remaining shell.
+════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  /* Sidebar: use the full screen width, not the fixed 244px, on small tablets */
+  .app-sidebar {
+    width: min(300px, 85vw) !important;
+  }
+
+  /* Dim backdrop behind open sidebar (CSS-only via :has) */
+  .app-container:has(.app-sidebar.open)::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 48;
+    pointer-events: none;
+  }
+
+  /* Main panel: flush to screen edges on tablet */
+  .main-panel {
+    margin: 0 !important;
+    border-radius: 0 !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-top: none !important;
+    min-height: 100vh;
+  }
+
+  /* Header: tighter */
+  .panel-header {
+    padding: 14px 16px 8px !important;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  /* Hide long subtitle on tablet — it wraps badly */
+  .header-subtitle { display: none !important; }
+
+  /* User chip: hide email, keep avatar+name */
+  .user-email { display: none !important; }
+
+  /* Panel content: smaller horizontal padding */
+  .panel-content {
+    padding: 14px 14px 80px !important;
+  }
+
+  /* Cards: slightly less inner padding */
+  .card { padding: 16px !important; }
+
+  /* Tables: always horizontal-scroll on tablet */
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Filter / category tab rows: horizontal scroll instead of wrap */
+  .filter-tabs,
+  .monitor-tabs,
+  .tab-row,
+  .filter-row,
+  .format-toggle-group,
+  .settings-tab-row {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    flex-wrap: nowrap !important;
+    padding-bottom: 2px;
+  }
+  .filter-tabs::-webkit-scrollbar,
+  .monitor-tabs::-webkit-scrollbar,
+  .tab-row::-webkit-scrollbar,
+  .filter-row::-webkit-scrollbar,
+  .format-toggle-group::-webkit-scrollbar,
+  .settings-tab-row::-webkit-scrollbar { display: none; }
+
+  /* Brand profile: single column */
+  .profile-layout-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Setup page: steps stacked */
+  .setup-steps-row {
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+
+  /* Reports / lookalike grids */
+  .report-grid,
+  .lookalike-grid,
+  .inv-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Investigations / source-health: collapse side panels */
+  .inv-split,
+  .source-split {
+    flex-direction: column !important;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════
+   PHONE  (≤ 640px)
+════════════════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+  /* Shell: no outer margin at all */
+  .main-panel {
+    border-radius: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  .panel-header {
+    padding: 12px 12px 6px !important;
+    gap: 8px;
+  }
+
+  .header-title {
+    font-size: 18px !important;
+  }
+
+  .panel-content {
+    padding: 10px 10px 80px !important;
+  }
+
+  /* Cards */
+  .card { padding: 12px !important; }
+  .inner-panel { padding: 10px !important; }
+
+  /* Buttons: full-width in auth/setup flows */
+  .auth-submit-btn { width: 100%; }
+
+  /* Chips: allow wrapping */
+  .us-chips-row,
+  .why-flagged-tags { flex-wrap: wrap !important; }
+
+  /* ── Dashboard ── */
+  .dash-kpi-row {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  .dash-hero-card {
+    padding: 20px 16px !important;
+    gap: 14px !important;
+  }
+
+  .dash-hero-title {
+    font-size: 22px !important;
+    letter-spacing: -0.02em !important;
+  }
+
+  .dash-hero-sub { font-size: 13px !important; }
+
+  .dash-hero-actions {
+    flex-wrap: wrap;
+    gap: 8px !important;
+  }
+
+  .dash-hero-actions .btn-primary,
+  .dash-hero-actions .btn-secondary {
+    flex: 1 1 auto;
+    min-width: 120px;
+  }
+
+  /* ── Brand Profile ── */
+  .profile-section-card {
+    padding: 16px !important;
+  }
+
+  /* ── Login / Register ── */
+  .login-screen {
+    flex-direction: column;
+    min-height: 100vh;
+  }
+
+  /* Hero pane: collapse to a slim branded top bar */
+  .login-hero-pane {
+    flex: none !important;
+    padding: 20px 20px 14px !important;
+    min-height: 0 !important;
+  }
+
+  /* Hide the decorative hero content; keep only the brand header */
+  .login-hero-copy,
+  .login-pillars-grid,
+  .hero-orbs-wrap { display: none !important; }
+
+  .login-brand-header { margin-bottom: 0 !important; }
+
+  /* Form pane takes the rest */
+  .login-form-pane {
+    flex: 1 !important;
+    padding: 24px 20px 32px !important;
+    align-items: flex-start !important;
+  }
+
+  .login-form-box { max-width: 100% !important; }
+
+  .login-form-title { font-size: 26px !important; }
+
+  .login-back { display: none !important; }
+
+  /* ── URL Scanner ── */
+  .us-input-card { padding: 14px !important; }
+
+  .us-input-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .us-scan-btn { width: 100% !important; }
+
+  .us-verdict-banner {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .us-domain-row { flex-wrap: wrap; }
+
+  /* ── Settings ── */
+  .settings-grid,
+  .settings-two-col {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* ── Source health ── */
+  .source-bar-row {
+    grid-template-columns: 80px 1fr 20px !important;
+    gap: 8px !important;
+  }
+
+  /* ── Investigations / R2 table ── */
+  .inv-table-wrap,
+  .r2-table-wrap,
+  .web-table-wrap,
+  .social-table-wrap,
+  .app-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* ── Lookalike lab ── */
+  .lab-input-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  /* ── Setup page ── */
+  .setup-container { padding: 16px !important; }
+
+  .setup-step-actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .setup-step-actions .btn-primary,
+  .setup-step-actions .btn-secondary {
+    width: 100%;
+  }
+
+  /* ── Reports ── */
+  .report-filter-row {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════
+   SMALL PHONE  (≤ 480px)
+════════════════════════════════════════════════════════════ */
+@media (max-width: 480px) {
+  /* KPI grid: single column on very small screens */
+  .dash-kpi-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  .kpi-big-num { font-size: 26px !important; }
+
+  /* Auth forms: tighten */
+  .login-form-pane { padding: 16px 14px 24px !important; }
+  .login-form-title { font-size: 22px !important; }
+  .login-form-subtitle { font-size: 14px !important; }
+
+  /* Header */
+  .header-title { font-size: 16px !important; }
+
+  /* Brand switcher card */
+  .brand-name { font-size: 12px !important; }
+
+  /* Studio CTA in sidebar: shorter */
+  .studio-cta-text small { display: none; }
+
+  /* Table cells: tighten */
+  table td, table th { padding: 8px 6px !important; font-size: 12px !important; }
+}

@@ -1,5 +1,6 @@
 @import './tokens.css';
 @import './light-mode-patches.css';
+@import './responsive.css';
 
 #root {
   width: 100%;
