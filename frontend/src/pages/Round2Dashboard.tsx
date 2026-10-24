@@ -359,7 +359,7 @@ export const Round2Dashboard: React.FC = () => {
     alertData.reload();
   };
 
-  const handleUpdated = useCallback((row: R2InvRow) => {
+  const handleUpdated = useCallback((_row: R2InvRow) => {
     listData.reload();
   }, [listData]);
 

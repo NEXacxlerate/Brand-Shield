@@ -190,18 +190,20 @@ export const UrlScannerPage: React.FC = () => {
               <details className="us-parts-details">
                 <summary>How the address was parsed</summary>
                 <div className="us-parts-table">
-                  {[
-                    ['Input', result.input],
-                    ['Hostname', result.parts.hostname],
-                    result.parts.is_idn ? ['IDN (shown as)', result.parts.hostname_unicode] : null,
-                    ['Subdomain', result.parts.subdomain_labels.length ? result.parts.subdomain_labels.join(' . ') : 'none'],
-                    ['Registrable domain', result.parts.registrable_domain],
-                    ['Top-level domain', `.${result.parts.tld}`],
-                    result.parts.has_credentials ? ['Warning', 'Has user@ credentials (known phishing trick)'] : null,
-                  ]
-                    .filter(Boolean)
+                  {(
+                    [
+                      ['Input', result.input],
+                      ['Hostname', result.parts.hostname],
+                      result.parts.is_idn ? ['IDN (shown as)', result.parts.hostname_unicode] : null,
+                      ['Subdomain', result.parts.subdomain_labels.length ? result.parts.subdomain_labels.join(' . ') : 'none'],
+                      ['Registrable domain', result.parts.registrable_domain],
+                      ['Top-level domain', `.${result.parts.tld}`],
+                      result.parts.has_credentials ? ['Warning', 'Has user@ credentials (known phishing trick)'] : null,
+                    ] as ([string, string | null] | null)[]
+                  )
+                    .filter((x): x is [string, string | null] => x !== null)
                     .map(([lbl, val]) => (
-                      <div key={lbl as string} className="us-part-row">
+                      <div key={lbl} className="us-part-row">
                         <span className="us-part-lbl">{lbl}</span>
                         <span className="us-part-val">{val}</span>
                       </div>
