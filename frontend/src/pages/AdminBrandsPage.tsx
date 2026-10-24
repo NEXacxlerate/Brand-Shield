@@ -36,7 +36,7 @@ export const AdminBrandsPage: React.FC = () => {
 
   return (
     <>
-      <Header title="Brand Management" subtitle="Every brand registered by any account. Admin only." />
+      <Header title="All Brands" subtitle="Every registered brand with its owner. Admin only." />
       <div className="panel-content ab-page">
         {msg && <Notice kind={msg.kind} onClose={() => setMsg(null)}>{msg.text}</Notice>}
         {list.loading && <Loading what="Loading brands" />}

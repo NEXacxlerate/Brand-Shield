@@ -149,7 +149,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
           onClick={onClose}
         >
           <Building2 size={19} strokeWidth={1.8} />
-          <span>Brand Management</span>
+          <span>All Brands</span>
         </NavLink>
         )}
 
