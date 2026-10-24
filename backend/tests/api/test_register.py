@@ -3,8 +3,10 @@ from sqlalchemy import select
 from app.config.config import Settings
 from app.models import AuditLog, User
 from tests.conftest import login
+from app.config.ratelimit import RequestLimiter
 
 GOOD = {"name": "  Rita   Shah ", "email": "Rita.Shah@Example.com", "password": "Correct-Horse-9"}
+
 
 
 def register(client, **over):
@@ -74,12 +76,14 @@ def test_signup_can_be_disabled(settings, checker):
 
 
 def test_signup_rate_limited_per_ip(client):
+    client.app.state.signup_ip_limiter = RequestLimiter(5, 3600)
     codes = [register(client, email=f"user{i}@example.com", name=f"User {i}").status_code for i in range(7)]
     assert codes[:5] == [201] * 5
     assert codes[5:] == [429, 429]
 
 
 def test_signup_rate_limited_per_email(client):
+    client.app.state.signup_email_limiter = RequestLimiter(3, 3600)
     codes = [register(client, email="same@example.com", password=f"Another-Pass-{i}").status_code for i in range(4)]
     assert codes == [201, 409, 409, 429]
 
